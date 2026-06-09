@@ -1,0 +1,122 @@
+/**
+ * Main-thread audio engine: owns the AudioContext, the bowed-string
+ * AudioWorklet node and an analyser for pitch detection. Exposes a small
+ * imperative API used by the input layer and HUD.
+ */
+import workletUrl from "./processor.worklet.ts?worker&url";
+import type { StringSpec } from "./dsp/StringSim";
+import type { AudioMeter } from "../state";
+
+export class Engine {
+  private node: AudioWorkletNode | null = null;
+  analyser: AnalyserNode | null = null;
+  private starting: Promise<void> | null = null;
+
+  meter: AudioMeter = { rms: 0, slipRatio: 0, freq: 440, bowing: false };
+
+  // vibrato modulation applied on top of the base finger position
+  vibratoOn = false;
+  vibratoRate = 5.5;
+  vibratoDepth = 0.006;
+  private vibPhase = 0;
+  private baseFingerPos = 0.3;
+
+  async ensureStarted(): Promise<void> {
+    if (this.node) return;
+    if (this.starting) return this.starting;
+    this.starting = this.start();
+    return this.starting;
+  }
+
+  get started(): boolean {
+    return this.node !== null;
+  }
+
+  private async start(): Promise<void> {
+    const ctx = new AudioContext({ latencyHint: "interactive" });
+    await ctx.audioWorklet.addModule(workletUrl);
+    const node = new AudioWorkletNode(ctx, "bowed-string", {
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+    });
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    const limiter = ctx.createDynamicsCompressor();
+    limiter.threshold.value = -9;
+    limiter.knee.value = 6;
+    limiter.ratio.value = 12;
+    limiter.attack.value = 0.002;
+    limiter.release.value = 0.1;
+    node.connect(analyser);
+    analyser.connect(limiter);
+    limiter.connect(ctx.destination);
+    node.port.onmessage = (e: MessageEvent) => {
+      if (e.data?.type === "state") {
+        this.meter = {
+          rms: e.data.rms,
+          slipRatio: e.data.slipRatio,
+          freq: e.data.freq,
+          bowing: e.data.bowing,
+        };
+      }
+    };
+    this.node = node;
+    this.analyser = analyser;
+    if (ctx.state !== "running") await ctx.resume();
+  }
+
+  private param(name: string): AudioParam | null {
+    return this.node?.parameters.get(name) ?? null;
+  }
+
+  private setParam(name: string, v: number): void {
+    const p = this.param(name);
+    if (p) p.value = v;
+  }
+
+  setBow(on: boolean, velocity: number, force: number, position: number): void {
+    this.setParam("bowOn", on ? 1 : 0);
+    this.setParam("bowVelocity", velocity);
+    this.setParam("bowForce", force);
+    this.setParam("bowPosition", position);
+  }
+
+  setBowOn(on: boolean): void {
+    this.setParam("bowOn", on ? 1 : 0);
+  }
+
+  setFinger(on: boolean, pos: number, pressure: number): void {
+    this.baseFingerPos = pos;
+    this.setParam("fingerOn", on ? 1 : 0);
+    this.setParam("fingerPosition", pos);
+    this.setParam("fingerPressure", pressure);
+  }
+
+  pluck(position: number, force: number, widthMs: number): void {
+    if (!this.node) return;
+    this.setParam("bowPosition", position);
+    this.node.port.postMessage({ type: "pluck", force, widthMs });
+  }
+
+  setString(spec: StringSpec): void {
+    this.node?.port.postMessage({ type: "setString", spec });
+    this.meter.freq = spec.f0;
+  }
+
+  mute(): void {
+    this.node?.port.postMessage({ type: "mute" });
+  }
+
+  /** Called once per animation frame; applies vibrato wobble. */
+  tick(dt: number): void {
+    if (!this.node) return;
+    if (this.vibratoOn) {
+      this.vibPhase += dt * this.vibratoRate * 2 * Math.PI;
+      const offset = Math.sin(this.vibPhase) * this.vibratoDepth;
+      this.setParam("fingerPosition", this.baseFingerPos + offset);
+    }
+  }
+}
+
+export const engine = new Engine();
