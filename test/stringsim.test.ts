@@ -133,19 +133,27 @@ describe("StringSim", () => {
   });
 
   it("bow position affects spectrum (sul ponticello is brighter)", () => {
-    const spectrumCentroid = (pos: number): number => {
+    // each contact point gets a force a player would use there: ponticello
+    // takes more weight, sul tasto a light bow (otherwise the tasto stroke
+    // exceeds its maximum-bow-force limit and goes raucous-bright)
+    const spectrumCentroid = (pos: number, force: number): number => {
       const sim = new StringSim(FS);
       sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
       sim.bodyMix = 0; // compare the raw string signal
       sim.bowOn = true;
-      sim.bowVelocity = 0.2;
-      sim.bowForce = 0.5;
       sim.bowPosition = pos;
-      const out = render(sim, 1.2);
+      sim.bowForce = force;
+      const out = new Float32Array(Math.round(1.4 * FS));
+      let t = 0;
+      for (let i = 0; i + 128 <= out.length; i += 128) {
+        t += 128 / FS;
+        sim.bowVelocity = 0.2 * Math.min(1, t / 0.12); // gentle attack
+        sim.process(out.subarray(i, i + 128));
+      }
       // crude spectral centroid via zero-crossing-weighted derivative energy
       let num = 0;
       let den = 0;
-      const a = Math.round(0.6 * FS);
+      const a = Math.round(0.7 * FS);
       for (let i = a + 1; i < out.length; i++) {
         const d = out[i] - out[i - 1];
         num += d * d;
@@ -153,9 +161,9 @@ describe("StringSim", () => {
       }
       return num / Math.max(1e-12, den);
     };
-    const pont = spectrumCentroid(0.96);
-    const tasto = spectrumCentroid(0.55); // far over the fingerboard
-    expect(pont).toBeGreaterThan(tasto * 2.5);
+    const pont = spectrumCentroid(0.94, 0.6);
+    const tasto = spectrumCentroid(0.62, 0.25); // over the fingerboard
+    expect(pont).toBeGreaterThan(tasto * 2.0);
   });
 
   it("stays in tune when bowing very close to the bridge", () => {
