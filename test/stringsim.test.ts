@@ -60,7 +60,7 @@ function expectNoNaN(buf: Float32Array): void {
 describe("StringSim", () => {
   it("plucked open string sounds at f0", () => {
     const sim = new StringSim(FS);
-    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1 });
+    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
     sim.bowPosition = 0.85;
     sim.pluck(0.6, 1.2);
     const out = render(sim, 0.8);
@@ -72,7 +72,7 @@ describe("StringSim", () => {
 
   it("pluck decays over time", () => {
     const sim = new StringSim(FS);
-    sim.setString({ f0: 220, darkness: 0.3, loss: 0.5, stiffness: 0.1 });
+    sim.setString({ f0: 220, darkness: 0.3, loss: 0.5, stiffness: 0.1, nonlinearity: 0 });
     sim.pluck(0.6, 1.2);
     const out = render(sim, 1.6);
     const early = rms(out, 0.05, 0.25);
@@ -83,7 +83,7 @@ describe("StringSim", () => {
 
   it("bowing sustains a tone at f0 (Helmholtz regime)", () => {
     const sim = new StringSim(FS);
-    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1 });
+    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
     sim.bowOn = true;
     sim.bowVelocity = 0.2;
     sim.bowForce = 0.5;
@@ -101,7 +101,7 @@ describe("StringSim", () => {
 
   it("firm finger stop raises pitch to f0 / (1 - position)", () => {
     const sim = new StringSim(FS);
-    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1 });
+    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
     sim.fingerOn = true;
     sim.fingerPosition = 0.25; // quarter of the string from the nut -> perfect fourth
     sim.fingerPressure = 1;
@@ -119,7 +119,7 @@ describe("StringSim", () => {
 
   it("light touch at the midpoint produces the octave harmonic", () => {
     const sim = new StringSim(FS);
-    sim.setString({ f0: 220, darkness: 0.25, loss: 0.3, stiffness: 0.05 });
+    sim.setString({ f0: 220, darkness: 0.25, loss: 0.3, stiffness: 0.05, nonlinearity: 0 });
     sim.fingerOn = true;
     sim.fingerPosition = 0.5;
     sim.fingerPressure = 0.12; // light harmonic touch
@@ -135,7 +135,7 @@ describe("StringSim", () => {
   it("bow position affects spectrum (sul ponticello is brighter)", () => {
     const spectrumCentroid = (pos: number): number => {
       const sim = new StringSim(FS);
-      sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1 });
+      sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
       sim.bodyMix = 0; // compare the raw string signal
       sim.bowOn = true;
       sim.bowVelocity = 0.2;
@@ -154,8 +154,43 @@ describe("StringSim", () => {
       return num / Math.max(1e-12, den);
     };
     const pont = spectrumCentroid(0.96);
-    const tasto = spectrumCentroid(0.7);
-    expect(pont).toBeGreaterThan(tasto * 1.15);
+    const tasto = spectrumCentroid(0.55); // far over the fingerboard
+    expect(pont).toBeGreaterThan(tasto * 2.5);
+  });
+
+  it("stays in tune when bowing very close to the bridge", () => {
+    // regression: the bridge-side delay segment used to hit its minimum
+    // length near the bridge, lengthening the loop and playing flat
+    const sim = new StringSim(FS);
+    sim.setString({ f0: 440, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0 });
+    sim.bowOn = true;
+    sim.bowVelocity = 0.18;
+    sim.bowForce = 0.6;
+    sim.bowPosition = 0.97; // extreme sul ponticello
+    const out = render(sim, 1.4);
+    expectNoNaN(out);
+    const f = estimatePitch(out, 0.8, 1.3);
+    expect(f).toBeGreaterThan(440 * 0.99);
+    expect(f).toBeLessThan(440 * 1.01);
+  });
+
+  it("tension modulation sharpens loud playing on a nonlinear string", () => {
+    const pitchWith = (nl: number): number => {
+      const sim = new StringSim(FS);
+      sim.setString({ f0: 196, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: nl });
+      sim.bowOn = true;
+      sim.bowVelocity = 0.4; // fast bow
+      sim.bowForce = 0.5;
+      sim.bowPosition = 0.7; // sul tasto
+      const out = render(sim, 1.4);
+      expectNoNaN(out);
+      return estimatePitch(out, 0.8, 1.35);
+    };
+    const linear = pitchWith(0);
+    const nonlinear = pitchWith(0.5);
+    const cents = 1200 * Math.log2(nonlinear / linear);
+    expect(cents).toBeGreaterThan(3); // audibly sharp...
+    expect(cents).toBeLessThan(40); // ...but not absurdly so
   });
 
   it("stays silent and finite with no excitation", () => {

@@ -55,7 +55,7 @@ export class Hud {
       <label>Slow-mo <input type="range" id="slowmo" min="0.4" max="4" step="0.1"></label>
       <label class="chk"><input type="checkbox" id="autobow"> Auto-bow</label>
       <label class="chk"><input type="checkbox" id="vibrato"> Vibrato</label>
-      <label class="chk"><input type="checkbox" id="markers"> Markers</label>
+      <label class="chk"><input type="checkbox" id="markers"> Nodes</label>
       <label class="chk"><input type="checkbox" id="snap"> Snap</label>
       <button id="challengeBtn" class="seg accent">▶ Challenge</button>
       <button id="helpBtn" class="seg">?</button>
@@ -63,11 +63,13 @@ export class Hud {
     <div class="overlay hidden" id="help">
       <div class="card">
         <h2>How to play</h2>
-        <p><b>Right hand</b> (below the fingerboard): with the <b>Bow</b>, press and drag
-        sideways — stroke speed is bow speed, vertical position chooses
-        <i>sul&nbsp;tasto&nbsp;⇠⇢&nbsp;sul&nbsp;ponticello</i>, and the force slider (or pen/touch
-        pressure) sets bow weight. Too little force whistles, too much crunches.
-        With <b>Pick</b>/<b>Pizz</b>, grab the string, bend it sideways and release.</p>
+        <p><b>Right hand</b>: with the <b>Bow</b>, press and drag sideways — stroke speed
+        is bow speed, vertical position chooses the contact point, from over the
+        fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
+        (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The force slider (or
+        pen/touch pressure) sets bow weight: too little skates on the surface, too
+        much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string below the
+        fingerboard, bend it sideways and release.</p>
         <p><b>Left hand</b> (on the fingerboard): click to place a finger — it stays
         (latches) so you can bow with the mouse. Drag for glissando. Quick-tap the
         finger (or press <kbd>Esc</kbd> / <b>Lift</b>) to lift it. In <b>Touch</b> mode the
@@ -151,6 +153,13 @@ export class Hud {
     return this.root.querySelector("#challengeBtn") as HTMLButtonElement;
   }
 
+  /** Position (0..1 from the nut) the cursor is hovering over, or null. */
+  private hoverS: number | null = null;
+
+  setHoverPosition(s: number | null): void {
+    this.hoverS = s;
+  }
+
   /** Reflect state into the controls. */
   private sync(): void {
     this.root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) =>
@@ -191,18 +200,23 @@ export class Hud {
     }
     const m = state.meter;
     if (m.bowing && m.rms > 0.002) {
-      const txt = m.slipRatio > 0.55 ? "raucous" : m.slipRatio > 0.005 ? "stick–slip" : "stuck";
+      // prolonged sticking = overpressure ("pressed"/raucous); mostly
+      // slipping = the bow skating over the string ("surface" whistle)
+      const txt = m.slipRatio < 0.04 ? "pressed" : m.slipRatio > 0.6 ? "surface" : "stick–slip";
       this.slipEl.textContent = txt;
-      this.slipEl.className = "slip " + (m.slipRatio > 0.55 ? "bad" : m.slipRatio > 0.005 ? "good" : "warn");
+      this.slipEl.className =
+        "slip " + (m.slipRatio < 0.04 ? "bad" : m.slipRatio > 0.6 ? "warn" : "good");
     } else {
       this.slipEl.textContent = "";
     }
-    // note under the finger
+    // note under the finger, or a guide for the hovered position
+    const f0 = STRINGS[state.stringIdx].spec.f0;
     if (state.fingerOn) {
-      const f0 = STRINGS[state.stringIdx].spec.f0;
-      const fr = f0 / (1 - state.fingerPos);
-      const n = freqToNote(fr);
+      const n = freqToNote(f0 / (1 - state.fingerPos));
       if (n) this.posNoteEl.textContent = `stop: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
+    } else if (this.hoverS !== null && this.hoverS > 0.01) {
+      const n = freqToNote(f0 / (1 - this.hoverS));
+      if (n) this.posNoteEl.textContent = `here: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else {
       this.posNoteEl.innerHTML = "&nbsp;";
     }

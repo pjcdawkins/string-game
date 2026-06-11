@@ -8,7 +8,7 @@
 import * as THREE from "three";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet } from "./tools";
-import { FINGERBOARD_END, semitonePos } from "../state";
+import { FINGERBOARD_END } from "../state";
 
 export const STRING_TOP = 2.1;
 export const STRING_BOT = -2.1;
@@ -24,7 +24,6 @@ export class SceneView {
   readonly tools: ToolSet;
 
   private nodeMarkers = new THREE.Group();
-  private semitoneTicks = new THREE.Group();
   private fingerContact: THREE.Mesh;
 
   // cached affine mapping screen px -> (s along string, x lateral world units)
@@ -99,29 +98,40 @@ export class SceneView {
     bridge.position.set(0, STRING_BOT - 0.08, -0.03);
     this.instrument.add(bridge);
 
-    // a hint of spruce top below the fingerboard
-    const top = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, STRING_LEN * (1 - FINGERBOARD_END) + 0.5, 0.05),
-      new THREE.MeshStandardMaterial({ color: 0x271c12, roughness: 0.6 })
+    // violin body outline (minimal curves: upper bout, C-bout waist, lower
+    // bout) sitting under the bridge end of the string
+    const half = (sign: number, sh: THREE.Shape): void => {
+      sh.bezierCurveTo(sign * 0.62, 0.06, sign * 1.0, -0.18, sign * 0.86, -0.66);
+      sh.bezierCurveTo(sign * 0.76, -0.98, sign * 0.55, -1.0, sign * 0.53, -1.18);
+      sh.bezierCurveTo(sign * 0.51, -1.38, sign * 0.82, -1.45, sign * 1.0, -1.82);
+      sh.bezierCurveTo(sign * 1.12, -2.2, sign * 0.62, -2.5, 0, -2.5);
+    };
+    const outline = new THREE.Shape();
+    outline.moveTo(0, 0);
+    half(1, outline);
+    // mirror back up the other side
+    const mirrored = new THREE.Shape();
+    mirrored.moveTo(0, -2.5);
+    mirrored.bezierCurveTo(-0.62, -2.5, -1.12, -2.2, -1.0, -1.82);
+    mirrored.bezierCurveTo(-0.82, -1.45, -0.51, -1.38, -0.53, -1.18);
+    mirrored.bezierCurveTo(-0.55, -1.0, -0.76, -0.98, -0.86, -0.66);
+    mirrored.bezierCurveTo(-1.0, -0.18, -0.62, 0.06, 0, 0);
+    for (const c of mirrored.curves) outline.curves.push(c);
+    const bodyGeo = new THREE.ExtrudeGeometry(outline, {
+      depth: 0.22,
+      bevelEnabled: true,
+      bevelThickness: 0.05,
+      bevelSize: 0.045,
+      bevelSegments: 2,
+      curveSegments: 24,
+    });
+    const body = new THREE.Mesh(
+      bodyGeo,
+      new THREE.MeshStandardMaterial({ color: 0x3a2417, roughness: 0.45, metalness: 0.05 })
     );
-    const topLen = STRING_LEN * (1 - FINGERBOARD_END) + 0.5;
-    top.position.set(0, STRING_BOT - 0.2 + topLen / 2, -0.3);
-    this.instrument.add(top);
-
-    // equal-temperament position ticks on the board
-    const tickMat = new THREE.MeshBasicMaterial({ color: 0x6a584a });
-    const tickMatStrong = new THREE.MeshBasicMaterial({ color: 0xa08767 });
-    const strong = new Set([2, 4, 5, 7, 9, 12]);
-    for (let m = 1; m <= 12; m++) {
-      const p = semitonePos(m);
-      const tick = new THREE.Mesh(
-        new THREE.BoxGeometry(strong.has(m) ? 0.3 : 0.18, 0.012, 0.005),
-        strong.has(m) ? tickMatStrong : tickMat
-      );
-      tick.position.set(0, this.sToY(p), BOARD_SURFACE_Z + 0.004);
-      this.semitoneTicks.add(tick);
-    }
-    this.instrument.add(this.semitoneTicks);
+    body.scale.x = 1.18;
+    body.position.set(0, -0.5, -0.47);
+    this.instrument.add(body);
 
     // natural-harmonic node markers (n = 2..6)
     const nodes = new Map<number, number>(); // position -> lowest harmonic number
@@ -149,9 +159,8 @@ export class SceneView {
     return STRING_TOP - s * STRING_LEN;
   }
 
-  setMarkersVisible(ticks: boolean, nodes: boolean): void {
-    this.semitoneTicks.visible = ticks;
-    this.nodeMarkers.visible = nodes;
+  setNodeMarkersVisible(visible: boolean): void {
+    this.nodeMarkers.visible = visible;
   }
 
   showFingerContact(s: number, strength: number): void {

@@ -1,11 +1,11 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity } from "./scene/tools";
-import { Interactions } from "./input/interactions";
+import { Interactions, BOW_MIN } from "./input/interactions";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
 import { Challenge } from "./ui/challenge";
-import { state, FINGERBOARD_END, STRINGS } from "./state";
+import { state, STRINGS } from "./state";
 import "./style.css";
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
@@ -51,7 +51,7 @@ function frame(now: number): void {
   });
 
   updateTools();
-  view.setMarkersVisible(state.markers, state.markers && state.leftMode === "touch");
+  view.setNodeMarkersVisible(state.markers);
   view.updateMapping();
   view.render();
 
@@ -67,13 +67,17 @@ function updateTools(): void {
   t.rightFinger.visible = false;
 
   const hover = input.hover;
-  const hoverRight = hover && hover.s >= FINGERBOARD_END && hover.s <= 1.05;
-  const hoverLeft = hover && hover.s > -0.02 && hover.s < FINGERBOARD_END;
+  const boundary = input.zoneBoundary();
+  const hoverRight = hover && hover.s >= boundary && hover.s <= 1.05;
+  const hoverLeft = hover && hover.s > -0.02 && hover.s < boundary;
+
+  // note guide: show what the cursor position would sound under the finger
+  hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);
 
   if (state.tool === "bow" && (input.bowEngaged || state.autoBow || hoverRight)) {
     t.bow.visible = true;
     const engaged = input.bowEngaged || state.autoBow;
-    const s = engaged ? input.bowPos : Math.max(FINGERBOARD_END + 0.03, Math.min(0.97, hover!.s));
+    const s = engaged ? input.bowPos : Math.max(BOW_MIN, Math.min(0.97, hover!.s));
     const x = engaged ? input.bowX * 0.25 : hover!.x * 0.25;
     t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);

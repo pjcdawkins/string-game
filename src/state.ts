@@ -9,10 +9,10 @@ export interface ViolinString {
 }
 
 export const STRINGS: ViolinString[] = [
-  { name: "G3", spec: { f0: 196.0, darkness: 0.45, loss: 0.35, stiffness: 0.25 } },
-  { name: "D4", spec: { f0: 293.66, darkness: 0.35, loss: 0.3, stiffness: 0.2 } },
-  { name: "A4", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15 } },
-  { name: "E5", spec: { f0: 659.25, darkness: 0.15, loss: 0.25, stiffness: 0.1 } },
+  { name: "G3", spec: { f0: 196.0, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 } },
+  { name: "D4", spec: { f0: 293.66, darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25 } },
+  { name: "A4", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15 } },
+  { name: "E5", spec: { f0: 659.25, darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06 } },
 ];
 
 /** Fraction of the string length (from the nut) covered by the fingerboard. */

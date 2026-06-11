@@ -10,7 +10,8 @@ import { engine } from "../audio/engine";
 import { state, notify, FINGERBOARD_END, semitonePos } from "../state";
 import type { GrabState } from "../scene/visualString";
 
-const BOW_MIN = FINGERBOARD_END + 0.03;
+/** The bow may reach well over the fingerboard for extreme sul tasto. */
+export const BOW_MIN = 0.48;
 const BOW_MAX = 0.97;
 const FINGER_MIN = 0.02;
 const FINGER_MAX = 0.6;
@@ -36,6 +37,11 @@ export class Interactions {
   private pointerForce = -1; // pen/touch pressure if meaningful
   private autoBowDir = 1;
   private autoBowTimer = 0;
+  // every stroke starts with a little extra bow weight (the "bite") which
+  // reliably pulls the string into the fundamental Helmholtz regime instead
+  // of the double-slip octave
+  private biteTimer = 999;
+  private wasAutoBow = false;
 
   constructor(private view: SceneView, canvas: HTMLCanvasElement) {
     canvas.addEventListener("pointerdown", (e) => this.onDown(e));
@@ -48,11 +54,18 @@ export class Interactions {
     });
   }
 
+  /** Where the left-hand zone ends and the implement zone begins. When
+   * manually bowing, the bow zone extends over the fingerboard (sul tasto);
+   * otherwise the whole fingerboard belongs to the left hand. */
+  zoneBoundary(): number {
+    return state.tool === "bow" && !state.autoBow ? BOW_MIN : FINGERBOARD_END;
+  }
+
   private onDown(e: PointerEvent): void {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     void engine.ensureStarted();
     const c = this.view.screenToString(e.clientX, e.clientY);
-    if (c.s < FINGERBOARD_END && Math.abs(c.x) < 1.2) {
+    if (c.s < this.zoneBoundary() && Math.abs(c.x) < 1.2) {
       if (this.leftPointer !== -1) return;
       this.leftPointer = e.pointerId;
       this.leftMoved = false;
@@ -69,6 +82,7 @@ export class Interactions {
         this.bowX = c.x;
         this.lastBowSample = { x: c.x, t: performance.now() };
         this.bowVel = 0;
+        this.biteTimer = 0;
       } else if (Math.abs(c.x) < 0.4) {
         this.grabbed = { p: clamp(c.s, BOW_MIN, BOW_MAX), dx: clamp(c.x, -MAX_BEND, MAX_BEND) };
       }
@@ -191,18 +205,22 @@ export class Interactions {
 
     const force = this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;
 
+    this.biteTimer += dt;
+    const bite = 1 + 0.4 * Math.max(0, 1 - this.biteTimer / 0.25);
+
     if (this.bowEngaged) {
       // velocity decays if the pointer stops moving
       this.bowVel *= Math.exp(-dt * 6);
-      engine.setBow(true, clamp(this.bowVel, -0.75, 0.75), force, this.bowPos);
+      engine.setBow(true, clamp(this.bowVel, -0.75, 0.75), force * bite, this.bowPos);
     } else if (state.autoBow) {
+      if (!this.wasAutoBow) this.biteTimer = 0;
       this.autoBowTimer += dt;
       const STROKE = 2.6;
       if (this.autoBowTimer > STROKE) {
         this.autoBowTimer = 0;
         this.autoBowDir = -this.autoBowDir;
+        this.biteTimer = 0;
       }
-      const f = state.bowForce;
       // at a bow change the velocity passes through zero (like a real
       // détaché) — keeping the force up while speed ramps avoids kicking
       // the string into the double-slip (octave) regime
@@ -210,8 +228,9 @@ export class Interactions {
       const ramp = Math.min(1, edge / 0.09);
       this.bowVel = this.autoBowDir * state.autoBowSpeed * ramp;
       this.bowX = Math.sin((this.autoBowTimer / STROKE - 0.5) * Math.PI) * -this.autoBowDir * 1.2;
-      engine.setBow(true, this.bowVel, f, this.bowPos);
+      engine.setBow(true, this.bowVel, state.bowForce * bite, this.bowPos);
     }
+    this.wasAutoBow = state.autoBow;
   }
 }
 

@@ -145,7 +145,8 @@ export class VisualString {
       }
     }
 
-    const raucous = inp.bowing && inp.slipRatio > 0.55;
+    // overpressure = prolonged sticking (slip ratio collapses), not lots of slip
+    const raucous = inp.bowing && inp.slipRatio < 0.04 && this.vibAmp > 0.015;
     const phi = this.helmPhase;
     let cornerPos: number;
     let cornerSign: number;
