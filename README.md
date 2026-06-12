@@ -120,7 +120,7 @@ in Node. `npm test` verifies, with an autocorrelation pitch estimator:
 - bowing sustains a tone at f0 (Helmholtz regime reached from rest);
 - a firm stop at ¼ of the string raises the pitch a perfect fourth;
 - a light touch at the midpoint yields the octave harmonic;
-- bowing closer to the bridge brightens the spectrum (≥2.5× contrast);
+- bowing closer to the bridge brightens the spectrum (≥2× contrast);
 - bowing right next to the bridge stays in tune (regression for a
   delay-clamp bug that played flat);
 - tension modulation sharpens loud playing on a nonlinear string;

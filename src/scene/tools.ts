@@ -2,10 +2,6 @@
  * left-hand stopping finger. */
 import * as THREE from "three";
 
-function skinMaterial(): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({ color: 0xd9a577, roughness: 0.7 });
-}
-
 export function makeBow(): THREE.Group {
   const g = new THREE.Group();
   const stick = new THREE.Mesh(
@@ -49,13 +45,20 @@ export function makePlectrum(): THREE.Group {
   return g;
 }
 
+/** A finger is shown as a simple flat circle in a neutral yellow (used for
+ * both hands), with a thin darker rim for contrast against the string. */
 export function makeFinger(): THREE.Group {
   const g = new THREE.Group();
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.1, 18, 14), skinMaterial());
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.095, 0.4, 6, 14), skinMaterial());
-  body.rotation.x = -0.9;
-  body.position.set(0, 0.22, 0.16);
-  g.add(tip, body);
+  const pad = new THREE.Mesh(
+    new THREE.CircleGeometry(0.14, 32),
+    new THREE.MeshBasicMaterial({ color: 0xd9c878 })
+  );
+  const rim = new THREE.Mesh(
+    new THREE.RingGeometry(0.14, 0.165, 32),
+    new THREE.MeshBasicMaterial({ color: 0x8f8147 })
+  );
+  rim.position.z = 0.001;
+  g.add(pad, rim);
   return g;
 }
 
@@ -71,7 +74,6 @@ export function makeTools(parent: THREE.Group): ToolSet {
   const pick = makePlectrum();
   const rightFinger = makeFinger();
   const leftFinger = makeFinger();
-  leftFinger.rotation.z = Math.PI; // approaches from the other side
   for (const t of [bow, pick, rightFinger, leftFinger]) {
     t.visible = false;
     parent.add(t);

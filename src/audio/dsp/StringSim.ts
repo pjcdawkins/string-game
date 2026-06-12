@@ -244,18 +244,34 @@ export class StringSim {
     let dA = pf * oneWay;
     let dB = (pb - pf) * oneWay;
     let dC = (1 - pb) * oneWay - comp / 2;
-    // enforce minimum segment lengths WITHOUT changing the total: push any
-    // deficit into the neighbouring segment, otherwise bowing close to the
-    // bridge (tiny segment C) would lengthen the loop and play flat
-    if (dC < 2) {
-      dB -= 2 - dC;
-      dC = 2;
+    // enforce minimum segment lengths without changing the total: clamp every
+    // short segment up, then recover the added delay from segments that still
+    // have slack — otherwise bowing near the bridge (tiny C) or a finger near
+    // the nut (tiny A) would lengthen the loop and play flat
+    const MIN = 2;
+    let deficit = 0;
+    if (dA < MIN) {
+      deficit += MIN - dA;
+      dA = MIN;
     }
-    if (dB < 2) {
-      dA -= 2 - dB;
-      dB = 2;
+    if (dB < MIN) {
+      deficit += MIN - dB;
+      dB = MIN;
     }
-    if (dA < 2) dA = 2;
+    if (dC < MIN) {
+      deficit += MIN - dC;
+      dC = MIN;
+    }
+    if (deficit > 0) {
+      const take = (d: number): number => {
+        const t = Math.min(deficit, d - MIN);
+        deficit -= t;
+        return d - t;
+      };
+      dB = take(dB);
+      dC = take(dC);
+      dA = take(dA);
+    }
     return [dA, dB, dC];
   }
 

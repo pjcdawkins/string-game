@@ -11,7 +11,10 @@ import { makeTools, ToolSet } from "./tools";
 import { FINGERBOARD_END } from "../state";
 
 export const STRING_TOP = 2.1;
-export const STRING_BOT = -2.1;
+// the bottom end leaves room below for the bridge (and a glimpse of the
+// belly) to stay visible above the bottom control panel, so you can see how
+// close to it you bow
+export const STRING_BOT = -1.45;
 export const STRING_LEN = STRING_TOP - STRING_BOT;
 export const BOARD_SURFACE_Z = -0.08;
 
@@ -90,13 +93,19 @@ export class SceneView {
     nut.position.set(0, STRING_TOP + 0.05, -0.035);
     this.instrument.add(nut);
 
-    // bridge
+    // bridge: stands on the belly, its top edge carrying the string's end
     const bridge = new THREE.Mesh(
-      new THREE.BoxGeometry(0.46, 0.16, 0.1),
+      new THREE.BoxGeometry(0.52, 0.22, 0.09),
       new THREE.MeshStandardMaterial({ color: 0xc89a64, roughness: 0.5 })
     );
-    bridge.position.set(0, STRING_BOT - 0.08, -0.03);
+    bridge.position.set(0, STRING_BOT - 0.11, -0.03);
     this.instrument.add(bridge);
+    const bridgeFoot = new THREE.Mesh(
+      new THREE.BoxGeometry(0.6, 0.05, 0.11),
+      new THREE.MeshStandardMaterial({ color: 0xb0824f, roughness: 0.55 })
+    );
+    bridgeFoot.position.set(0, STRING_BOT - 0.245, -0.03);
+    this.instrument.add(bridgeFoot);
 
     // violin body outline (minimal curves: upper bout, C-bout waist, lower
     // bout) sitting under the bridge end of the string
