@@ -94,12 +94,13 @@ export class SceneView {
     board.position.z = BOARD_SURFACE_Z - 0.14;
     this.instrument.add(board);
 
-    // nut
+    // nut: a dark line right at the top of the string — a finger can stop
+    // all the way up to it (on it, the string is effectively open)
     const nut = new THREE.Mesh(
-      new THREE.BoxGeometry(0.36, 0.1, 0.13),
-      new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.55 })
+      new THREE.BoxGeometry(0.44, 0.05, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.5 })
     );
-    nut.position.set(0, STRING_TOP + 0.05, -0.035);
+    nut.position.set(0, STRING_TOP + 0.04, -0.03);
     this.instrument.add(nut);
 
     // bridge: a plain straight line, its top edge carrying the string's end
@@ -186,10 +187,26 @@ export class SceneView {
         new THREE.SphereGeometry(0.035, 14, 10),
         new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85 })
       );
+      dot.userData.p = p;
       dot.position.set(0.16, this.sToY(p), 0.02);
       this.nodeMarkers.add(dot);
     }
     this.instrument.add(this.nodeMarkers);
+  }
+
+  /** Reposition the harmonic node markers for the vibrating portion of the
+   * string: relative to a firm stop at `stop` (0 = open string). */
+  private nodeBase = -1;
+
+  updateNodeMarkers(stop: number): void {
+    if (stop === this.nodeBase) return;
+    this.nodeBase = stop;
+    for (const d of this.nodeMarkers.children) {
+      const p = (d.userData as { p: number }).p;
+      const abs = stop + p * (1 - stop);
+      d.position.y = this.sToY(abs);
+      d.visible = abs <= FINGERBOARD_END;
+    }
   }
 
   sToY(s: number): number {

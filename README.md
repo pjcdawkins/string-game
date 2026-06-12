@@ -14,7 +14,8 @@ npm run build    # production build (worklet bundles to a self-contained file)
 
 ## What you can do
 
-- **Bow** the string: drag sideways. Stroke speed = bow speed; vertical
+- **Bow** the string: drag sideways. Stroke speed is fully gestural — the
+  drag velocity *is* the bow speed; vertical
   position = contact point, from well over the fingerboard (*sul tasto*:
   round, flutey) down to the bridge (*sul ponticello*: glassy, rich in upper
   partials); bow force from the slider, or pen/touch pressure. Too little
@@ -31,14 +32,12 @@ npm run build    # production build (worklet bundles to a self-contained file)
   wobbles the stop position. Multi-touch: hold a stop while bowing. The bow
   and plucks always stay on the bridge side of a stopped finger — the
   nut-side portion of the string is not modelled.
-- **Harmonics**: switch the left hand to *Touch* mode and brush a glowing node
-  (½, ⅓, ¼ …) — the model kills every partial without a node there, just like
-  a real flageolet.
+- **Harmonics**: switch the left hand to *Touch* mode and brush a node
+  (½, ⅓, ¼ … — toggle *Nodes* to show them; with a firm stop down they are
+  drawn relative to the stopped length) — the model kills every partial
+  without a node there, just like a real flageolet.
 - **Auto-bow** sustains a stroke (with bow-change dips) so you can explore
   contact point, force and harmonics with the mouse free.
-- **Challenge mode**: hit-and-hold target notes; scoring uses a YIN pitch
-  detector on the actual audio output, so intonation and tone steadiness are
-  what earn points.
 - **Slow-motion string**: the visual vibration runs at an adjustable visual
   rate. Bowing draws true Helmholtz motion (a corner travelling around a
   parabolic envelope); plucks draw the standing-wave mode sum seeded by the
@@ -56,7 +55,7 @@ src/
     pitch.ts                YIN pitch detector on the analyser output
   scene/                    Three.js: scene, slow-mo string, tool meshes
   input/interactions.ts     pointer gestures -> bow/pluck/finger, multi-touch
-  ui/                       HUD (DOM) + challenge game
+  ui/hud.ts                 HUD (DOM): pickers, sliders, tuner, help
 test/stringsim.test.ts      physics regression tests (run in Node)
 ```
 
@@ -145,5 +144,4 @@ string that visibly depresses onto the fingerboard under the finger.
   finite-width bow-hair ribbon, no two-point finger model yet — see ideas
   below.
 - Ideas next: four strings + sympathetic coupling, recorded-impulse body
-  convolution, bow tilt/hair width, pizz damping (palm mute), scale/interval
-  challenges, score sharing.
+  convolution, bow tilt/hair width, pizz damping (palm mute), practice games.

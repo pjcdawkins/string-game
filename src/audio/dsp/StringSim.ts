@@ -225,7 +225,8 @@ export class StringSim {
   }
 
   private clampedPositions(): [number, number] {
-    const pf = Math.min(0.85, Math.max(0.02, this.fingerPosition));
+    // a finger right at the nut (pf = 0) leaves the string effectively open
+    const pf = Math.min(0.85, Math.max(0, this.fingerPosition));
     const pb = Math.min(0.99, Math.max(pf + 0.05, this.bowPosition));
     return [pf, pb];
   }

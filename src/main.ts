@@ -4,7 +4,6 @@ import { Interactions, BOW_MAX } from "./input/interactions";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
-import { Challenge } from "./ui/challenge";
 import { state, STRINGS } from "./state";
 import "./style.css";
 
@@ -13,7 +12,6 @@ const uiRoot = document.getElementById("ui") as HTMLElement;
 
 const view = new SceneView(canvas);
 const hud = new Hud(uiRoot);
-const challenge = new Challenge(uiRoot, hud.challengeButton);
 const input = new Interactions(view, canvas);
 
 // initialise the engine's string when audio first becomes available
@@ -52,11 +50,12 @@ function frame(now: number): void {
 
   updateTools();
   view.setNodeMarkersVisible(state.markers);
+  // node markers follow a firm stop: harmonics of the vibrating portion
+  view.updateNodeMarkers(state.fingerOn && input.fingerPressure > 0.55 ? state.fingerPos : 0);
   view.updateMapping();
   view.render();
 
   hud.updateMeters();
-  challenge.update(dt);
   requestAnimationFrame(frame);
 }
 

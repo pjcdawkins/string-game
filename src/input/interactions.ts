@@ -7,13 +7,13 @@
  */
 import { SceneView } from "../scene/scene";
 import { engine } from "../audio/engine";
-import { state, notify, FINGERBOARD_END, semitonePos } from "../state";
+import { state, notify, FINGERBOARD_END } from "../state";
 import type { GrabState } from "../scene/visualString";
 
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
 export const BOW_MAX = 0.985;
-const FINGER_MIN = 0.02;
+const FINGER_MIN = 0; // a finger right on the nut leaves the string open
 const FINGER_MAX = 0.82;
 const MAX_BEND = 0.55;
 
@@ -33,7 +33,7 @@ export class Interactions {
   private leftDownTime = 0;
   private leftDownPos = 0;
   private pressureTarget = 0;
-  private lastBowSample: { x: number; t: number } | null = null;
+  private lastFrameX = 0; // bow x at the previous frame (for gesture velocity)
   private pointerForce = -1; // pen/touch pressure if meaningful
   private autoBowDir = 1;
   private autoBowTimer = 0;
@@ -87,7 +87,7 @@ export class Interactions {
         this.bowEngaged = true;
         this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
         this.bowX = c.x;
-        this.lastBowSample = { x: c.x, t: performance.now() };
+        this.lastFrameX = c.x;
         this.bowVel = 0;
         this.biteTimer = 0;
       } else if (Math.abs(c.x) < 0.4) {
@@ -109,14 +109,6 @@ export class Interactions {
     if (e.pointerId === this.rightPointer) {
       this.pointerForce = e.pointerType !== "mouse" && e.pressure > 0 ? e.pressure : -1;
       if (this.bowEngaged) {
-        const now = performance.now();
-        if (this.lastBowSample) {
-          const dt = Math.max(1, now - this.lastBowSample.t) / 1000;
-          const v = (c.x - this.lastBowSample.x) / dt;
-          // smooth toward instantaneous velocity
-          this.bowVel += (v * 0.045 - this.bowVel) * Math.min(1, dt * 18);
-        }
-        this.lastBowSample = { x: c.x, t: now };
         this.bowX = c.x;
         this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
       } else if (this.grabbed) {
@@ -164,7 +156,7 @@ export class Interactions {
   private tappedExistingFinger = false;
 
   private placeFinger(s: number): void {
-    const p = this.snap(clamp(s, FINGER_MIN, FINGER_MAX));
+    const p = clamp(s, FINGER_MIN, FINGER_MAX);
     if (state.fingerOn && Math.abs(p - state.fingerPos) < 0.035) {
       this.tappedExistingFinger = true;
     }
@@ -176,7 +168,7 @@ export class Interactions {
 
   private moveFinger(s: number): void {
     this.tappedExistingFinger = false;
-    state.fingerPos = this.snap(clamp(s, FINGER_MIN, FINGER_MAX));
+    state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
     notify();
   }
 
@@ -184,21 +176,6 @@ export class Interactions {
     state.fingerOn = false;
     this.pressureTarget = 0;
     notify();
-  }
-
-  private snap(p: number): number {
-    if (!state.snap) return p;
-    let best = p;
-    let bestD = 0.018;
-    for (let m = 0; m <= 31; m++) {
-      const sp = semitonePos(m);
-      const d = Math.abs(sp - p);
-      if (d < bestD) {
-        bestD = d;
-        best = sp;
-      }
-    }
-    return best;
   }
 
   /** Per-frame: ramps, auto-bow, and pushing state into the audio engine. */
@@ -222,9 +199,14 @@ export class Interactions {
     const bite = 1 + 0.4 * Math.max(0, 1 - this.biteTimer / 0.25);
 
     if (this.bowEngaged) {
-      // velocity decays if the pointer stops moving
-      this.bowVel *= Math.exp(-dt * 6);
-      engine.setBow(true, clamp(this.bowVel, -0.75, 0.75), force * bite, this.bowPos);
+      // bow speed follows the gesture: the per-frame derivative of the
+      // pointer's lateral position, lightly smoothed (it naturally falls to
+      // zero when the pointer stops moving)
+      const v = (this.bowX - this.lastFrameX) / Math.max(1e-3, dt);
+      this.lastFrameX = this.bowX;
+      const target = clamp(v * 0.06, -0.75, 0.75);
+      this.bowVel += (target - this.bowVel) * Math.min(1, dt * 12);
+      engine.setBow(true, this.bowVel, force * bite, this.bowPos);
     } else if (state.autoBow) {
       if (!this.wasAutoBow) this.biteTimer = 0;
       this.autoBowTimer += dt;

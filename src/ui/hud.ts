@@ -51,13 +51,11 @@ export class Hud {
     </div>
     <div class="panel bottom">
       <label>Bow force <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
-      <label>Bow speed <input type="range" id="speed" min="0.05" max="0.5" step="0.01"></label>
+      <label>Auto speed <input type="range" id="speed" min="0.05" max="0.5" step="0.01"></label>
       <label>Slow-mo <input type="range" id="slowmo" min="0.4" max="4" step="0.1"></label>
       <label class="chk"><input type="checkbox" id="autobow"> Auto-bow</label>
       <label class="chk"><input type="checkbox" id="vibrato"> Vibrato</label>
       <label class="chk"><input type="checkbox" id="markers"> Nodes</label>
-      <label class="chk"><input type="checkbox" id="snap"> Snap</label>
-      <button id="challengeBtn" class="seg accent">▶ Challenge</button>
       <button id="helpBtn" class="seg">?</button>
     </div>
     <div class="overlay hidden" id="help">
@@ -140,17 +138,11 @@ export class Hud {
       state.markers = markers.checked;
       notify();
     });
-    const snap = $<HTMLInputElement>("#snap");
-    snap.addEventListener("change", () => (state.snap = snap.checked));
 
     $("#helpBtn").addEventListener("click", () => $("#help").classList.remove("hidden"));
     $("#closeHelp").addEventListener("click", () => $("#help").classList.add("hidden"));
     // show help on first load
     $("#help").classList.remove("hidden");
-  }
-
-  get challengeButton(): HTMLButtonElement {
-    return this.root.querySelector("#challengeBtn") as HTMLButtonElement;
   }
 
   /** Position (0..1 from the nut) the cursor is hovering over, or null. */
@@ -177,7 +169,6 @@ export class Hud {
     (this.root.querySelector("#autobow") as HTMLInputElement).checked = state.autoBow;
     (this.root.querySelector("#vibrato") as HTMLInputElement).checked = state.vibrato;
     (this.root.querySelector("#markers") as HTMLInputElement).checked = state.markers;
-    (this.root.querySelector("#snap") as HTMLInputElement).checked = state.snap;
   }
 
   /** Per-frame tuner + position readout update. */

@@ -38,7 +38,6 @@ export interface AppState {
   fingerPressure: number;
   vibrato: boolean;
   markers: boolean;
-  snap: boolean;
   slowMo: number; // visual slow-motion factor (Hz of visual fundamental)
   meter: AudioMeter;
   detectedFreq: number;
@@ -55,8 +54,7 @@ export const state: AppState = {
   fingerPos: 0.3,
   fingerPressure: 0,
   vibrato: false,
-  markers: true,
-  snap: false,
+  markers: false,
   slowMo: 1.6,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
   detectedFreq: 0,
@@ -83,9 +81,4 @@ export function freqToNote(freq: number): { name: string; cents: number } | null
   const cents = Math.round((midi - nearest) * 100);
   const name = NOTE_NAMES[((nearest % 12) + 12) % 12] + (Math.floor(nearest / 12) - 1);
   return { name, cents };
-}
-
-/** Equal-temperament stop position for `semis` semitones above the open string. */
-export function semitonePos(semis: number): number {
-  return 1 - Math.pow(2, -semis / 12);
 }
