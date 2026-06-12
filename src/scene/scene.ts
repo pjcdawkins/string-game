@@ -80,7 +80,7 @@ export class SceneView {
     // real violin, extending well over the body — past the playable
     // left-hand zone, under the sul tasto bowing region
     const boardTopY = STRING_TOP + 0.06;
-    const boardEndY = this.sToY(0.84);
+    const boardEndY = this.sToY(FINGERBOARD_END);
     const boardShape = new THREE.Shape();
     boardShape.moveTo(-0.17, boardTopY);
     boardShape.lineTo(0.17, boardTopY);
@@ -102,19 +102,12 @@ export class SceneView {
     nut.position.set(0, STRING_TOP + 0.05, -0.035);
     this.instrument.add(nut);
 
-    // bridge: a thin strip with a slightly arched top edge, its crown
-    // carrying the string's end
-    const bridgeShape = new THREE.Shape();
-    bridgeShape.moveTo(-0.28, -0.06);
-    bridgeShape.quadraticCurveTo(0, 0.06, 0.28, -0.06); // top edge crests at y=0
-    bridgeShape.lineTo(0.28, -0.1);
-    bridgeShape.quadraticCurveTo(0, 0.02, -0.28, -0.1);
-    bridgeShape.closePath();
+    // bridge: a plain straight line, its top edge carrying the string's end
     const bridge = new THREE.Mesh(
-      new THREE.ShapeGeometry(bridgeShape, 24),
+      new THREE.PlaneGeometry(0.56, 0.04),
       new THREE.MeshBasicMaterial({ color: 0xd8b88a })
     );
-    bridge.position.set(0, STRING_BOT, -0.02);
+    bridge.position.set(0, STRING_BOT - 0.02, -0.02);
     this.instrument.add(bridge);
 
     // violin body, roughly to real proportions: the top edge sits at 40% of

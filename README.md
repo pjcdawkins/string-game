@@ -26,9 +26,11 @@ npm run build    # production build (worklet bundles to a self-contained file)
 - **Pluck** with a plectrum (hard, bright) or a fingertip (soft, round): grab
   the string, bend it, release. The bend point shapes the spectrum (comb
   filtering — pluck at 1/4 and the 4th harmonic family is missing).
-- **Stop** the string on the fingerboard: click to latch a finger, drag for
-  glissando, quick-tap to lift, `Esc` to clear. Vibrato toggle wobbles the
-  stop position. Multi-touch: hold a stop while bowing.
+- **Stop** the string anywhere on the fingerboard: click to latch a finger,
+  drag for glissando, quick-tap to lift, `Esc` to clear. Vibrato toggle
+  wobbles the stop position. Multi-touch: hold a stop while bowing. The bow
+  and plucks always stay on the bridge side of a stopped finger — the
+  nut-side portion of the string is not modelled.
 - **Harmonics**: switch the left hand to *Touch* mode and brush a glowing node
   (½, ⅓, ¼ …) — the model kills every partial without a node there, just like
   a real flageolet.

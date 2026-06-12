@@ -12,9 +12,9 @@ import type { GrabState } from "../scene/visualString";
 
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
-const BOW_MAX = 0.97;
+export const BOW_MAX = 0.985;
 const FINGER_MIN = 0.02;
-const FINGER_MAX = 0.6;
+const FINGER_MAX = 0.82;
 const MAX_BEND = 0.55;
 
 export class Interactions {
@@ -62,6 +62,12 @@ export class Interactions {
     return state.autoBow ? FINGERBOARD_END : BOW_MIN;
   }
 
+  /** Lowest position the bow/pluck may take: always on the bridge side of a
+   * stopped finger — the nut-side portion of the string is not modelled. */
+  implementMin(): number {
+    return state.fingerOn ? Math.max(BOW_MIN, state.fingerPos + 0.06) : BOW_MIN;
+  }
+
   private onDown(e: PointerEvent): void {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     void engine.ensureStarted();
@@ -79,13 +85,16 @@ export class Interactions {
       this.pointerForce = e.pointerType !== "mouse" && e.pressure > 0 ? e.pressure : -1;
       if (state.tool === "bow") {
         this.bowEngaged = true;
-        this.bowPos = clamp(c.s, BOW_MIN, BOW_MAX);
+        this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
         this.bowX = c.x;
         this.lastBowSample = { x: c.x, t: performance.now() };
         this.bowVel = 0;
         this.biteTimer = 0;
       } else if (Math.abs(c.x) < 0.4) {
-        this.grabbed = { p: clamp(c.s, BOW_MIN, BOW_MAX), dx: clamp(c.x, -MAX_BEND, MAX_BEND) };
+        this.grabbed = {
+          p: clamp(c.s, this.implementMin(), BOW_MAX),
+          dx: clamp(c.x, -MAX_BEND, MAX_BEND),
+        };
       }
     }
   }
@@ -109,7 +118,7 @@ export class Interactions {
         }
         this.lastBowSample = { x: c.x, t: now };
         this.bowX = c.x;
-        this.bowPos = clamp(c.s, BOW_MIN, BOW_MAX);
+        this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
       } else if (this.grabbed) {
         this.grabbed.dx = clamp(c.x, -MAX_BEND, MAX_BEND);
       }
@@ -181,7 +190,7 @@ export class Interactions {
     if (!state.snap) return p;
     let best = p;
     let bestD = 0.018;
-    for (let m = 0; m <= 14; m++) {
+    for (let m = 0; m <= 31; m++) {
       const sp = semitonePos(m);
       const d = Math.abs(sp - p);
       if (d < bestD) {
@@ -203,6 +212,9 @@ export class Interactions {
     else if (state.fingerOn) this.pressureTarget = 0.13;
     state.fingerPressure = this.fingerPressure;
     engine.setFinger(state.fingerOn, state.fingerPos, this.fingerPressure);
+
+    // a finger sliding up under a held bow/stroke pushes it toward the bridge
+    this.bowPos = clamp(this.bowPos, this.implementMin(), BOW_MAX);
 
     const force = this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;
 

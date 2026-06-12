@@ -1,6 +1,6 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity } from "./scene/tools";
-import { Interactions, BOW_MIN } from "./input/interactions";
+import { Interactions, BOW_MAX } from "./input/interactions";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
@@ -77,7 +77,7 @@ function updateTools(): void {
   if (state.tool === "bow" && (input.bowEngaged || state.autoBow || hoverRight)) {
     t.bow.visible = true;
     const engaged = input.bowEngaged || state.autoBow;
-    const s = engaged ? input.bowPos : Math.max(BOW_MIN, Math.min(0.97, hover!.s));
+    const s = engaged ? input.bowPos : Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));
     const x = engaged ? input.bowX * 0.25 : hover!.x * 0.25;
     t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
@@ -89,7 +89,8 @@ function updateTools(): void {
       setToolOpacity(mesh, 1);
     } else if (hoverRight) {
       mesh.visible = true;
-      mesh.position.set(hover!.x, view.sToY(hover!.s), 0.12);
+      const s = Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));
+      mesh.position.set(hover!.x, view.sToY(s), 0.12);
       setToolOpacity(mesh, 0.45);
     }
   }

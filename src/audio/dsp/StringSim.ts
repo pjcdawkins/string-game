@@ -225,8 +225,8 @@ export class StringSim {
   }
 
   private clampedPositions(): [number, number] {
-    const pf = Math.min(0.62, Math.max(0.02, this.fingerPosition));
-    const pb = Math.min(0.98, Math.max(pf + 0.05, this.bowPosition));
+    const pf = Math.min(0.85, Math.max(0.02, this.fingerPosition));
+    const pb = Math.min(0.99, Math.max(pf + 0.05, this.bowPosition));
     return [pf, pb];
   }
 
@@ -282,8 +282,8 @@ export class StringSim {
     // contact-point colour: near the bridge the Helmholtz corner stays sharp
     // (less Cremer rounding) and the bridge passes more upper partials; over
     // the fingerboard the tone rounds off and darkens
-    const vc = 0.025 + 0.16 * beta; // friction-curve knee
-    this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.55 + 1.6 * beta));
+    const vc = 0.015 + 0.19 * beta; // friction-curve knee
+    this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.45 + 2.1 * beta));
 
     const [tA, tB, tC] = this.delayTargets();
     const rfTarget = this.effectiveRf();

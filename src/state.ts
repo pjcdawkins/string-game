@@ -15,8 +15,9 @@ export const STRINGS: ViolinString[] = [
   { name: "E5", spec: { f0: 659.25, darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06 } },
 ];
 
-/** Fraction of the string length (from the nut) covered by the fingerboard. */
-export const FINGERBOARD_END = 0.62;
+/** Fraction of the string length (from the nut) covered by the fingerboard.
+ * The whole board is playable with the left hand, as on a real violin. */
+export const FINGERBOARD_END = 0.84;
 
 export interface AudioMeter {
   rms: number;
