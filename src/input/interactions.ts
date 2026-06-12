@@ -10,7 +10,7 @@ import { engine } from "../audio/engine";
 import { state, notify, FINGERBOARD_END, semitonePos } from "../state";
 import type { GrabState } from "../scene/visualString";
 
-/** The bow may reach well over the fingerboard for extreme sul tasto. */
+/** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
 const BOW_MAX = 0.97;
 const FINGER_MIN = 0.02;
@@ -54,11 +54,12 @@ export class Interactions {
     });
   }
 
-  /** Where the left-hand zone ends and the implement zone begins. When
-   * manually bowing, the bow zone extends over the fingerboard (sul tasto);
-   * otherwise the whole fingerboard belongs to the left hand. */
+  /** Where the left-hand zone ends and the implement zone begins. The bow
+   * and the plucking implements may all reach over the fingerboard (sul
+   * tasto); only while auto-bow holds the stroke does the whole fingerboard
+   * belong to the left hand. */
   zoneBoundary(): number {
-    return state.tool === "bow" && !state.autoBow ? BOW_MIN : FINGERBOARD_END;
+    return state.autoBow ? FINGERBOARD_END : BOW_MIN;
   }
 
   private onDown(e: PointerEvent): void {

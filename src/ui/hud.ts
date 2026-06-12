@@ -68,8 +68,8 @@ export class Hud {
         fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
         (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The force slider (or
         pen/touch pressure) sets bow weight: too little skates on the surface, too
-        much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string below the
-        fingerboard, bend it sideways and release.</p>
+        much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string anywhere
+        you could bow — even over the fingerboard — bend it sideways and release.</p>
         <p><b>Left hand</b> (on the fingerboard): click to place a finger — it stays
         (latches) so you can bow with the mouse. Drag for glissando. Quick-tap the
         finger (or press <kbd>Esc</kbd> / <b>Lift</b>) to lift it. In <b>Touch</b> mode the

@@ -76,55 +76,67 @@ export class SceneView {
   }
 
   private buildFurniture(): void {
-    // fingerboard
-    const boardLen = FINGERBOARD_END * STRING_LEN + 0.1;
+    // fingerboard: tapered (narrow at the nut, wide at its end) and, as on a
+    // real violin, extending well over the body — past the playable
+    // left-hand zone, under the sul tasto bowing region
+    const boardTopY = STRING_TOP + 0.06;
+    const boardEndY = this.sToY(0.84);
+    const boardShape = new THREE.Shape();
+    boardShape.moveTo(-0.17, boardTopY);
+    boardShape.lineTo(0.17, boardTopY);
+    boardShape.lineTo(0.3, boardEndY);
+    boardShape.lineTo(-0.3, boardEndY);
+    boardShape.closePath();
     const board = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, boardLen, 0.14),
+      new THREE.ExtrudeGeometry(boardShape, { depth: 0.14, bevelEnabled: false }),
       new THREE.MeshStandardMaterial({ color: 0x171210, roughness: 0.32, metalness: 0.1 })
     );
-    board.position.set(0, STRING_TOP + 0.06 - boardLen / 2, BOARD_SURFACE_Z - 0.07);
+    board.position.z = BOARD_SURFACE_Z - 0.14;
     this.instrument.add(board);
 
     // nut
     const nut = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.1, 0.13),
+      new THREE.BoxGeometry(0.36, 0.1, 0.13),
       new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.55 })
     );
     nut.position.set(0, STRING_TOP + 0.05, -0.035);
     this.instrument.add(nut);
 
-    // bridge: stands on the belly, its top edge carrying the string's end
+    // bridge: a thin strip with a slightly arched top edge, its crown
+    // carrying the string's end
+    const bridgeShape = new THREE.Shape();
+    bridgeShape.moveTo(-0.28, -0.06);
+    bridgeShape.quadraticCurveTo(0, 0.06, 0.28, -0.06); // top edge crests at y=0
+    bridgeShape.lineTo(0.28, -0.1);
+    bridgeShape.quadraticCurveTo(0, 0.02, -0.28, -0.1);
+    bridgeShape.closePath();
     const bridge = new THREE.Mesh(
-      new THREE.BoxGeometry(0.52, 0.22, 0.09),
-      new THREE.MeshStandardMaterial({ color: 0xc89a64, roughness: 0.5 })
+      new THREE.ShapeGeometry(bridgeShape, 24),
+      new THREE.MeshBasicMaterial({ color: 0xd8b88a })
     );
-    bridge.position.set(0, STRING_BOT - 0.11, -0.03);
+    bridge.position.set(0, STRING_BOT, -0.02);
     this.instrument.add(bridge);
-    const bridgeFoot = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, 0.05, 0.11),
-      new THREE.MeshStandardMaterial({ color: 0xb0824f, roughness: 0.55 })
-    );
-    bridgeFoot.position.set(0, STRING_BOT - 0.245, -0.03);
-    this.instrument.add(bridgeFoot);
 
-    // violin body outline (minimal curves: upper bout, C-bout waist, lower
-    // bout) sitting under the bridge end of the string
+    // violin body, roughly to real proportions: the top edge sits at 40% of
+    // the string length (so the fingerboard overhangs it), the bridge lands
+    // at the C-bout waist at ~55% of the body length, and the lower bout
+    // runs off the bottom of the view
     const half = (sign: number, sh: THREE.Shape): void => {
-      sh.bezierCurveTo(sign * 0.62, 0.06, sign * 1.0, -0.18, sign * 0.86, -0.66);
-      sh.bezierCurveTo(sign * 0.76, -0.98, sign * 0.55, -1.0, sign * 0.53, -1.18);
-      sh.bezierCurveTo(sign * 0.51, -1.38, sign * 0.82, -1.45, sign * 1.0, -1.82);
-      sh.bezierCurveTo(sign * 1.12, -2.2, sign * 0.62, -2.5, 0, -2.5);
+      sh.bezierCurveTo(sign * 0.5, 0.06, sign * 0.97, -0.3, sign * 0.91, -1.0);
+      sh.bezierCurveTo(sign * 0.86, -1.45, sign * 0.6, -1.5, sign * 0.56, -1.85);
+      sh.bezierCurveTo(sign * 0.52, -2.2, sign * 0.95, -2.4, sign * 1.1, -2.9);
+      sh.bezierCurveTo(sign * 1.2, -3.45, sign * 0.65, -3.85, 0, -3.85);
     };
     const outline = new THREE.Shape();
     outline.moveTo(0, 0);
     half(1, outline);
     // mirror back up the other side
     const mirrored = new THREE.Shape();
-    mirrored.moveTo(0, -2.5);
-    mirrored.bezierCurveTo(-0.62, -2.5, -1.12, -2.2, -1.0, -1.82);
-    mirrored.bezierCurveTo(-0.82, -1.45, -0.51, -1.38, -0.53, -1.18);
-    mirrored.bezierCurveTo(-0.55, -1.0, -0.76, -0.98, -0.86, -0.66);
-    mirrored.bezierCurveTo(-1.0, -0.18, -0.62, 0.06, 0, 0);
+    mirrored.moveTo(0, -3.85);
+    mirrored.bezierCurveTo(-0.65, -3.85, -1.2, -3.45, -1.1, -2.9);
+    mirrored.bezierCurveTo(-0.95, -2.4, -0.52, -2.2, -0.56, -1.85);
+    mirrored.bezierCurveTo(-0.6, -1.5, -0.86, -1.45, -0.91, -1.0);
+    mirrored.bezierCurveTo(-0.97, -0.3, -0.5, 0.06, 0, 0);
     for (const c of mirrored.curves) outline.curves.push(c);
     const bodyGeo = new THREE.ExtrudeGeometry(outline, {
       depth: 0.22,
@@ -134,13 +146,36 @@ export class SceneView {
       bevelSegments: 2,
       curveSegments: 24,
     });
+    const bodyTopY = this.sToY(0.4);
     const body = new THREE.Mesh(
       bodyGeo,
       new THREE.MeshStandardMaterial({ color: 0x3a2417, roughness: 0.45, metalness: 0.05 })
     );
-    body.scale.x = 1.18;
-    body.position.set(0, -0.5, -0.47);
+    body.position.set(0, bodyTopY, -0.47);
     this.instrument.add(body);
+
+    // f-holes flanking the bridge: a gently bowed slit with an eye at each
+    // end, tops leaning toward the centre
+    for (const side of [-1, 1]) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0x0d0905 });
+      const bend = side * 0.06;
+      const slit = new THREE.Shape();
+      slit.moveTo(-0.022, 0.2);
+      slit.quadraticCurveTo(bend - 0.022, 0, -0.022, -0.2);
+      slit.lineTo(0.022, -0.2);
+      slit.quadraticCurveTo(bend + 0.022, 0, 0.022, 0.2);
+      slit.closePath();
+      const fhole = new THREE.Group();
+      fhole.add(new THREE.Mesh(new THREE.ShapeGeometry(slit, 16), mat));
+      const eyeT = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), mat);
+      eyeT.position.y = 0.24;
+      const eyeB = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), mat);
+      eyeB.position.y = -0.24;
+      fhole.add(eyeT, eyeB);
+      fhole.position.set(side * 0.42, STRING_BOT + 0.05, -0.19);
+      fhole.rotation.z = side * 0.18;
+      this.instrument.add(fhole);
+    }
 
     // natural-harmonic node markers (n = 2..6)
     const nodes = new Map<number, number>(); // position -> lowest harmonic number
