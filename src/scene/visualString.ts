@@ -229,9 +229,14 @@ export class VisualString {
   }
 }
 
-/** Lowest standing mode (2..N_MODES) with a node at p, or 0 if none. */
+/** Lowest standing mode (2..N_MODES) with an *interior* node at p, or 0 if none. */
 function lowestNodeMode(p: number): number {
   for (let n = 2; n <= N_MODES; n++) {
+    // nearest node index of mode n; k=0 (nut) and k=n (bridge) are the trivial
+    // endpoints, not flageolet nodes — without this guard sin(nπp)→0 as p→0|1
+    // gives a false low-harmonic hit when the finger is near either end.
+    const k = Math.round(n * p);
+    if (k <= 0 || k >= n) continue;
     if (Math.abs(Math.sin(n * Math.PI * p)) < 0.2) return n;
   }
   return 0;
