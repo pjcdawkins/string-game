@@ -8,8 +8,9 @@
  *   visual), direction following the bow stroke;
  * - after plucks we draw a sum of standing-wave modes seeded by the pluck
  *   point (so plucking at 1/4 shows the missing-4th-harmonic shape);
- * - a light harmonic touch filters the visual modes to those with a node at
- *   the touch point, mirroring what the audio junction does;
+ * - a light harmonic touch replaces the corner with the touched flageolet's
+ *   standing mode — the string vibrates in n segments with a node damped
+ *   under the finger — and filters any modal residue the same way;
  * - a firm stop confines vibration to the finger->bridge section and the
  *   string visibly depresses (in z) onto the fingerboard.
  */
@@ -104,7 +105,7 @@ export class VisualString {
     const L0 = stoppedAt;
     const sp = Math.min(0.98, Math.max(0.02, (p - L0) / (1 - L0)));
     for (let n = 1; n <= N_MODES; n++) {
-      let a = (dx * 0.95 * Math.sin(n * Math.PI * sp)) / n;
+      let a = (dx * 0.5 * Math.sin(n * Math.PI * sp)) / n;
       if (harmonicAt > 0) {
         const node = Math.abs(Math.sin(n * Math.PI * harmonicAt));
         a *= Math.max(0, 1 - node * 2.4);
@@ -121,19 +122,31 @@ export class VisualString {
         ? inp.fingerPos
         : 0;
 
-    // amplitude follows the real audio level
-    const targetAmp = Math.min(0.42, inp.rms * 4.5);
+    // amplitude follows the real audio level (kept modest — the slow-mo
+    // caricature reads better when the swing stays near the string)
+    const targetAmp = Math.min(0.21, inp.rms * 2.25);
     this.vibAmp += (targetAmp - this.vibAmp) * Math.min(1, dt * 14);
 
-    const sounding = inp.bowing && inp.slipRatio > 0.005 && this.vibAmp > 0.004;
+    // which flageolet (if any) the touch selects: the lowest mode with a
+    // node at the touch point — low harmonics show their shape most clearly
+    const harmN = harmonicAt > 0 ? lowestNodeMode(harmonicAt) : 0;
+
+    const sounding = inp.bowing && inp.slipRatio > 0.005 && this.vibAmp > 0.002;
     if (sounding) {
       this.helmPhase += dt * inp.slowMoHz;
       this.helmPhase -= Math.floor(this.helmPhase);
-      // keep some modal residue so lifting the bow leaves a ringing string
-      for (let n = 1; n <= 4; n++) {
-        this.modeAmp[n - 1] = Math.max(this.modeAmp[n - 1], (this.vibAmp * 0.7) / n);
+      if (harmN > 0) {
+        // bowed flageolet: drive the touched standing mode instead of the
+        // open-string corner, so the node under the finger is visible
+        this.modeAmp[harmN - 1] = Math.max(this.modeAmp[harmN - 1], this.vibAmp * 0.6);
+      } else {
+        // keep some modal residue so lifting the bow leaves a ringing string
+        for (let n = 1; n <= 4; n++) {
+          this.modeAmp[n - 1] = Math.max(this.modeAmp[n - 1], (this.vibAmp * 0.7) / n);
+        }
       }
     }
+    const drawCorner = sounding && harmN === 0;
 
     // advance / decay modes
     for (let n = 1; n <= N_MODES; n++) {
@@ -145,7 +158,8 @@ export class VisualString {
       }
     }
 
-    const raucous = inp.bowing && inp.slipRatio > 0.55;
+    // overpressure = prolonged sticking (slip ratio collapses), not lots of slip
+    const raucous = inp.bowing && inp.slipRatio < 0.04 && this.vibAmp > 0.0075;
     const phi = this.helmPhase;
     let cornerPos: number;
     let cornerSign: number;
@@ -189,7 +203,7 @@ export class VisualString {
         x += grab.dx * tri * leak;
       }
 
-      if (sounding) {
+      if (drawCorner) {
         const h =
           sigma <= cp ? (cornerH * sigma) / cp : (cornerH * (1 - sigma)) / (1 - cp);
         x += h * leak;
@@ -209,8 +223,21 @@ export class VisualString {
 
     this.line.geometry.setPositions(Array.from(this.positions));
     this.glow.geometry.setPositions(Array.from(this.positions));
-    this.glowMat.opacity = Math.min(0.55, this.vibAmp * 2.2 + (grab ? 0.12 : 0));
+    this.glowMat.opacity = Math.min(0.55, this.vibAmp * 4.4 + (grab ? 0.12 : 0));
     // colour shifts warmer when the tone is raucous/crunchy
     this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, 0.62);
   }
+}
+
+/** Lowest standing mode (2..N_MODES) with an *interior* node at p, or 0 if none. */
+function lowestNodeMode(p: number): number {
+  for (let n = 2; n <= N_MODES; n++) {
+    // nearest node index of mode n; k=0 (nut) and k=n (bridge) are the trivial
+    // endpoints, not flageolet nodes — without this guard sin(nπp)→0 as p→0|1
+    // gives a false low-harmonic hit when the finger is near either end.
+    const k = Math.round(n * p);
+    if (k <= 0 || k >= n) continue;
+    if (Math.abs(Math.sin(n * Math.PI * p)) < 0.2) return n;
+  }
+  return 0;
 }

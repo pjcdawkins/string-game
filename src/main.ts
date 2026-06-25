@@ -1,11 +1,10 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity } from "./scene/tools";
-import { Interactions } from "./input/interactions";
+import { Interactions, BOW_MAX } from "./input/interactions";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
-import { Challenge } from "./ui/challenge";
-import { state, FINGERBOARD_END, STRINGS } from "./state";
+import { state, STRINGS } from "./state";
 import "./style.css";
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
@@ -13,7 +12,6 @@ const uiRoot = document.getElementById("ui") as HTMLElement;
 
 const view = new SceneView(canvas);
 const hud = new Hud(uiRoot);
-const challenge = new Challenge(uiRoot, hud.challengeButton);
 const input = new Interactions(view, canvas);
 
 // initialise the engine's string when audio first becomes available
@@ -51,12 +49,13 @@ function frame(now: number): void {
   });
 
   updateTools();
-  view.setMarkersVisible(state.markers, state.markers && state.leftMode === "touch");
+  view.setNodeMarkersVisible(state.markers);
+  // node markers follow a firm stop: harmonics of the vibrating portion
+  view.updateNodeMarkers(state.fingerOn && input.fingerPressure > 0.55 ? state.fingerPos : 0);
   view.updateMapping();
   view.render();
 
   hud.updateMeters();
-  challenge.update(dt);
   requestAnimationFrame(frame);
 }
 
@@ -67,13 +66,17 @@ function updateTools(): void {
   t.rightFinger.visible = false;
 
   const hover = input.hover;
-  const hoverRight = hover && hover.s >= FINGERBOARD_END && hover.s <= 1.05;
-  const hoverLeft = hover && hover.s > -0.02 && hover.s < FINGERBOARD_END;
+  const boundary = input.zoneBoundary();
+  const hoverRight = hover && hover.s >= boundary && hover.s <= 1.05;
+  const hoverLeft = hover && hover.s > -0.02 && hover.s < boundary;
+
+  // note guide: show what the cursor position would sound under the finger
+  hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);
 
   if (state.tool === "bow" && (input.bowEngaged || state.autoBow || hoverRight)) {
     t.bow.visible = true;
     const engaged = input.bowEngaged || state.autoBow;
-    const s = engaged ? input.bowPos : Math.max(FINGERBOARD_END + 0.03, Math.min(0.97, hover!.s));
+    const s = engaged ? input.bowPos : Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));
     const x = engaged ? input.bowX * 0.25 : hover!.x * 0.25;
     t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
@@ -85,7 +88,8 @@ function updateTools(): void {
       setToolOpacity(mesh, 1);
     } else if (hoverRight) {
       mesh.visible = true;
-      mesh.position.set(hover!.x, view.sToY(hover!.s), 0.12);
+      const s = Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));
+      mesh.position.set(hover!.x, view.sToY(s), 0.12);
       setToolOpacity(mesh, 0.45);
     }
   }

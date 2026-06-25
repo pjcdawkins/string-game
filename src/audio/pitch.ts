@@ -1,7 +1,7 @@
 /**
  * Compact YIN pitch detector running on the AnalyserNode's time-domain
- * buffer. Used for the HUD tuner readout and the challenge game, so the
- * "measured" pitch is honest — it comes from the actual audio output.
+ * buffer. Used for the HUD tuner readout, so the "measured" pitch is
+ * honest — it comes from the actual audio output.
  */
 
 const BUF = new Float32Array(2048);

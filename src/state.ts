@@ -9,14 +9,15 @@ export interface ViolinString {
 }
 
 export const STRINGS: ViolinString[] = [
-  { name: "G3", spec: { f0: 196.0, darkness: 0.45, loss: 0.35, stiffness: 0.25 } },
-  { name: "D4", spec: { f0: 293.66, darkness: 0.35, loss: 0.3, stiffness: 0.2 } },
-  { name: "A4", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15 } },
-  { name: "E5", spec: { f0: 659.25, darkness: 0.15, loss: 0.25, stiffness: 0.1 } },
+  { name: "G3", spec: { f0: 196.0, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 } },
+  { name: "D4", spec: { f0: 293.66, darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25 } },
+  { name: "A4", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15 } },
+  { name: "E5", spec: { f0: 659.25, darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06 } },
 ];
 
-/** Fraction of the string length (from the nut) covered by the fingerboard. */
-export const FINGERBOARD_END = 0.62;
+/** Fraction of the string length (from the nut) covered by the fingerboard.
+ * The whole board is playable with the left hand, as on a real violin. */
+export const FINGERBOARD_END = 0.84;
 
 export interface AudioMeter {
   rms: number;
@@ -37,7 +38,6 @@ export interface AppState {
   fingerPressure: number;
   vibrato: boolean;
   markers: boolean;
-  snap: boolean;
   slowMo: number; // visual slow-motion factor (Hz of visual fundamental)
   meter: AudioMeter;
   detectedFreq: number;
@@ -54,8 +54,7 @@ export const state: AppState = {
   fingerPos: 0.3,
   fingerPressure: 0,
   vibrato: false,
-  markers: true,
-  snap: false,
+  markers: false,
   slowMo: 1.6,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
   detectedFreq: 0,
@@ -82,9 +81,4 @@ export function freqToNote(freq: number): { name: string; cents: number } | null
   const cents = Math.round((midi - nearest) * 100);
   const name = NOTE_NAMES[((nearest % 12) + 12) % 12] + (Math.floor(nearest / 12) - 1);
   return { name, cents };
-}
-
-/** Equal-temperament stop position for `semis` semitones above the open string. */
-export function semitonePos(semis: number): number {
-  return 1 - Math.pow(2, -semis / 12);
 }

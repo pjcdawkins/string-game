@@ -45,6 +45,12 @@ export interface StringSpec {
   loss: number;
   /** Stiffness/dispersion amount 0..1. */
   stiffness: number;
+  /**
+   * Tension-modulation coefficient (geometric nonlinearity): large-amplitude
+   * vibration stretches the string and raises its pitch, most audibly on the
+   * low, floppy strings when driven hard sul tasto. 0 disables the effect.
+   */
+  nonlinearity: number;
 }
 
 export interface SimState {
@@ -56,7 +62,6 @@ export interface SimState {
 
 const MU_S = 0.8; // static friction coefficient
 const MU_D = 0.3; // dynamic friction coefficient
-const V_C = 0.05; // friction curve "knee" velocity
 
 export class StringSim {
   readonly fs: number;
@@ -72,7 +77,13 @@ export class StringSim {
   bodyMix = 0.75; // 0 = raw string, 1 = full body filter
   masterGain = 0.9;
 
-  private spec: StringSpec = { f0: 220, darkness: 0.3, loss: 0.4, stiffness: 0.2 };
+  private spec: StringSpec = {
+    f0: 220,
+    darkness: 0.3,
+    loss: 0.4,
+    stiffness: 0.2,
+    nonlinearity: 0.15,
+  };
 
   // delay lines: right-going (toward bridge) and left-going (toward nut)
   private aR: DelayLine;
@@ -111,6 +122,10 @@ export class StringSim {
   private slipAcc = 0;
   private slipVal = 0;
 
+  // slow EMA of squared string amplitude, drives tension-modulation detune
+  private amp2 = 0;
+  private amp2Coeff = 0;
+
   constructor(sampleRate: number, minF0 = 60) {
     this.fs = sampleRate;
     const maxDelay = Math.ceil(sampleRate / (2 * minF0)) + 8;
@@ -128,6 +143,7 @@ export class StringSim {
     this.rfSm = new Smoother(0, sampleRate * 0.003);
     this.bowVelSm = new Smoother(0, sampleRate * 0.006);
     this.bowForceSm = new Smoother(0, sampleRate * 0.004);
+    this.amp2Coeff = 1 - Math.exp(-1 / (0.03 * sampleRate)); // ~30 ms tracker
 
     const modes: Array<[number, number, number]> = [
       [275, 9, 1.5], // "breathing" A0 mode
@@ -183,6 +199,7 @@ export class StringSim {
     this.dc.clear();
     for (const b of this.body) b.clear();
     this.pluckSamplesLeft = 0;
+    this.amp2 = 0;
   }
 
   getState(): SimState {
@@ -208,25 +225,67 @@ export class StringSim {
   }
 
   private clampedPositions(): [number, number] {
-    const pf = Math.min(0.62, Math.max(0.02, this.fingerPosition));
-    const pb = Math.min(0.98, Math.max(pf + 0.05, this.bowPosition));
+    // a finger right at the nut (pf = 0) leaves the string effectively open
+    const pf = Math.min(0.85, Math.max(0, this.fingerPosition));
+    const pb = Math.min(0.99, Math.max(pf + 0.05, this.bowPosition));
     return [pf, pb];
   }
 
   private delayTargets(): [number, number, number] {
     const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
-    const oneWay = this.fs / (2 * this.spec.f0);
+    // tension modulation: vibration amplitude stretches the string slightly,
+    // raising the pitch — shorten all segments by the same factor
+    // only amplitudes beyond ordinary playing stretch the string audibly
+    const excess = Math.max(0, Math.min(0.045, this.amp2) - 0.012);
+    const detune = 1 + this.spec.nonlinearity * excess;
+    const oneWay = this.fs / (2 * this.spec.f0 * detune);
     const [pf, pb] = this.clampedPositions();
     // the reflection filters live at the bridge, so their delay is taken
     // entirely out of segment C — tuning then stays exact for stopped notes
-    const dA = Math.max(2, pf * oneWay);
-    const dB = Math.max(2, (pb - pf) * oneWay);
-    const dC = Math.max(2, (1 - pb) * oneWay - comp / 2);
+    let dA = pf * oneWay;
+    let dB = (pb - pf) * oneWay;
+    let dC = (1 - pb) * oneWay - comp / 2;
+    // enforce minimum segment lengths without changing the total: clamp every
+    // short segment up, then recover the added delay from segments that still
+    // have slack — otherwise bowing near the bridge (tiny C) or a finger near
+    // the nut (tiny A) would lengthen the loop and play flat
+    const MIN = 2;
+    let deficit = 0;
+    if (dA < MIN) {
+      deficit += MIN - dA;
+      dA = MIN;
+    }
+    if (dB < MIN) {
+      deficit += MIN - dB;
+      dB = MIN;
+    }
+    if (dC < MIN) {
+      deficit += MIN - dC;
+      dC = MIN;
+    }
+    if (deficit > 0) {
+      const take = (d: number): number => {
+        const t = Math.min(deficit, d - MIN);
+        deficit -= t;
+        return d - t;
+      };
+      dB = take(dB);
+      dC = take(dC);
+      dA = take(dA);
+    }
     return [dA, dB, dC];
   }
 
   /** Render `out.length` mono samples. */
   process(out: Float32Array): void {
+    const beta = 1 - this.clampedPositions()[1]; // bow-bridge distance fraction
+
+    // contact-point colour: near the bridge the Helmholtz corner stays sharp
+    // (less Cremer rounding) and the bridge passes more upper partials; over
+    // the fingerboard the tone rounds off and darkens
+    const vc = 0.015 + 0.19 * beta; // friction-curve knee
+    this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.45 + 2.1 * beta));
+
     const [tA, tB, tC] = this.delayTargets();
     const rfTarget = this.effectiveRf();
     const bowVelTarget = this.bowOn ? this.bowVelocity : 0;
@@ -248,6 +307,9 @@ export class StringSim {
       const bBow = this.bR.read(dB);
       const cBow = this.cL.read(dC);
       const atBridge = this.cR.read(dC);
+
+      // amplitude tracker for the tension-modulation detune
+      this.amp2 += this.amp2Coeff * (atBridge * atBridge - this.amp2);
 
       // --- nut reflection
       const nutOut = -this.nutCoeff * atNut;
@@ -273,8 +335,8 @@ export class StringSim {
           vJ = vBow; // stick: string moves with the bow
         } else {
           // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJ|
-          const B = V_C - ad + k * MU_D;
-          const C = V_C * (k * MU_S - ad); // < 0 here => one positive root
+          const B = vc - ad + k * MU_D;
+          const C = vc * (k * MU_S - ad); // < 0 here => one positive root
           const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
           vJ = vBow - Math.sign(d) * s;
           slipping = 1;

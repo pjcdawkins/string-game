@@ -8,10 +8,13 @@
 import * as THREE from "three";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet } from "./tools";
-import { FINGERBOARD_END, semitonePos } from "../state";
+import { FINGERBOARD_END } from "../state";
 
 export const STRING_TOP = 2.1;
-export const STRING_BOT = -2.1;
+// the bottom end leaves room below for the bridge (and a glimpse of the
+// belly) to stay visible above the bottom control panel, so you can see how
+// close to it you bow
+export const STRING_BOT = -1.45;
 export const STRING_LEN = STRING_TOP - STRING_BOT;
 export const BOARD_SURFACE_Z = -0.08;
 
@@ -24,7 +27,6 @@ export class SceneView {
   readonly tools: ToolSet;
 
   private nodeMarkers = new THREE.Group();
-  private semitoneTicks = new THREE.Group();
   private fingerContact: THREE.Mesh;
 
   // cached affine mapping screen px -> (s along string, x lateral world units)
@@ -74,54 +76,100 @@ export class SceneView {
   }
 
   private buildFurniture(): void {
-    // fingerboard
-    const boardLen = FINGERBOARD_END * STRING_LEN + 0.1;
+    // fingerboard: tapered (narrow at the nut, wide at its end) and, as on a
+    // real violin, extending well over the body — past the playable
+    // left-hand zone, under the sul tasto bowing region
+    const boardTopY = STRING_TOP + 0.06;
+    const boardEndY = this.sToY(FINGERBOARD_END);
+    const boardShape = new THREE.Shape();
+    boardShape.moveTo(-0.17, boardTopY);
+    boardShape.lineTo(0.17, boardTopY);
+    boardShape.lineTo(0.3, boardEndY);
+    boardShape.lineTo(-0.3, boardEndY);
+    boardShape.closePath();
     const board = new THREE.Mesh(
-      new THREE.BoxGeometry(0.6, boardLen, 0.14),
+      new THREE.ExtrudeGeometry(boardShape, { depth: 0.14, bevelEnabled: false }),
       new THREE.MeshStandardMaterial({ color: 0x171210, roughness: 0.32, metalness: 0.1 })
     );
-    board.position.set(0, STRING_TOP + 0.06 - boardLen / 2, BOARD_SURFACE_Z - 0.07);
+    board.position.z = BOARD_SURFACE_Z - 0.14;
     this.instrument.add(board);
 
-    // nut
+    // nut: a dark line right at the top of the string — a finger can stop
+    // all the way up to it (on it, the string is effectively open)
     const nut = new THREE.Mesh(
-      new THREE.BoxGeometry(0.4, 0.1, 0.13),
-      new THREE.MeshStandardMaterial({ color: 0xe8dcc8, roughness: 0.55 })
+      new THREE.BoxGeometry(0.44, 0.05, 0.14),
+      new THREE.MeshStandardMaterial({ color: 0x4a3826, roughness: 0.5 })
     );
-    nut.position.set(0, STRING_TOP + 0.05, -0.035);
+    nut.position.set(0, STRING_TOP + 0.04, -0.03);
     this.instrument.add(nut);
 
-    // bridge
+    // bridge: a plain straight line, its top edge carrying the string's end
     const bridge = new THREE.Mesh(
-      new THREE.BoxGeometry(0.46, 0.16, 0.1),
-      new THREE.MeshStandardMaterial({ color: 0xc89a64, roughness: 0.5 })
+      new THREE.PlaneGeometry(0.56, 0.04),
+      new THREE.MeshBasicMaterial({ color: 0xd8b88a })
     );
-    bridge.position.set(0, STRING_BOT - 0.08, -0.03);
+    bridge.position.set(0, STRING_BOT - 0.02, -0.02);
     this.instrument.add(bridge);
 
-    // a hint of spruce top below the fingerboard
-    const top = new THREE.Mesh(
-      new THREE.BoxGeometry(2.4, STRING_LEN * (1 - FINGERBOARD_END) + 0.5, 0.05),
-      new THREE.MeshStandardMaterial({ color: 0x271c12, roughness: 0.6 })
+    // violin body, roughly to real proportions: the top edge sits at 40% of
+    // the string length (so the fingerboard overhangs it), the bridge lands
+    // at the C-bout waist at ~55% of the body length, and the lower bout
+    // runs off the bottom of the view
+    const half = (sign: number, sh: THREE.Shape): void => {
+      sh.bezierCurveTo(sign * 0.5, 0.06, sign * 0.97, -0.3, sign * 0.91, -1.0);
+      sh.bezierCurveTo(sign * 0.86, -1.45, sign * 0.6, -1.5, sign * 0.56, -1.85);
+      sh.bezierCurveTo(sign * 0.52, -2.2, sign * 0.95, -2.4, sign * 1.1, -2.9);
+      sh.bezierCurveTo(sign * 1.2, -3.45, sign * 0.65, -3.85, 0, -3.85);
+    };
+    const outline = new THREE.Shape();
+    outline.moveTo(0, 0);
+    half(1, outline);
+    // mirror back up the other side
+    const mirrored = new THREE.Shape();
+    mirrored.moveTo(0, -3.85);
+    mirrored.bezierCurveTo(-0.65, -3.85, -1.2, -3.45, -1.1, -2.9);
+    mirrored.bezierCurveTo(-0.95, -2.4, -0.52, -2.2, -0.56, -1.85);
+    mirrored.bezierCurveTo(-0.6, -1.5, -0.86, -1.45, -0.91, -1.0);
+    mirrored.bezierCurveTo(-0.97, -0.3, -0.5, 0.06, 0, 0);
+    for (const c of mirrored.curves) outline.curves.push(c);
+    const bodyGeo = new THREE.ExtrudeGeometry(outline, {
+      depth: 0.22,
+      bevelEnabled: true,
+      bevelThickness: 0.05,
+      bevelSize: 0.045,
+      bevelSegments: 2,
+      curveSegments: 24,
+    });
+    const bodyTopY = this.sToY(0.4);
+    const body = new THREE.Mesh(
+      bodyGeo,
+      new THREE.MeshStandardMaterial({ color: 0x3a2417, roughness: 0.45, metalness: 0.05 })
     );
-    const topLen = STRING_LEN * (1 - FINGERBOARD_END) + 0.5;
-    top.position.set(0, STRING_BOT - 0.2 + topLen / 2, -0.3);
-    this.instrument.add(top);
+    body.position.set(0, bodyTopY, -0.47);
+    this.instrument.add(body);
 
-    // equal-temperament position ticks on the board
-    const tickMat = new THREE.MeshBasicMaterial({ color: 0x6a584a });
-    const tickMatStrong = new THREE.MeshBasicMaterial({ color: 0xa08767 });
-    const strong = new Set([2, 4, 5, 7, 9, 12]);
-    for (let m = 1; m <= 12; m++) {
-      const p = semitonePos(m);
-      const tick = new THREE.Mesh(
-        new THREE.BoxGeometry(strong.has(m) ? 0.3 : 0.18, 0.012, 0.005),
-        strong.has(m) ? tickMatStrong : tickMat
-      );
-      tick.position.set(0, this.sToY(p), BOARD_SURFACE_Z + 0.004);
-      this.semitoneTicks.add(tick);
+    // f-holes flanking the bridge: a gently bowed slit with an eye at each
+    // end, tops leaning toward the centre
+    for (const side of [-1, 1]) {
+      const mat = new THREE.MeshBasicMaterial({ color: 0x0d0905 });
+      const bend = side * 0.06;
+      const slit = new THREE.Shape();
+      slit.moveTo(-0.022, 0.2);
+      slit.quadraticCurveTo(bend - 0.022, 0, -0.022, -0.2);
+      slit.lineTo(0.022, -0.2);
+      slit.quadraticCurveTo(bend + 0.022, 0, 0.022, 0.2);
+      slit.closePath();
+      const fhole = new THREE.Group();
+      fhole.add(new THREE.Mesh(new THREE.ShapeGeometry(slit, 16), mat));
+      const eyeT = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), mat);
+      eyeT.position.y = 0.24;
+      const eyeB = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), mat);
+      eyeB.position.y = -0.24;
+      fhole.add(eyeT, eyeB);
+      fhole.position.set(side * 0.42, STRING_BOT + 0.05, -0.19);
+      fhole.rotation.z = side * 0.18;
+      this.instrument.add(fhole);
     }
-    this.instrument.add(this.semitoneTicks);
 
     // natural-harmonic node markers (n = 2..6)
     const nodes = new Map<number, number>(); // position -> lowest harmonic number
@@ -139,19 +187,34 @@ export class SceneView {
         new THREE.SphereGeometry(0.035, 14, 10),
         new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85 })
       );
+      dot.userData.p = p;
       dot.position.set(0.16, this.sToY(p), 0.02);
       this.nodeMarkers.add(dot);
     }
     this.instrument.add(this.nodeMarkers);
   }
 
+  /** Reposition the harmonic node markers for the vibrating portion of the
+   * string: relative to a firm stop at `stop` (0 = open string). */
+  private nodeBase = -1;
+
+  updateNodeMarkers(stop: number): void {
+    if (stop === this.nodeBase) return;
+    this.nodeBase = stop;
+    for (const d of this.nodeMarkers.children) {
+      const p = (d.userData as { p: number }).p;
+      const abs = stop + p * (1 - stop);
+      d.position.y = this.sToY(abs);
+      d.visible = abs <= FINGERBOARD_END;
+    }
+  }
+
   sToY(s: number): number {
     return STRING_TOP - s * STRING_LEN;
   }
 
-  setMarkersVisible(ticks: boolean, nodes: boolean): void {
-    this.semitoneTicks.visible = ticks;
-    this.nodeMarkers.visible = nodes;
+  setNodeMarkersVisible(visible: boolean): void {
+    this.nodeMarkers.visible = visible;
   }
 
   showFingerContact(s: number, strength: number): void {
