@@ -8,6 +8,7 @@ import type { StringSpec } from "./dsp/StringSim";
 import type { AudioMeter } from "../state";
 
 export class Engine {
+  private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
   analyser: AnalyserNode | null = null;
   private starting: Promise<void> | null = null;
@@ -22,7 +23,13 @@ export class Engine {
   private baseFingerPos = 0.3;
 
   async ensureStarted(): Promise<void> {
-    if (this.node) return;
+    if (this.node) {
+      // Already built. Safari/iOS suspends the context (e.g. after the tab is
+      // backgrounded, or if the very first resume lost its gesture), so make
+      // sure it is awake again. This runs inside the triggering user gesture.
+      this.resumeNow();
+      return;
+    }
     if (this.starting) return this.starting;
     this.starting = this.start();
     return this.starting;
@@ -32,8 +39,26 @@ export class Engine {
     return this.node !== null;
   }
 
+  /** Resume the context synchronously from within a user gesture. iOS only
+   * honours resume() while the gesture's activation is still live, so this
+   * must be invoked directly from the event handler, never after an await. */
+  private resumeNow(): void {
+    const ctx = this.ctx;
+    if (ctx && ctx.state !== "running") void ctx.resume().catch(() => {});
+  }
+
   private async start(): Promise<void> {
-    const ctx = new AudioContext({ latencyHint: "interactive" });
+    // Older iPads only expose the webkit-prefixed constructor.
+    const Ctor =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    const ctx = new Ctor({ latencyHint: "interactive" });
+    this.ctx = ctx;
+    // Kick the resume off *before* the async addModule below: on iOS Safari the
+    // context starts suspended and can only be unlocked while the user gesture
+    // that called start() is still active. Awaiting addModule first would drop
+    // that activation and leave the context muted.
+    const unlocked = ctx.resume().catch(() => {});
     await ctx.audioWorklet.addModule(workletUrl);
     const node = new AudioWorkletNode(ctx, "bowed-string", {
       numberOfInputs: 0,
@@ -63,7 +88,11 @@ export class Engine {
     };
     this.node = node;
     this.analyser = analyser;
-    if (ctx.state !== "running") await ctx.resume();
+    await unlocked;
+    // If the gesture had already expired by the time addModule resolved, the
+    // resume above is a no-op on iOS; the next pointer gesture retries it via
+    // ensureStarted() -> resumeNow().
+    this.resumeNow();
   }
 
   private param(name: string): AudioParam | null {
