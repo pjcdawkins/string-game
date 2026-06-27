@@ -66,6 +66,11 @@ export class Engine {
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.connect(ctx.destination);
+      // On a context that stays suspended, audio time never advances, so the
+      // source stays started-but-unfinished with a live edge to destination;
+      // repeated unlock attempts would pile these up. Release each one once it
+      // actually completes (after the context finally resumes).
+      src.onended = () => src.disconnect();
       src.start(0);
     } catch {
       // createBuffer/start can throw if the context is already closed; the next
