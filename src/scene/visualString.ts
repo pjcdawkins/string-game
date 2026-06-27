@@ -111,7 +111,7 @@ export class VisualString {
   }
 
   /** Pluck/grab release: seed an initial triangle on the string and let it ring. */
-  pluckVisual(p: number, dx: number, stoppedAt: number, _harmonicAt: number): void {
+  pluckVisual(p: number, dx: number, stoppedAt: number): void {
     // (a held light touch keeps filtering the ring-down via NODE_LOSS in update;
     // no need to pre-shape the seed — the flageolet emerges on its own)
     this.wave.setTermination(Math.round(stoppedAt * (NPTS - 1)));

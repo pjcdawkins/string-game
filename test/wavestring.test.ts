@@ -27,6 +27,18 @@ describe("WaveString waveguide", () => {
     }
   });
 
+  it("keeps both fixed ends as nodes under production-like loss", () => {
+    // loss must be distributed so the rails stay equal-and-opposite at the ends;
+    // applying it only to the reflected rail would let the node drift by ~(1-loss).
+    const w = new WaveString(64);
+    w.pluck(0.3, 1);
+    for (let s = 0; s < 200; s++) {
+      w.advance(1, { loss: 0.86, hfLoss: 0.12 });
+      expect(Math.abs(w.displacement(0))).toBeLessThan(1e-9);
+      expect(Math.abs(w.displacement(w.n - 1))).toBeLessThan(1e-9);
+    }
+  });
+
   it("is periodic over one round trip (2·segmentLength) when lossless", () => {
     const w = new WaveString(48);
     w.pluck(0.4, 1);

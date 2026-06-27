@@ -143,11 +143,7 @@ export class Interactions {
           const widthMs = state.tool === "pick" ? 0.7 : 5.0;
           engine.pluck(g.p, force, widthMs);
           const stopped = state.fingerOn && this.fingerPressure > 0.55 ? state.fingerPos : 0;
-          const harmonic =
-            state.fingerOn && this.fingerPressure > 0.02 && this.fingerPressure <= 0.55
-              ? state.fingerPos
-              : 0;
-          this.view.visual.pluckVisual(g.p, g.dx, stopped, harmonic);
+          this.view.visual.pluckVisual(g.p, g.dx, stopped);
         }
       }
     }
