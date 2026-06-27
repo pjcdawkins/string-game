@@ -251,13 +251,15 @@ export class VisualString {
     }
 
     // glow follows the actual string motion (a slow-release envelope of the peak,
-    // so it tracks the ring-down rather than the bow telemetry). While the bow
-    // drives a steady shape, though, the instantaneous peak passes through zero
-    // twice per cycle (a standing flageolet collapses to flat), which would
-    // flicker the glow; so during driven modes use the phase-independent drive
-    // amplitude (matching the seeded peak: 1.4·vibAmp flageolet, vibAmp corner),
-    // and fall back to the live peak for plucks and the free ring-down.
-    const peak = sounding ? this.vibAmp * (harmN > 0 ? 1.4 : 1) : this.wave.peakAbs();
+    // so it tracks the ring-down rather than the bow telemetry). Once the bow is
+    // writing a *steady* shape, though, the instantaneous peak passes through
+    // zero twice per cycle (a standing flageolet collapses to flat), which would
+    // flicker the glow; so use the phase-independent drive amplitude there
+    // (matching the seeded peak: 1.4·vibAmp flageolet, vibAmp corner). The bite
+    // windup is a real transient and plucks/ring-down decay, so those keep the
+    // live peak.
+    const drivenShape = bowOn && (harmN > 0 || this.bowSlipped);
+    const peak = drivenShape ? this.vibAmp * (harmN > 0 ? 1.4 : 1) : this.wave.peakAbs();
     this.glowAmp = Math.max(peak, this.glowAmp * Math.exp(-dt * 2.2));
 
     const fingerDepth = inp.fingerOn ? Math.min(0.085, 0.1 * inp.fingerPressure) : 0;
