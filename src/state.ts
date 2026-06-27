@@ -55,7 +55,7 @@ export const state: AppState = {
   fingerPressure: 0,
   vibrato: false,
   markers: false,
-  slowMo: 1.6,
+  slowMo: 2.4,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
   detectedFreq: 0,
 };

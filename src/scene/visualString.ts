@@ -128,7 +128,7 @@ export class VisualString {
 
     // amplitude follows the real audio level (kept modest — the slow-mo
     // caricature reads better when the swing stays near the string)
-    const targetAmp = Math.min(0.21, inp.rms * 2.25);
+    const targetAmp = Math.min(0.105, inp.rms * 1.13);
     this.vibAmp += (targetAmp - this.vibAmp) * Math.min(1, dt * 14);
 
     // which flageolet (if any) the touch selects: the lowest mode with a
