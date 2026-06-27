@@ -55,6 +55,10 @@ export class VisualString {
   private modePhase = new Float32Array(N_MODES);
   private vibAmp = 0;
   private helmPhase = 0;
+  // crossfade between the two ways we draw a sounding string: 1 = the
+  // travelling Helmholtz corner (while bowing), 0 = the standing modes
+  // (plucks, flageolets, and the ring-down after the bow lifts).
+  private cornerMix = 0;
 
   constructor(yTop: number, yBottom: number) {
     this.yTop = yTop;
@@ -147,6 +151,15 @@ export class VisualString {
       }
     }
     const drawCorner = sounding && harmN === 0;
+    // During true bowed (Helmholtz) motion the corner already *is* the string;
+    // the standing modes are just its Fourier decomposition. Drawing both at
+    // once double-counts them, and because only the corner flips with bow
+    // direction, reversing the bow can swing the two from reinforcing to
+    // cancelling — the corner visibly washes out. So we crossfade: show the
+    // corner while bowing, and hand back to the modes (still seeded above for
+    // ring-down) as the bow lifts.
+    const cornerTarget = drawCorner ? 1 : 0;
+    this.cornerMix += (cornerTarget - this.cornerMix) * Math.min(1, dt * 18);
 
     // advance / decay modes
     for (let n = 1; n <= N_MODES; n++) {
@@ -177,6 +190,10 @@ export class VisualString {
     const grab = inp.grabbed;
     const fingerDepth = inp.fingerOn ? Math.min(0.085, 0.1 * inp.fingerPressure) : 0;
     const modalScale = harmonicAt > 0 ? 1.6 : 1; // harmonics are quiet; keep them visible
+    const cornerMix = this.cornerMix;
+    const modeGain = (1 - cornerMix) * modalScale;
+    const drawCornerNow = cornerMix > 0.001; // keep drawing through the fade-out
+    const drawModes = modeGain > 0.001; // skip the modal sum while the corner owns the string
 
     for (let i = 0; i < NPTS; i++) {
       const s = i / (NPTS - 1);
@@ -203,18 +220,20 @@ export class VisualString {
         x += grab.dx * tri * leak;
       }
 
-      if (drawCorner) {
+      if (drawCornerNow) {
         const h =
           sigma <= cp ? (cornerH * sigma) / cp : (cornerH * (1 - sigma)) / (1 - cp);
-        x += h * leak;
-        if (raucous) x += (Math.random() - 0.5) * this.vibAmp * 0.5 * leak;
+        x += h * leak * cornerMix;
+        if (raucous) x += (Math.random() - 0.5) * this.vibAmp * 0.5 * leak * cornerMix;
       }
 
-      let m = 0;
-      for (let n = 1; n <= N_MODES; n++) {
-        m += this.modeAmp[n - 1] * Math.sin(n * Math.PI * sigma) * Math.cos(this.modePhase[n - 1]);
+      if (drawModes) {
+        let m = 0;
+        for (let n = 1; n <= N_MODES; n++) {
+          m += this.modeAmp[n - 1] * Math.sin(n * Math.PI * sigma) * Math.cos(this.modePhase[n - 1]);
+        }
+        x += m * leak * modeGain;
       }
-      x += m * leak * modalScale;
 
       this.positions[i * 3] = x;
       this.positions[i * 3 + 1] = this.yTop - s * this.yLen;
