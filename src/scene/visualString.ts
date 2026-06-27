@@ -32,12 +32,15 @@ const HF_LOSS = 0.12; // extra damping of high modes per reflection (duller deca
 const NODE_LOSS = 0.45; // energy bled per step at a touched flageolet node
 
 // bow attack: the start of a stroke is driven by the emergent stick-slip bow
-// (string captured from rest -> dragged aside -> first slip pings a corner off
-// = the bite/ictus), then morphs into the clean analytic Helmholtz corner for
-// the sustain. Measured in waveguide *steps* so the dynamics are independent of
-// the slow-mo rate (at low slow-mo this windup is a long, visible drag).
-const ATTACK_STEPS = 300; // emergent capture + first release
-const XFADE_STEPS = 160; // morph from the emergent attack into the steady corner
+// (string captured from rest -> dragged aside -> the first slip pings a corner
+// off = the bite/ictus). The emergent regime only stays clean for that first
+// capture-release, so we run it *just* until the first slip, then morph into
+// the clean analytic Helmholtz corner for the sustain. Step counts are
+// slow-mo-independent, so at low slow-mo the windup is a long, visible drag.
+const GRIP_SCALE = 0.4; // bow grip per unit force — sets windup size / bite strength
+const WINDUP_STEPS = 140; // how quickly the bow drags the string to the slip point
+const XFADE_STEPS = 90; // morph from the released bite into the steady corner
+const ATTACK_CAP = 600; // safety: force the morph if a slip is somehow never seen
 const BOW_KINETIC = 0.4; // kinetic/static friction ratio while slipping
 
 export interface GrabState {
@@ -76,8 +79,10 @@ export class VisualString {
   private glowAmp = 0; // envelope of the actual string motion (drives the glow)
   private helmPhase = 0; // bowed corner travel phase, cycles
   private harmPhase = 0; // bowed-flageolet standing-mode swing phase, cycles
-  private bowSteps = 0; // waveguide steps since this stroke began (attack timing)
+  private bowSteps = 0; // waveguide steps in the current attack/morph phase
   private bowingOpen = false; // bowing an open/stopped string (not a flageolet)
+  private bowSlipped = false; // has this stroke's first slip (the bite) happened yet
+  private bowDir = 1; // stroke direction, latched at onset (avoids slow-bow dither)
   private attackSnap = new Float32Array(NPTS); // shape captured to morph into sustain
 
   constructor(yTop: number, yBottom: number) {
@@ -188,34 +193,45 @@ export class VisualString {
       if (!this.bowingOpen) {
         this.wave.anchorBow(bowIndex); // rising edge: capture from rest
         this.bowSteps = 0;
+        this.bowSlipped = false;
+        // latch the stroke direction now: at slow bow speeds the live velocity
+        // sign dithers around zero, which would jerk the emergent drag back and
+        // forth — so hold the onset direction for the stroke
+        this.bowDir = inp.bowVelSign;
         this.bowingOpen = true;
       }
 
-      if (this.bowSteps < ATTACK_STEPS) {
-        // bow grips the string and drags it aside until it breaks away — more
-        // force = a firmer grip = a longer drag = a stronger bite; a light touch
-        // barely grips and just slips, so no bite (exactly as on a real string)
+      if (!this.bowSlipped && this.bowSteps < ATTACK_CAP) {
+        // bow grips the string and drags it aside until it breaks away. Grip is
+        // set by *force* (not the ramping level), so the bite is there from the
+        // first instant: more force = firmer grip = longer drag = stronger bite;
+        // a light touch barely grips and slips at once, so no bite — exactly as
+        // on a real string.
         const forceN = Math.min(1, Math.max(0, (inp.bowForce - 0.05) / 0.9));
-        const grip = Math.max(1e-4, this.vibAmp * (0.6 + 2.2 * forceN));
-        const vel = (inp.bowVelSign * grip) / (0.88 * 2 * segLen);
+        const grip = Math.max(1e-4, GRIP_SCALE * forceN);
+        const vel = (this.bowDir * grip) / WINDUP_STEPS;
         this.wave.advance(steps, {
           loss: REFLECT_LOSS,
           hfLoss: HF_LOSS,
           bow: { index: bowIndex, vel, grip, kinetic: BOW_KINETIC },
         });
         this.bowSteps += steps;
-        if (this.bowSteps >= ATTACK_STEPS) {
+        // the first slip *is* the bite; hand straight to the clean corner after
+        // it (a few steps of guard so onset transients don't false-trigger)
+        if ((!this.wave.bowStuck && this.bowSteps > steps + 2) || this.bowSteps >= ATTACK_CAP) {
+          this.bowSlipped = true;
+          this.bowSteps = 0; // reuse as the morph counter
           for (let i = 0; i < NPTS; i++) this.attackSnap[i] = this.wave.displacement(i);
         }
-      } else if (this.bowSteps < ATTACK_STEPS + XFADE_STEPS) {
-        // morph the captured attack shape into the steady travelling corner
-        const mix = (this.bowSteps - ATTACK_STEPS) / XFADE_STEPS;
-        const corner = this.cornerProfile(inp.bowVelSign, nutIndex, segLen, raucous);
+      } else if (this.bowSteps < XFADE_STEPS) {
+        // morph the just-released bite shape into the steady travelling corner
+        const mix = this.bowSteps / XFADE_STEPS;
+        const corner = this.cornerProfile(this.bowDir, nutIndex, segLen, raucous);
         this.wave.seedProfile((i) => (1 - mix) * this.attackSnap[i] + mix * corner(i));
         this.bowSteps += steps;
       } else {
         // sustain: write the clean Helmholtz corner each frame
-        this.wave.seedProfile(this.cornerProfile(inp.bowVelSign, nutIndex, segLen, raucous));
+        this.wave.seedProfile(this.cornerProfile(this.bowDir, nutIndex, segLen, raucous));
       }
     } else {
       this.bowingOpen = false;
