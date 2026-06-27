@@ -17,9 +17,19 @@ const input = new Interactions(view, canvas);
 // initialise the engine's string when audio first becomes available
 let stringInitialised = false;
 
+// Cap the visual update + render at ~30fps. The string is a slow-motion
+// caricature, so 30fps reads identically to 60 while halving the per-frame
+// geometry rebuild — meaningful headroom on weaker devices (e.g. older iPads).
+// Audio runs in the worklet thread and is unaffected by this cap.
+const FRAME_MS = 1000 / 30;
 let last = performance.now();
 function frame(now: number): void {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  requestAnimationFrame(frame);
+  // gate on elapsed time, with a few ms of slack so a 60Hz display lands every
+  // other vsync (≈30fps) rather than dropping to 20 on the slightest jitter
+  const elapsed = now - last;
+  if (elapsed < FRAME_MS - 4) return;
+  const dt = Math.min(0.05, elapsed / 1000);
   last = now;
 
   if (engine.started && !stringInitialised) {
@@ -56,7 +66,6 @@ function frame(now: number): void {
   view.render();
 
   hud.updateMeters();
-  requestAnimationFrame(frame);
 }
 
 function updateTools(): void {
