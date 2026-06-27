@@ -125,7 +125,7 @@ export class VisualString {
   }
 
   /** Pluck/grab release: seed an initial triangle on the string and let it ring. */
-  pluckVisual(p: number, dx: number, stoppedAt: number, _harmonicAt: number): void {
+  pluckVisual(p: number, dx: number, stoppedAt: number): void {
     // (a held light touch keeps filtering the ring-down via NODE_LOSS in update;
     // no need to pre-shape the seed — the flageolet emerges on its own)
     this.wave.setTermination(Math.round(stoppedAt * (NPTS - 1)));
@@ -193,7 +193,12 @@ export class VisualString {
         // barely grips and just slips, so no bite (exactly as on a real string)
         const forceN = Math.min(1, Math.max(0, (inp.bowForce - 0.05) / 0.9));
         const grip = Math.max(1e-4, this.vibAmp * (0.6 + 2.2 * forceN));
-        const vel = (inp.bowVelSign * grip) / (0.88 * 2 * segLen);
+        // the stick phase lasts ~bowPos round trips before the first slip — the
+        // Helmholtz stick/slip timing ratio is set by where the bow contacts —
+        // so couple the drag rate to the real contact point rather than a fixed
+        // position. Clamp away from the terminations where the ratio degenerates.
+        const bowFrac = Math.min(0.97, Math.max(0.03, inp.bowPos));
+        const vel = (inp.bowVelSign * grip) / (bowFrac * 2 * segLen);
         this.wave.advance(steps, {
           loss: REFLECT_LOSS,
           hfLoss: HF_LOSS,

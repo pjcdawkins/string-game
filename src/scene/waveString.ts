@@ -156,12 +156,23 @@ export class WaveString {
     // sign flip, so the termination sums to zero (a node). A touch of HF loss
     // (averaging the reflected sample with its neighbour) damps high modes
     // faster than low ones, like real string/air losses.
+    //
+    // The loss is applied to *both* rails at the end so they stay equal and
+    // opposite: y = right + left = 0 there for any loss. Attenuating only the
+    // reflected rail would leave the un-attenuated arriving sample uncancelled,
+    // so the node would visibly move (~(1-loss) of the wave). The arriving
+    // samples we overwrite here are about to be discarded by the next shift, so
+    // rewriting them changes only this frame's rendered shape, not the wave.
     const arrNut = this.left[a];
     const arrBridge = this.right[n - 1];
     const nutNeighbour = a + 1 < n ? this.left[a + 1] : arrNut;
     const bridgeNeighbour = n - 2 >= 0 ? this.right[n - 2] : arrBridge;
-    this.right[a] = -loss * (arrNut * (1 - hf) + nutNeighbour * hf);
-    this.left[n - 1] = -loss * (arrBridge * (1 - hf) + bridgeNeighbour * hf);
+    const refNut = loss * (arrNut * (1 - hf) + nutNeighbour * hf);
+    const refBridge = loss * (arrBridge * (1 - hf) + bridgeNeighbour * hf);
+    this.right[a] = -refNut;
+    this.left[a] = refNut;
+    this.left[n - 1] = -refBridge;
+    this.right[n - 1] = refBridge;
 
     // dead region nut-side of a firm stop
     for (let i = 0; i < a; i++) {
