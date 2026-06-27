@@ -31,6 +31,11 @@ const REFLECT_LOSS = 0.86; // amplitude kept per end reflection (lower = shorter
 const HF_LOSS = 0.12; // extra damping of high modes per reflection (duller decay)
 const NODE_LOSS = 0.45; // energy bled per step at a touched flageolet node
 
+// driven bowed-flageolet swing is seeded a touch hotter than the corner regime so
+// the standing mode reads clearly; the glow guard must use the same scale or the
+// bow wash-out fix regresses silently (seeded wave and glow amplitude drift apart)
+const BOW_HARMONIC_AMP_SCALE = 1.4;
+
 export interface GrabState {
   p: number; // 0..1 from nut
   dx: number; // world-unit lateral displacement
@@ -160,7 +165,8 @@ export class VisualString {
       this.helmPhase = (this.helmPhase + dt * inp.slowMoHz) % 1;
       this.harmPhase += dt * inp.slowMoHz * Math.max(1, harmN);
       if (harmN > 0) {
-        const swing = this.vibAmp * 1.4 * Math.cos(2 * Math.PI * this.harmPhase);
+        const swing =
+          this.vibAmp * BOW_HARMONIC_AMP_SCALE * Math.cos(2 * Math.PI * this.harmPhase);
         this.wave.seedProfile((i) =>
           swing * Math.sin(harmN * Math.PI * ((i - nutIndex) / segLen)),
         );
@@ -186,7 +192,9 @@ export class VisualString {
     // flicker the glow; so during driven modes use the phase-independent drive
     // amplitude (matching the seeded peak: 1.4·vibAmp flageolet, vibAmp corner),
     // and fall back to the live peak for plucks and the free ring-down.
-    const peak = sounding ? this.vibAmp * (harmN > 0 ? 1.4 : 1) : this.wave.peakAbs();
+    const peak = sounding
+      ? this.vibAmp * (harmN > 0 ? BOW_HARMONIC_AMP_SCALE : 1)
+      : this.wave.peakAbs();
     this.glowAmp = Math.max(peak, this.glowAmp * Math.exp(-dt * 2.2));
 
     const fingerDepth = inp.fingerOn ? Math.min(0.085, 0.1 * inp.fingerPressure) : 0;
