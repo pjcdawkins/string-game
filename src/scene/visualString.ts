@@ -31,6 +31,15 @@ const REFLECT_LOSS = 0.86; // amplitude kept per end reflection (lower = shorter
 const HF_LOSS = 0.12; // extra damping of high modes per reflection (duller decay)
 const NODE_LOSS = 0.45; // energy bled per step at a touched flageolet node
 
+// bow attack: the start of a stroke is driven by the emergent stick-slip bow
+// (string captured from rest -> dragged aside -> first slip pings a corner off
+// = the bite/ictus), then morphs into the clean analytic Helmholtz corner for
+// the sustain. Measured in waveguide *steps* so the dynamics are independent of
+// the slow-mo rate (at low slow-mo this windup is a long, visible drag).
+const ATTACK_STEPS = 300; // emergent capture + first release
+const XFADE_STEPS = 160; // morph from the emergent attack into the steady corner
+const BOW_KINETIC = 0.4; // kinetic/static friction ratio while slipping
+
 export interface GrabState {
   p: number; // 0..1 from nut
   dx: number; // world-unit lateral displacement
@@ -44,6 +53,8 @@ export interface VisualInputs {
   bowing: boolean;
   bowEngaged: boolean;
   bowVelSign: number;
+  bowPos: number; // bow contact point, 0 (nut) .. 1 (bridge)
+  bowForce: number; // bow downward force (sets the stick-slip grip / bite)
   rms: number;
   slipRatio: number;
   slowMoHz: number;
@@ -65,6 +76,9 @@ export class VisualString {
   private glowAmp = 0; // envelope of the actual string motion (drives the glow)
   private helmPhase = 0; // bowed corner travel phase, cycles
   private harmPhase = 0; // bowed-flageolet standing-mode swing phase, cycles
+  private bowSteps = 0; // waveguide steps since this stroke began (attack timing)
+  private bowingOpen = false; // bowing an open/stopped string (not a flageolet)
+  private attackSnap = new Float32Array(NPTS); // shape captured to morph into sustain
 
   constructor(yTop: number, yBottom: number) {
     this.yTop = yTop;
@@ -149,21 +163,58 @@ export class VisualString {
     if (grab) {
       // held aside by hand: a static triangle (re-seeded each frame). On release
       // the input layer calls pluckVisual(), so this same shape starts ringing.
+      this.bowingOpen = false;
       const seg = L0 < 1 ? (grab.p - L0) / (1 - L0) : 0.5;
       this.wave.pluck(seg, grab.dx);
-    } else if (sounding) {
-      // bow drives the string: write its steady shape onto the same waveguide
+    } else if (sounding && harmN > 0) {
+      // bowed flageolet: drive the touched standing mode onto the waveguide
       this.helmPhase = (this.helmPhase + dt * inp.slowMoHz) % 1;
-      this.harmPhase += dt * inp.slowMoHz * Math.max(1, harmN);
-      if (harmN > 0) {
-        const swing = this.vibAmp * 1.4 * Math.cos(2 * Math.PI * this.harmPhase);
-        this.wave.seedProfile((i) =>
-          swing * Math.sin(harmN * Math.PI * ((i - nutIndex) / segLen)),
-        );
+      this.harmPhase += dt * inp.slowMoHz * harmN;
+      const swing = this.vibAmp * 1.4 * Math.cos(2 * Math.PI * this.harmPhase);
+      this.wave.seedProfile((i) =>
+        swing * Math.sin(harmN * Math.PI * ((i - nutIndex) / segLen)),
+      );
+      this.bowingOpen = false;
+    } else if (sounding) {
+      // open/stopped string: emergent stick-slip bow for the attack (the bite),
+      // morphing into the clean analytic corner for the sustain
+      this.helmPhase = (this.helmPhase + dt * inp.slowMoHz) % 1;
+      const bowIndex = Math.round(inp.bowPos * (NPTS - 1));
+      const steps = 2 * segLen * inp.slowMoHz * dt;
+      if (!this.bowingOpen) {
+        this.wave.anchorBow(bowIndex); // rising edge: capture from rest
+        this.bowSteps = 0;
+        this.bowingOpen = true;
+      }
+
+      if (this.bowSteps < ATTACK_STEPS) {
+        // bow grips the string and drags it aside until it breaks away — more
+        // force = a firmer grip = a longer drag = a stronger bite; a light touch
+        // barely grips and just slips, so no bite (exactly as on a real string)
+        const forceN = Math.min(1, Math.max(0, (inp.bowForce - 0.05) / 0.9));
+        const grip = Math.max(1e-4, this.vibAmp * (0.6 + 2.2 * forceN));
+        const vel = (inp.bowVelSign * grip) / (0.88 * 2 * segLen);
+        this.wave.advance(steps, {
+          loss: REFLECT_LOSS,
+          hfLoss: HF_LOSS,
+          bow: { index: bowIndex, vel, grip, kinetic: BOW_KINETIC },
+        });
+        this.bowSteps += steps;
+        if (this.bowSteps >= ATTACK_STEPS) {
+          for (let i = 0; i < NPTS; i++) this.attackSnap[i] = this.wave.displacement(i);
+        }
+      } else if (this.bowSteps < ATTACK_STEPS + XFADE_STEPS) {
+        // morph the captured attack shape into the steady travelling corner
+        const mix = (this.bowSteps - ATTACK_STEPS) / XFADE_STEPS;
+        const corner = this.cornerProfile(inp.bowVelSign, nutIndex, segLen, raucous);
+        this.wave.seedProfile((i) => (1 - mix) * this.attackSnap[i] + mix * corner(i));
+        this.bowSteps += steps;
       } else {
-        this.seedCorner(inp.bowVelSign, nutIndex, segLen, raucous);
+        // sustain: write the clean Helmholtz corner each frame
+        this.wave.seedProfile(this.cornerProfile(inp.bowVelSign, nutIndex, segLen, raucous));
       }
     } else {
+      this.bowingOpen = false;
       // free vibration: the string rings down on its own (a touched node keeps
       // filtering the ring-down so a plucked/bowed flageolet decays as itself)
       const steps = 2 * segLen * inp.slowMoHz * dt;
@@ -209,13 +260,13 @@ export class VisualString {
     this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, 0.62);
   }
 
-  /** Write the travelling Helmholtz corner onto the string for this frame. */
-  private seedCorner(
+  /** The travelling Helmholtz corner shape for this frame (a profile function). */
+  private cornerProfile(
     bowVelSign: number,
     nutIndex: number,
     segLen: number,
     raucous: boolean,
-  ): void {
+  ): (i: number) => number {
     const phi = this.helmPhase;
     let cornerPos: number;
     let cornerSign: number;
@@ -230,11 +281,11 @@ export class VisualString {
     const cp = Math.min(0.985, Math.max(0.015, cornerPos));
     const cornerH = cornerSign * 4 * cp * (1 - cp) * this.vibAmp;
     const grit = raucous ? this.vibAmp * 0.5 : 0;
-    this.wave.seedProfile((i) => {
+    return (i: number) => {
       const sigma = (i - nutIndex) / segLen;
       const h = sigma <= cp ? (cornerH * sigma) / cp : (cornerH * (1 - sigma)) / (1 - cp);
       return grit ? h + (Math.random() - 0.5) * grit : h;
-    });
+    };
   }
 }
 

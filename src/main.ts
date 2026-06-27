@@ -53,6 +53,8 @@ function frame(now: number): void {
     bowing: state.meter.bowing,
     bowEngaged: input.bowEngaged || state.autoBow,
     bowVelSign: input.bowVel >= 0 ? 1 : -1,
+    bowPos: input.bowPos,
+    bowForce: state.bowForce,
     rms: state.meter.rms,
     slipRatio: state.meter.slipRatio,
     slowMoHz: state.slowMo,
