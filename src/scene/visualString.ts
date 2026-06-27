@@ -163,7 +163,11 @@ export class VisualString {
     const raucous = inp.bowing && inp.slipRatio < 0.04 && this.vibAmp > 0.0075;
 
     const grab = inp.grabbed;
-    const sounding = inp.bowing && inp.slipRatio > 0.005 && this.vibAmp > 0.002;
+    // Gate the stroke on the *gesture*, not on `slipRatio`: the audio's slip
+    // ratio is genuinely erratic for ~a second while real Helmholtz motion
+    // establishes (its own bite), so gating on it re-anchored the bow every
+    // dropout and restarted the windup — chaos until the audio settled.
+    const bowOn = inp.bowEngaged;
     // a light touch selects the lowest flageolet with a node there; we damp that
     // node during free vibration and (when bowing) drive that standing mode
     const harmN = harmonicAt > 0 ? lowestNodeMode(harmonicAt) : 0;
@@ -175,7 +179,7 @@ export class VisualString {
       this.bowingOpen = false;
       const seg = L0 < 1 ? (grab.p - L0) / (1 - L0) : 0.5;
       this.wave.pluck(seg, grab.dx);
-    } else if (sounding && harmN > 0) {
+    } else if (bowOn && harmN > 0) {
       // bowed flageolet: drive the touched standing mode onto the waveguide
       this.helmPhase = (this.helmPhase + dt * inp.slowMoHz) % 1;
       this.harmPhase += dt * inp.slowMoHz * harmN;
@@ -184,7 +188,7 @@ export class VisualString {
         swing * Math.sin(harmN * Math.PI * ((i - nutIndex) / segLen)),
       );
       this.bowingOpen = false;
-    } else if (sounding) {
+    } else if (bowOn) {
       // open/stopped string: emergent stick-slip bow for the attack (the bite),
       // morphing into the clean analytic corner for the sustain
       this.helmPhase = (this.helmPhase + dt * inp.slowMoHz) % 1;
