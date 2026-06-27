@@ -29,6 +29,10 @@ export class WaveString {
   private nutIndex = 0;
   /** carried fractional sample so a non-integer steps-per-frame stays smooth. */
   private stepDebt = 0;
+  /** displacement the bow is currently holding the string at (stick-slip). */
+  private bowY = 0;
+  /** whether the bow is gripping the string this instant (for the caller). */
+  bowStuck = false;
 
   constructor(n: number) {
     this.n = n;
@@ -102,6 +106,16 @@ export class WaveString {
     }
   }
 
+  /**
+   * Anchor the bow to wherever the string currently is at `index`, so a stroke
+   * starts capturing from rest instead of yanking the string to some stale
+   * hold position. Call this on the rising edge of a bow stroke.
+   */
+  anchorBow(index: number): void {
+    this.bowY = this.right[index] + this.left[index];
+    this.bowStuck = true;
+  }
+
   /** Pluck: a triangle peaking at `pos` (0..1 within the vibrating segment). */
   pluck(pos: number, amp: number): void {
     const a = this.nutIndex;
@@ -166,6 +180,29 @@ export class WaveString {
       this.left[i] = 0;
     }
 
+    // bow: a stick-slip interaction at the contact point. The bow tries to drag
+    // the string along with it (stick); when the string's pull exceeds the grip
+    // (set by bow force) it breaks away (slip) and the released corner travels
+    // off on its own — the same waveguide that carries plucks and ring-down, so
+    // the first big capture-then-release is the bite/ictus, and a fast, light
+    // stroke (low grip) just slips without ever building that drag.
+    const bow = opts.bow;
+    if (bow) {
+      const b = bow.index;
+      const yFree = this.right[b] + this.left[b];
+      let delta = this.bowY + bow.vel - yFree; // force needed to keep stuck
+      if (Math.abs(delta) <= bow.grip) {
+        this.bowY = yFree + delta; // stick: move with the bow
+        this.bowStuck = true;
+      } else {
+        delta = Math.sign(delta) * bow.grip * bow.kinetic; // slip: kinetic drag only
+        this.bowY = yFree + delta;
+        this.bowStuck = false;
+      }
+      this.right[b] += 0.5 * delta;
+      this.left[b] += 0.5 * delta;
+    }
+
     // a light finger touch: bleed energy at the node so only modes with a node
     // there survive — the flageolet emerges from the ring-down on its own
     const j = opts.nodeIndex ?? -1;
@@ -186,4 +223,12 @@ export interface AdvanceOpts {
   hfLoss?: number; // 0..0.5 extra damping of high modes at each reflection
   nodeIndex?: number; // point index of a touched flageolet node, or <0 for none
   nodeLoss?: number; // 0..1 energy bled per step at the node
+  bow?: BowDrive; // stick-slip bow contact, or omit for free vibration
+}
+
+export interface BowDrive {
+  index: number; // contact point index on the string
+  vel: number; // per-step lateral drag of the bow (signed; sets amplitude)
+  grip: number; // max displacement the bow can hold before slipping (~bow force)
+  kinetic: number; // kinetic/static friction ratio (0..1) applied while slipping
 }

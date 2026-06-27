@@ -76,6 +76,31 @@ describe("WaveString waveguide", () => {
     expect(w.segmentLength).toBe(64 - 1 - 20);
   });
 
+  it("bow captures the string from rest and drags it aside before slipping (bite)", () => {
+    const bowTo = (grip: number) => {
+      const w = new WaveString(160);
+      const b = Math.round(0.88 * 159);
+      w.anchorBow(b);
+      const vel = grip / (0.88 * 2 * 159);
+      let firstSlip = -1;
+      let peakBeforeSlip = 0;
+      for (let s = 0; s < 600; s++) {
+        w.advance(1, { loss: 0.86, hfLoss: 0.12, bow: { index: b, vel, grip, kinetic: 0.4 } });
+        if (firstSlip < 0 && !w.bowStuck) firstSlip = s;
+        if (firstSlip < 0) peakBeforeSlip = Math.max(peakBeforeSlip, Math.abs(w.displacement(b)));
+      }
+      return { firstSlip, peakBeforeSlip };
+    };
+    const firm = bowTo(0.12);
+    const light = bowTo(0.02);
+    // a firm bow sticks for a good while (the visible windup) then releases
+    expect(firm.firstSlip).toBeGreaterThan(20);
+    expect(firm.peakBeforeSlip).toBeGreaterThan(0);
+    // more grip (force) drags the string further before the first slip — a
+    // bigger bite — while a light touch barely deflects it (no bite)
+    expect(firm.peakBeforeSlip).toBeGreaterThan(light.peakBeforeSlip * 2);
+  });
+
   it("a node touch filters out modes lacking a node there (flageolet)", () => {
     // seed the fundamental (one big antinode); a touch at the midpoint, which is
     // the fundamental's antinode, should bleed it away to near silence.
