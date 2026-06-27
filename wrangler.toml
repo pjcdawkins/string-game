@@ -1,0 +1,10 @@
+name = "string-game"
+compatibility_date = "2024-12-01"
+
+routes = [
+  { pattern = "string.ligetiquartet.com", custom_domain = true }
+]
+
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
