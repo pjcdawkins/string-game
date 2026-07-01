@@ -26,8 +26,9 @@ export const FINGERBOARD_END = 0.84;
  * i.e. the touch point) and the acoustic stopping node differ by one radius —
  * see {@link fingerStop}. Consequences, both physically real: sliding the
  * centre up onto/over the nut sounds the open string, and this fixed width
- * detunes high stops by more cents than low ones. */
-export const FINGER_RADIUS = 0.02;
+ * detunes high stops by more cents than low ones. 0.015 of a ~328 mm violin
+ * speaking length ≈ a 5 mm fingertip contact radius. */
+export const FINGER_RADIUS = 0.015;
 
 /** Acoustic stopping node (fraction from the nut) for a fingertip whose centre
  * is at `center`: the bridge-side edge of the contact patch. Floored at 0 — at
