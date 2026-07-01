@@ -234,3 +234,91 @@ body {
 .card button {
   margin-top: 6px;
 }
+
+/* ------------------------------------------------------------------ *
+ * Narrow portrait (phones): keep the vertical string playable.
+ *
+ * The string is drawn down the centre of the viewport and — because the
+ * camera is fixed — always projects to the same fractions of the height
+ * (nut ≈ 4% from the top, bridge ≈ 82%). On a narrow screen the corner
+ * panels overlap that centre column, so you can't finger the upper
+ * positions. Dock every control into the left/right gutters and the strip
+ * below the bridge instead, leaving the whole string clear.
+ * ------------------------------------------------------------------ */
+@media (max-width: 600px) {
+  .panel {
+    padding: 7px 8px;
+    border-radius: 10px;
+  }
+
+  .seg {
+    padding: 8px 9px;
+    font-size: 13px;
+  }
+
+  /* left gutter: tool picker + left-hand technique, stacked */
+  .top-left {
+    top: 8px;
+    left: 6px;
+  }
+  .top-left .title {
+    display: none;
+  }
+  .top-left .lbl {
+    display: none;
+  }
+  .top-left .row {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 5px;
+    margin-top: 5px;
+  }
+  .top-left .row:first-of-type {
+    margin-top: 0;
+  }
+
+  /* right gutter: string picker, stacked */
+  .top-right {
+    top: 8px;
+    right: 6px;
+  }
+  .top-right .row.seg-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .top-right .pos-note {
+    font-size: 10px;
+    text-align: center;
+    max-width: 110px;
+  }
+
+  /* tuner: down into the strip below the bridge, clear of the string */
+  .tuner {
+    top: auto;
+    bottom: 8px;
+    right: 8px;
+    left: auto;
+    min-width: 148px;
+    padding: 6px 10px;
+  }
+  .tuner .note {
+    font-size: 20px;
+  }
+
+  /* pressure + help: bottom-left, also below the bridge */
+  .bottom-left {
+    bottom: 8px;
+    left: 8px;
+    max-width: 42vw;
+  }
+  .bottom-left input[type="range"] {
+    width: 72px;
+  }
+
+  /* the "(harm.)" hint doesn't fit on the narrow Touch button */
+  .hide-narrow {
+    display: none;
+  }
+}

@@ -36,7 +36,7 @@ export class Hud {
       <div class="row seg-group" id="leftmode">
         <span class="lbl">Left hand</span>
         <button class="seg lm" data-lm="press">Press</button>
-        <button class="seg lm" data-lm="touch">Touch&nbsp;(harm.)</button>
+        <button class="seg lm" data-lm="touch">Touch<span class="hide-narrow">&nbsp;(harm.)</span></button>
         <button class="seg" id="lift">Lift ⌫</button>
       </div>
     </div>
