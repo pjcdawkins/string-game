@@ -61,8 +61,12 @@ else ok(`auto-bow sounding, rms=${res.rms.toFixed(4)}, slipRatio=${res.slip.toFi
 if (Math.abs(res.freq - 440) > 440 * 0.04) fail(`open A pitch off: ${res.freq.toFixed(1)} Hz`);
 else ok(`open A detected at ${res.freq.toFixed(1)} Hz`);
 
-// 2. stop a perfect fifth (7 semitones -> E5 659.3) via pointer on the fingerboard
-const stopPos = 1 - Math.pow(2, -7 / 12);
+// 2. stop a perfect fifth (7 semitones -> E5 659.3) via pointer on the fingerboard.
+// The touch point is the fingertip centre; the note speaks from its bridge-side
+// edge, so aim the centre a finger-radius short of the target node.
+const stopNode = 1 - Math.pow(2, -7 / 12);
+const fingerRadius = await page.evaluate(() => window.__debug.FINGER_RADIUS);
+const stopPos = stopNode - fingerRadius;
 const pt = await page.evaluate(
   (s) => window.__debug.view.stringToScreen(s, 0),
   stopPos

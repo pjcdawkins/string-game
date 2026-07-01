@@ -4,7 +4,7 @@ import { Interactions, BOW_MAX } from "./input/interactions";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
-import { state, STRINGS } from "./state";
+import { state, STRINGS, fingerStop, FINGER_RADIUS } from "./state";
 import "./style.css";
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
@@ -59,8 +59,11 @@ function frame(now: number): void {
 
   updateTools();
   view.setNodeMarkersVisible(state.markers);
-  // node markers follow a firm stop: harmonics of the vibrating portion
-  view.updateNodeMarkers(state.fingerOn && input.fingerPressure > 0.55 ? state.fingerPos : 0);
+  // node markers follow a firm stop: harmonics of the vibrating portion, which
+  // begins at the fingertip's bridge-side edge (the terminating node)
+  view.updateNodeMarkers(
+    state.fingerOn && input.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0
+  );
   view.updateMapping();
   view.render();
 
@@ -124,4 +127,4 @@ function updateTools(): void {
 requestAnimationFrame(frame);
 
 // debug/automation hook (used by e2e checks)
-(window as unknown as Record<string, unknown>).__debug = { state, engine, view, input };
+(window as unknown as Record<string, unknown>).__debug = { state, engine, view, input, FINGER_RADIUS };

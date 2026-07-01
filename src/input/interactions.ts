@@ -7,13 +7,15 @@
  */
 import { SceneView } from "../scene/scene";
 import { engine } from "../audio/engine";
-import { state, notify, FINGERBOARD_END } from "../state";
+import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop } from "../state";
 import type { GrabState } from "../scene/visualString";
 
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
 export const BOW_MAX = 0.985;
-const FINGER_MIN = 0; // a finger right on the nut leaves the string open
+// fingerPos is the fingertip CENTRE; letting it slide a radius up onto the nut
+// puts the note's terminating edge on the nut, i.e. the open string
+const FINGER_MIN = -FINGER_RADIUS;
 const FINGER_MAX = 0.82;
 const MAX_BEND = 0.55;
 
@@ -142,7 +144,8 @@ export class Interactions {
         if (force > 0.02) {
           const widthMs = state.tool === "pick" ? 0.7 : 5.0;
           engine.pluck(g.p, force, widthMs);
-          const stopped = state.fingerOn && this.fingerPressure > 0.55 ? state.fingerPos : 0;
+          // vibration starts at the fingertip's bridge-side edge (the node)
+          const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
           this.view.visual.pluckVisual(g.p, g.dx, stopped);
         }
       }

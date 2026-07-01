@@ -23,6 +23,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import * as THREE from "three";
 import { WaveString } from "./waveString";
+import { FINGER_RADIUS } from "../state";
 
 export const NPTS = 160;
 
@@ -130,10 +131,14 @@ export class VisualString {
 
   update(dt: number, inp: VisualInputs): void {
     const firmStop = inp.fingerOn && inp.fingerPressure > 0.55;
-    const L0 = firmStop ? inp.fingerPos : 0;
+    // the string is terminated / node-damped at the bridge-side edge of the
+    // fleshy fingertip, a radius past its centre (fingerPos); the finger itself
+    // (its depression well, below) still sits at the centre
+    const node = Math.min(0.85, Math.max(0, inp.fingerPos + FINGER_RADIUS));
+    const L0 = firmStop ? node : 0;
     const harmonicAt =
       inp.fingerOn && inp.fingerPressure > 0.02 && inp.fingerPressure <= 0.55
-        ? inp.fingerPos
+        ? node
         : 0;
 
     const nutIndex = Math.round(L0 * (NPTS - 1));
@@ -153,7 +158,7 @@ export class VisualString {
     // a light touch selects the lowest flageolet with a node there; we damp that
     // node during free vibration and (when bowing) drive that standing mode
     const harmN = harmonicAt > 0 ? lowestNodeMode(harmonicAt) : 0;
-    const nodeIndex = harmonicAt > 0 ? Math.round(inp.fingerPos * (NPTS - 1)) : -1;
+    const nodeIndex = harmonicAt > 0 ? Math.round(node * (NPTS - 1)) : -1;
 
     if (grab) {
       // held aside by hand: a static triangle (re-seeded each frame). On release

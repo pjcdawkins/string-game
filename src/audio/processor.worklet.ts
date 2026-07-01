@@ -15,7 +15,7 @@ class StringProcessor extends AudioWorkletProcessor {
       { name: "bowForce", defaultValue: 0.3, minValue: 0, maxValue: 2, automationRate: "k-rate" },
       { name: "bowPosition", defaultValue: 0.88, minValue: 0, maxValue: 1, automationRate: "k-rate" },
       { name: "fingerOn", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" },
-      { name: "fingerPosition", defaultValue: 0.3, minValue: 0, maxValue: 1, automationRate: "k-rate" },
+      { name: "fingerPosition", defaultValue: 0.3, minValue: -0.1, maxValue: 1, automationRate: "k-rate" },
       { name: "fingerPressure", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" },
     ] as const;
   }

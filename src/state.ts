@@ -19,6 +19,23 @@ export const STRINGS: ViolinString[] = [
  * The whole board is playable with the left hand, as on a real violin. */
 export const FINGERBOARD_END = 0.84;
 
+/** Half-width of the fingertip's contact patch, as a fraction of the string
+ * length. A pressed finger is fleshy: it clamps the string to the board over
+ * a patch and the note speaks from the *bridge-side edge* of that patch, not
+ * from the finger's centre. So `fingerPos` (where the fingertip is centred,
+ * i.e. the touch point) and the acoustic stopping node differ by one radius —
+ * see {@link fingerStop}. Consequences, both physically real: sliding the
+ * centre up onto/over the nut sounds the open string, and this fixed width
+ * detunes high stops by more cents than low ones. */
+export const FINGER_RADIUS = 0.02;
+
+/** Acoustic stopping node (fraction from the nut) for a fingertip whose centre
+ * is at `center`: the bridge-side edge of the contact patch. Floored at 0 — at
+ * or above the nut the string simply speaks open. */
+export function fingerStop(center: number): number {
+  return Math.max(0, center + FINGER_RADIUS);
+}
+
 export interface AudioMeter {
   rms: number;
   slipRatio: number;

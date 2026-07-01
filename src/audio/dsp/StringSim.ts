@@ -35,6 +35,7 @@ import {
   OnePoleLP,
   Smoother,
 } from "./filters";
+import { FINGER_RADIUS } from "../../state";
 
 export interface StringSpec {
   /** Open-string fundamental in Hz. */
@@ -63,11 +64,11 @@ export interface SimState {
 const MU_S = 0.8; // static friction coefficient
 const MU_D = 0.3; // dynamic friction coefficient
 
-// Finger positions (fraction of the string from the nut) over which a stopped
-// finger releases into the open string as it reaches the nut. Below NUT_OPEN
-// the string is fully open; the damping ramps back to a firm stop over the
-// next NUT_FADE. Kept well clear of the first real stopped note (~0.056, a
-// semitone above the open string).
+// Terminating-node positions (fraction of the string from the nut) over which
+// a stopped finger releases into the open string as it nears the nut. With the
+// node at or below NUT_OPEN the string is fully open; the damping ramps back to
+// a firm stop over the next NUT_FADE. Kept well clear of the first real stopped
+// note (node ~0.056, a semitone above the open string).
 const NUT_OPEN = 0.015;
 const NUT_FADE = 0.03;
 
@@ -80,7 +81,9 @@ export class StringSim {
   bowForce = 0.3; // >= 0, useful range ~[0.02, 1.5]
   bowPosition = 0.88; // 0 = nut, 1 = bridge (clamped to playable range)
   fingerOn = false;
-  fingerPosition = 0.3; // 0 = nut, 1 = bridge (clamped to fingerboard)
+  fingerPosition = 0.3; // fingertip CENTRE; 0 = nut, 1 = bridge (may go slightly
+  // negative when the finger slides up onto the nut). The terminating node sits
+  // one FINGER_RADIUS toward the bridge — see clampedPositions().
   fingerPressure = 0; // 0 = off, ~0.1 = harmonic touch, 1 = firm stop
   bodyMix = 0.75; // 0 = raw string, 1 = full body filter
   masterGain = 0.9;
@@ -230,18 +233,22 @@ export class StringSim {
     // and finger damping remains, as on a real fingerboard)
     const q = Math.min(1, this.fingerPressure);
     const rf = 200 * q * q * q + 8 * q;
-    // Right up at the nut the finger merges into it: fade the damping out so
-    // the full string length speaks (the true open-string pitch) instead of
-    // terminating a hair short of the nut and sounding slightly sharp. The
-    // small fully-open zone also lets a touch-drag settle on the open pitch
-    // without having to tap "Lift".
-    const nutFade = Math.min(1, Math.max(0, (this.fingerPosition - NUT_OPEN) / NUT_FADE));
+    // As the terminating node (the finger's bridge-side edge) reaches the nut,
+    // fade the damping out so the full string length speaks (the true open
+    // pitch) instead of terminating a hair short and sounding slightly sharp —
+    // the min-segment clamp in delayTargets() would otherwise hold the junction
+    // ~2 samples off the nut. This also releases the stop smoothly into the
+    // open string as the finger slides up, like a glissando from the open note.
+    const node = this.fingerPosition + FINGER_RADIUS;
+    const nutFade = Math.min(1, Math.max(0, (node - NUT_OPEN) / NUT_FADE));
     return rf * nutFade;
   }
 
   private clampedPositions(): [number, number] {
-    // a finger right at the nut (pf = 0) leaves the string effectively open
-    const pf = Math.min(0.85, Math.max(0, this.fingerPosition));
+    // the fleshy fingertip terminates the string at the bridge-side edge of its
+    // contact, a radius past the finger centre; slid up onto the nut (centre
+    // <= -FINGER_RADIUS) the node reaches 0 and the string speaks open
+    const pf = Math.min(0.85, Math.max(0, this.fingerPosition + FINGER_RADIUS));
     const pb = Math.min(0.99, Math.max(pf + 0.05, this.bowPosition));
     return [pf, pb];
   }
