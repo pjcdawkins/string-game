@@ -5,6 +5,14 @@ separate from the README so it's easy to check (and update) as the HUD grows
 a settings drawer and keyboard shortcuts. Update this file whenever a control
 is added, removed, or hidden.
 
+## Layout
+
+The string is drawn down the centre of the viewport (nut at the top, bridge
+near the bottom). On wide screens the controls sit in the four corners. On
+narrow portrait screens (`max-width: 600px`, see `src/style.css`) they dock
+into the left/right gutters and the strip below the bridge instead, so the
+whole vertical string stays reachable for fingering and bowing.
+
 ## Operable now
 
 - **Tool picker** — Bow / Pick / Pizz (top-left).
