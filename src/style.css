@@ -169,6 +169,7 @@ body {
   left: 12px;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
   max-width: 96vw;
 }
@@ -184,14 +185,6 @@ body {
 
 .bottom-left input[type="range"] {
   width: 90px;
-  accent-color: #6aa6ff;
-}
-
-.bottom-left .row {
-  justify-content: flex-start;
-}
-
-.chk input {
   accent-color: #6aa6ff;
 }
 

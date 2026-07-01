@@ -28,20 +28,22 @@ npm run build    # production build (worklet bundles to a self-contained file)
   the string, bend it, release. The bend point shapes the spectrum (comb
   filtering — pluck at 1/4 and the 4th harmonic family is missing).
 - **Stop** the string anywhere on the fingerboard: click to latch a finger,
-  drag for glissando, quick-tap to lift, `Esc` to clear. Vibrato toggle
-  wobbles the stop position. Multi-touch: hold a stop while bowing. The bow
-  and plucks always stay on the bridge side of a stopped finger — the
-  nut-side portion of the string is not modelled.
+  drag for glissando, quick-tap to lift, `Esc` to clear. Multi-touch: hold a
+  stop while bowing. The bow and plucks always stay on the bridge side of a
+  stopped finger — the nut-side portion of the string is not modelled.
 - **Harmonics**: switch the left hand to *Touch* mode and brush a node
-  (½, ⅓, ¼ … — toggle *Nodes* to show them; with a firm stop down they are
-  drawn relative to the stopped length) — the model kills every partial
-  without a node there, just like a real flageolet.
-- **Auto-bow** sustains a stroke (with bow-change dips) so you can explore
-  contact point, force and harmonics with the mouse free.
+  (½, ⅓, ¼ … — with a firm stop down they are drawn relative to the stopped
+  length) — the model kills every partial without a node there, just like a
+  real flageolet.
 - **Slow-motion string**: the visual vibration runs at an adjustable visual
   rate. Bowing draws true Helmholtz motion (a corner travelling around a
   parabolic envelope); plucks draw the standing-wave mode sum seeded by the
   pluck point; harmonics show only the surviving modes.
+
+Some of these (auto-bow, the node-marker dots, the slow-mo rate) are
+implemented but currently have no HUD control — see
+[UI_STATUS.md](UI_STATUS.md) for the full breakdown of what's operable from
+the UI today.
 
 ## Architecture
 
@@ -51,7 +53,7 @@ src/
     dsp/StringSim.ts        the physical model (pure TS, no Web Audio)
     dsp/filters.ts          delay line, one-pole, allpass, biquad, smoother
     processor.worklet.ts    thin AudioWorklet wrapper (k-rate params + port)
-    engine.ts               main-thread engine: context, node, vibrato, meter
+    engine.ts               main-thread engine: context, node, meter
     pitch.ts                YIN pitch detector on the analyser output
   scene/                    Three.js: scene, slow-mo string, tool meshes
   input/interactions.ts     pointer gestures -> bow/pluck/finger, multi-touch
@@ -101,8 +103,7 @@ nut |-- A --| finger |-- B --| bow/pluck |-- C --| bridge
 - Per-string presets (G/D/A/E) vary f0, brightness, loss and stiffness.
 
 Delay-line lengths are slewed per sample, so finger glissandi and bow
-repositioning are click-free (and vibrato is just a wobble of the finger
-delay).
+repositioning are click-free.
 
 ### Why no WASM?
 

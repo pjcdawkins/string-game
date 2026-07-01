@@ -51,10 +51,7 @@ export class Hud {
     </div>
     <div class="panel bottom-left">
       <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
-      <div class="row">
-        <label class="chk"><input type="checkbox" id="markers"> Nodes</label>
-        <button id="helpBtn" class="seg">?</button>
-      </div>
+      <button id="helpBtn" class="seg">?</button>
     </div>
     <div class="overlay hidden" id="help">
       <div class="card">
@@ -115,11 +112,6 @@ export class Hud {
 
     const force = $<HTMLInputElement>("#force");
     force.addEventListener("input", () => (state.bowForce = Number(force.value)));
-    const markers = $<HTMLInputElement>("#markers");
-    markers.addEventListener("change", () => {
-      state.markers = markers.checked;
-      notify();
-    });
 
     $("#helpBtn").addEventListener("click", () => $("#help").classList.remove("hidden"));
     $("#closeHelp").addEventListener("click", () => $("#help").classList.add("hidden"));
@@ -146,7 +138,6 @@ export class Hud {
       b.classList.toggle("on", Number(b.dataset.str) === state.stringIdx)
     );
     (this.root.querySelector("#force") as HTMLInputElement).value = String(state.bowForce);
-    (this.root.querySelector("#markers") as HTMLInputElement).checked = state.markers;
   }
 
   /** Per-frame tuner + position readout update. */
