@@ -63,6 +63,14 @@ export interface SimState {
 const MU_S = 0.8; // static friction coefficient
 const MU_D = 0.3; // dynamic friction coefficient
 
+// Finger positions (fraction of the string from the nut) over which a stopped
+// finger releases into the open string as it reaches the nut. Below NUT_OPEN
+// the string is fully open; the damping ramps back to a firm stop over the
+// next NUT_FADE. Kept well clear of the first real stopped note (~0.056, a
+// semitone above the open string).
+const NUT_OPEN = 0.015;
+const NUT_FADE = 0.03;
+
 export class StringSim {
   readonly fs: number;
 
@@ -221,7 +229,14 @@ export class StringSim {
     // near-rigid termination (kept finite so a trace of nut-side coupling
     // and finger damping remains, as on a real fingerboard)
     const q = Math.min(1, this.fingerPressure);
-    return 200 * q * q * q + 8 * q;
+    const rf = 200 * q * q * q + 8 * q;
+    // Right up at the nut the finger merges into it: fade the damping out so
+    // the full string length speaks (the true open-string pitch) instead of
+    // terminating a hair short of the nut and sounding slightly sharp. The
+    // small fully-open zone also lets a touch-drag settle on the open pitch
+    // without having to tap "Lift".
+    const nutFade = Math.min(1, Math.max(0, (this.fingerPosition - NUT_OPEN) / NUT_FADE));
+    return rf * nutFade;
   }
 
   private clampedPositions(): [number, number] {
