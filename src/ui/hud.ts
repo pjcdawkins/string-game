@@ -49,14 +49,12 @@ export class Hud {
       <div class="cents-bar"><div class="needle" id="needle"></div></div>
       <div class="tuner-row"><span id="cents">±0¢</span><span id="freq"></span><span id="slip" class="slip"></span></div>
     </div>
-    <div class="panel bottom">
-      <label>Bow force <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
-      <label>Auto speed <input type="range" id="speed" min="0.05" max="0.5" step="0.01"></label>
-      <label>Slow-mo <input type="range" id="slowmo" min="0.4" max="4" step="0.1"></label>
-      <label class="chk"><input type="checkbox" id="autobow"> Auto-bow</label>
-      <label class="chk"><input type="checkbox" id="vibrato"> Vibrato</label>
-      <label class="chk"><input type="checkbox" id="markers"> Nodes</label>
-      <button id="helpBtn" class="seg">?</button>
+    <div class="panel bottom-left">
+      <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="markers"> Nodes</label>
+        <button id="helpBtn" class="seg">?</button>
+      </div>
     </div>
     <div class="overlay hidden" id="help">
       <div class="card">
@@ -64,8 +62,8 @@ export class Hud {
         <p><b>Right hand</b>: with the <b>Bow</b>, press and drag sideways — stroke speed
         is bow speed, vertical position chooses the contact point, from over the
         fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
-        (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The force slider (or
-        pen/touch pressure) sets bow weight: too little skates on the surface, too
+        (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The bow pressure slider
+        (or pen/touch pressure) sets bow weight: too little skates on the surface, too
         much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string anywhere
         you could bow — even over the fingerboard — bend it sideways and release.</p>
         <p><b>Left hand</b> (on the fingerboard): click to place a finger — it stays
@@ -74,9 +72,9 @@ export class Hud {
         finger only brushes the string: touch a glowing node to sound a natural
         harmonic.</p>
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing with another.</p>
-        <p>Try: <i>auto-bow on</i>, then slide the bow toward the bridge (ponticello
-        glassiness) or over the fingerboard (tasto flute); crank bow force at low
-        speed for the raucous regime; touch ½, ⅓, ¼ nodes for harmonics.</p>
+        <p>Try: slide the bow toward the bridge (ponticello glassiness) or over the
+        fingerboard (tasto flute); crank bow pressure at low speed for the raucous
+        regime; touch ½, ⅓, ¼ nodes for harmonics.</p>
         <button class="seg accent" id="closeHelp">Close</button>
       </div>
     </div>`;
@@ -117,22 +115,6 @@ export class Hud {
 
     const force = $<HTMLInputElement>("#force");
     force.addEventListener("input", () => (state.bowForce = Number(force.value)));
-    const speed = $<HTMLInputElement>("#speed");
-    speed.addEventListener("input", () => (state.autoBowSpeed = Number(speed.value)));
-    const slowmo = $<HTMLInputElement>("#slowmo");
-    slowmo.addEventListener("input", () => (state.slowMo = Number(slowmo.value)));
-    const autobow = $<HTMLInputElement>("#autobow");
-    autobow.addEventListener("change", () => {
-      state.autoBow = autobow.checked;
-      void engine.ensureStarted().then(() => {
-        if (!state.autoBow) engine.setBowOn(false);
-      });
-    });
-    const vibrato = $<HTMLInputElement>("#vibrato");
-    vibrato.addEventListener("change", () => {
-      state.vibrato = vibrato.checked;
-      engine.vibratoOn = vibrato.checked;
-    });
     const markers = $<HTMLInputElement>("#markers");
     markers.addEventListener("change", () => {
       state.markers = markers.checked;
@@ -164,10 +146,6 @@ export class Hud {
       b.classList.toggle("on", Number(b.dataset.str) === state.stringIdx)
     );
     (this.root.querySelector("#force") as HTMLInputElement).value = String(state.bowForce);
-    (this.root.querySelector("#speed") as HTMLInputElement).value = String(state.autoBowSpeed);
-    (this.root.querySelector("#slowmo") as HTMLInputElement).value = String(state.slowMo);
-    (this.root.querySelector("#autobow") as HTMLInputElement).checked = state.autoBow;
-    (this.root.querySelector("#vibrato") as HTMLInputElement).checked = state.vibrato;
     (this.root.querySelector("#markers") as HTMLInputElement).checked = state.markers;
   }
 

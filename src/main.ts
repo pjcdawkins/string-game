@@ -37,7 +37,6 @@ function frame(now: number): void {
     engine.setString(STRINGS[state.stringIdx].spec);
   }
 
-  engine.tick(dt);
   input.update(dt);
   state.meter = engine.meter;
   if (engine.analyser) {

@@ -15,13 +15,6 @@ export class Engine {
 
   meter: AudioMeter = { rms: 0, slipRatio: 0, freq: 440, bowing: false };
 
-  // vibrato modulation applied on top of the base finger position
-  vibratoOn = false;
-  vibratoRate = 5.5;
-  vibratoDepth = 0.006;
-  private vibPhase = 0;
-  private baseFingerPos = 0.3;
-
   async ensureStarted(): Promise<void> {
     if (this.node) {
       // Already built. Safari/iOS suspends the context (e.g. after the tab is
@@ -130,7 +123,6 @@ export class Engine {
   }
 
   setFinger(on: boolean, pos: number, pressure: number): void {
-    this.baseFingerPos = pos;
     this.setParam("fingerOn", on ? 1 : 0);
     this.setParam("fingerPosition", pos);
     this.setParam("fingerPressure", pressure);
@@ -149,16 +141,6 @@ export class Engine {
 
   mute(): void {
     this.node?.port.postMessage({ type: "mute" });
-  }
-
-  /** Called once per animation frame; applies vibrato wobble. */
-  tick(dt: number): void {
-    if (!this.node) return;
-    if (this.vibratoOn) {
-      this.vibPhase += dt * this.vibratoRate * 2 * Math.PI;
-      const offset = Math.sin(this.vibPhase) * this.vibratoDepth;
-      this.setParam("fingerPosition", this.baseFingerPos + offset);
-    }
   }
 }
 
