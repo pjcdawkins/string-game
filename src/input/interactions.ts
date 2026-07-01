@@ -19,6 +19,15 @@ const FINGER_MIN = -FINGER_RADIUS;
 const FINGER_MAX = 0.82;
 const MAX_BEND = 0.55;
 
+// Keyboard bowing (arrow keys, see input/keyboard.ts): model bow speed while
+// a stroke key is held, how far the bow may travel laterally before it runs
+// out of hair, how fast model velocity sweeps that travel, and how fast the
+// up/down arrows slide the contact point along the string.
+const KEY_BOW_SPEED = 0.32;
+const KEY_BOW_END = 1.2;
+const KEY_BOW_XRATE = 4.0;
+const KEY_CONTACT_RATE = 0.35;
+
 export class Interactions {
   // public state read by the render loop
   grabbed: GrabState | null = null;
@@ -28,6 +37,9 @@ export class Interactions {
   bowX = 0; // lateral position of the bow mesh
   hover: { s: number; x: number } | null = null;
   fingerPressure = 0; // ramped actual pressure
+  // keyboard bowing intents (written by input/keyboard.ts, consumed in update)
+  keyBowDir: -1 | 0 | 1 = 0;
+  keyContactDir: -1 | 0 | 1 = 0;
 
   private leftPointer = -1;
   private rightPointer = -1;
@@ -44,6 +56,8 @@ export class Interactions {
   // of the double-slip octave
   private biteTimer = 999;
   private wasAutoBow = false;
+  private prevKeyBowDir = 0;
+  private wasKeyBowing = false;
 
   constructor(private view: SceneView, canvas: HTMLCanvasElement) {
     canvas.addEventListener("pointerdown", (e) => this.onDown(e));
@@ -54,6 +68,12 @@ export class Interactions {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.liftFinger();
     });
+  }
+
+  /** True while the arrow keys are driving a bow stroke (a held pointer
+   * stroke always wins over the keyboard). */
+  get keyBowing(): boolean {
+    return this.keyBowDir !== 0 && !this.bowEngaged;
   }
 
   /** Where the left-hand zone ends and the implement zone begins. The bow
@@ -159,8 +179,13 @@ export class Interactions {
     if (state.fingerOn && Math.abs(p - state.fingerPos) < 0.035) {
       this.tappedExistingFinger = true;
     }
+    this.placeFingerAt(p);
+  }
+
+  /** Latch or move the finger directly (used by the keyboard shortcuts). */
+  placeFingerAt(s: number): void {
     state.fingerOn = true;
-    state.fingerPos = p;
+    state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
     this.pressureTarget = state.leftMode === "press" ? 1 : 0.13;
     notify();
   }
@@ -192,6 +217,15 @@ export class Interactions {
     // a finger sliding up under a held bow/stroke pushes it toward the bridge
     this.bowPos = clamp(this.bowPos, this.implementMin(), BOW_MAX);
 
+    // up/down arrows slide the bow's contact point toward the nut/bridge
+    if (this.keyContactDir !== 0 && !this.bowEngaged) {
+      this.bowPos = clamp(
+        this.bowPos + this.keyContactDir * KEY_CONTACT_RATE * dt,
+        this.implementMin(),
+        BOW_MAX
+      );
+    }
+
     const force = this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;
 
     this.biteTimer += dt;
@@ -205,6 +239,17 @@ export class Interactions {
       this.lastFrameX = this.bowX;
       const target = clamp(v * 0.06, -0.75, 0.75);
       this.bowVel += (target - this.bowVel) * Math.min(1, dt * 12);
+      engine.setBow(true, this.bowVel, force * bite, this.bowPos);
+    } else if (this.keyBowing) {
+      // a fresh stroke or a bow change gets the starting "bite"
+      if (this.keyBowDir !== this.prevKeyBowDir) this.biteTimer = 0;
+      // the stroke dies away when it runs out of bow at either end; flipping
+      // direction (a bow change) is the way to keep the sound going
+      const atEnd = this.keyBowDir > 0 ? this.bowX >= KEY_BOW_END : this.bowX <= -KEY_BOW_END;
+      const target = atEnd ? 0 : this.keyBowDir * KEY_BOW_SPEED;
+      this.bowVel += (target - this.bowVel) * Math.min(1, dt * 10);
+      this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -KEY_BOW_END, KEY_BOW_END);
+      this.lastFrameX = this.bowX;
       engine.setBow(true, this.bowVel, force * bite, this.bowPos);
     } else if (state.autoBow) {
       if (!this.wasAutoBow) this.biteTimer = 0;
@@ -224,6 +269,11 @@ export class Interactions {
       this.bowX = Math.sin((this.autoBowTimer / STROKE - 0.5) * Math.PI) * -this.autoBowDir * 1.2;
       engine.setBow(true, this.bowVel, state.bowForce * bite, this.bowPos);
     }
+    // releasing the last stroke key or switching auto-bow off ends the stroke
+    const bowingNow = this.bowEngaged || this.keyBowing || state.autoBow;
+    if (!bowingNow && (this.wasKeyBowing || this.wasAutoBow)) engine.setBowOn(false);
+    this.wasKeyBowing = this.keyBowing;
+    this.prevKeyBowDir = this.keyBowing ? this.keyBowDir : 0;
     this.wasAutoBow = state.autoBow;
   }
 }

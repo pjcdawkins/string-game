@@ -35,6 +35,16 @@ npm run build    # production build (worklet bundles to a self-contained file)
   (½, ⅓, ¼ … — with a firm stop down they are drawn relative to the stopped
   length) — the model kills every partial without a node there, just like a
   real flageolet.
+- **Play from the keyboard** (desktop): hands sit like on the instrument.
+  Right hand on the arrows — `→` is a down bow, `←` an up bow (the stroke
+  dies away when you run out of bow; flip direction to keep it singing),
+  `↑`/`↓` slide the contact point toward the nut/bridge, and `[`/`]` ease
+  off / lean into the string (bow pressure). Left hand on the number row —
+  hold `1`–`5` to stop the string in whole-tone steps above the open string,
+  add `Shift` for a semitone lower (even mid-note, so it doubles as a
+  semitone slide). Keys behave like real fingers: release to lift (falling
+  back to any finger still held, so trills just work), `0` is the open
+  string.
 - **Slow-motion string**: the visual vibration runs at an adjustable visual
   rate. Bowing draws true Helmholtz motion (a corner travelling around a
   parabolic envelope); plucks draw the standing-wave mode sum seeded by the

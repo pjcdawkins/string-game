@@ -23,6 +23,10 @@ whole vertical string stays reachable for fingering and bowing.
 - **Bow pressure slider** — the only slider in the bottom-left panel; sets
   `state.bowForce`.
 - **Help (`?`)** — opens the "How to play" overlay.
+- **Keyboard shortcuts** (`src/input/keyboard.ts`) — arrows bow (`→` down
+  bow, `←` up bow, `↑`/`↓` contact point), `[`/`]` step the bow pressure,
+  `1`–`5` (held) stop whole-tone positions with `Shift` a semitone lower,
+  `0` open string, `Esc` lifts the finger.
 
 ## Implemented but hidden (no HUD control right now)
 
