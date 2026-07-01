@@ -111,7 +111,7 @@ else if (res.rms < 0.003) fail(`stroke died while sliding the contact point (rms
 else ok(`contact point slid mid-stroke (${posBefore.toFixed(2)} -> ${res.pos.toFixed(2)}), still sounding`);
 
 // 4. a finger landing mid-stroke re-articulates: the note changes and speaks
-// (Digit2 = 4 semitones above open A -> C#5 554.4)
+// (Digit2 = 2 semitones above open A -> B4 493.9)
 await page.keyboard.down("ArrowRight");
 await page.waitForTimeout(1300); // park the bow at the right end
 await page.keyboard.up("ArrowRight");
@@ -130,24 +130,43 @@ await page.waitForTimeout(500);
 }
 await page.keyboard.up("Digit2");
 await page.keyboard.up("ArrowLeft");
-if (Math.abs(res.freq - 554.4) > 554.4 * 0.04)
-  fail(`mid-stroke finger change pitch off: ${res.freq.toFixed(1)} Hz (expected ~554.4)`);
+if (Math.abs(res.freq - 493.9) > 493.9 * 0.04)
+  fail(`mid-stroke finger change pitch off: ${res.freq.toFixed(1)} Hz (expected ~493.9)`);
 else ok(`mid-stroke finger change speaks at ${res.freq.toFixed(1)} Hz`);
 
-// 5. keyboard finger: Shift+4 = 8−1 = 7 semitones above open A -> E5 659.3
-await page.keyboard.down("Shift");
+// 5. additive fingering: digits sum, 4+3 = 7 semitones above open A -> E5 659.3
 await page.keyboard.down("Digit4");
+await page.keyboard.down("Digit3");
 res = await keyboardBow();
 if (Math.abs(res.freq - 659.3) > 659.3 * 0.04)
-  fail(`keyboard-stopped fifth pitch off: ${res.freq.toFixed(1)} Hz (expected ~659.3)`);
-else ok(`keyboard-stopped fifth (Shift+4) at ${res.freq.toFixed(1)} Hz`);
+  fail(`chorded fifth pitch off: ${res.freq.toFixed(1)} Hz (expected ~659.3)`);
+else ok(`chorded fifth (4+3) at ${res.freq.toFixed(1)} Hz`);
+await page.keyboard.up("Digit3");
 await page.keyboard.up("Digit4");
-await page.keyboard.up("Shift");
 res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
-if (res.fingerOn) fail("finger did not lift when its key was released");
+if (res.fingerOn) fail("finger did not lift when its keys were released");
 else ok("finger lifted on key release");
 
-// 6. brackets ramp bow pressure while held
+// 6. portamento: with Shift held, a pitch change glides instead of jumping
+const fr = await page.evaluate(() => window.__debug.FINGER_RADIUS);
+await page.keyboard.down("Digit2");
+await page.keyboard.down("Shift");
+await page.keyboard.down("Digit5"); // 2+5 = 7 semitones
+await page.waitForTimeout(100);
+const posMid = await page.evaluate(() => window.__debug.state.fingerPos);
+await page.waitForTimeout(800);
+const posEnd = await page.evaluate(() => window.__debug.state.fingerPos);
+await page.keyboard.up("Digit5");
+await page.keyboard.up("Digit2");
+await page.keyboard.up("Shift");
+const glideTarget = 1 - Math.pow(2, -7 / 12) - fr;
+if (Math.abs(posEnd - glideTarget) > 0.01)
+  fail(`portamento never arrived: ${posEnd.toFixed(3)} (target ${glideTarget.toFixed(3)})`);
+else if (posMid > glideTarget - 0.03)
+  fail(`portamento jumped instead of gliding (pos ${posMid.toFixed(3)} after 100ms)`);
+else ok(`portamento glides: ${posMid.toFixed(3)} en route to ${glideTarget.toFixed(3)}`);
+
+// 7. brackets ramp bow pressure while held
 const before = await page.evaluate(() => window.__debug.state.bowForce);
 await page.keyboard.down("BracketRight");
 await page.waitForTimeout(500);
@@ -161,10 +180,8 @@ if (up - before < 0.05) fail(`holding ] did not raise bow pressure: ${before} ->
 else if (down >= up) fail(`holding [ did not lower bow pressure: ${up} -> ${down}`);
 else ok(`brackets ramp bow pressure: ${before.toFixed(2)} -> ${up.toFixed(2)} -> ${down.toFixed(2)}`);
 
-// 7. auto-bow (no HUD control; driven via the debug hook) and verify ~440
-await page.evaluate(() => {
-  window.__debug.state.autoBow = true;
-});
+// 8. hold Space for auto-bow and verify ~440 (or its octave, see below)
+await page.keyboard.down("Space");
 await page.waitForTimeout(1500);
 res = await page.evaluate(() => ({
   rms: window.__debug.state.meter.rms,
@@ -175,14 +192,14 @@ res.freq = await medianPitch();
 if (res.rms < 0.003) fail(`auto-bow produced no sound (rms=${res.rms})`);
 else ok(`auto-bow sounding, rms=${res.rms.toFixed(4)}, slipRatio=${res.slip.toFixed(2)}`);
 // Auto-bow strokes sometimes lock onto the double-slip octave (pre-existing
-// model behaviour on main, exposed now that this test drives state.autoBow
-// directly), so accept either octave here — the keyboard-bow test above
+// model behaviour on main, exposed once the removed #autobow button stopped
+// covering it), so accept either octave here — the keyboard-bow test above
 // already pins the open-string fundamental strictly.
 if (Math.abs(res.freq - 440) > 440 * 0.04 && Math.abs(res.freq - 880) > 880 * 0.04)
   fail(`open A pitch off: ${res.freq.toFixed(1)} Hz (expected ~440 or its octave)`);
 else ok(`auto-bowed open A detected at ${res.freq.toFixed(1)} Hz`);
 
-// 8. stop a perfect fifth (7 semitones -> E5 659.3) via pointer on the fingerboard.
+// 9. stop a perfect fifth (7 semitones -> E5 659.3) via pointer on the fingerboard.
 // The touch point is the fingertip centre; the note speaks from its bridge-side
 // edge, so aim the centre a finger-radius short of the target node.
 const stopNode = 1 - Math.pow(2, -7 / 12);
@@ -208,10 +225,11 @@ else ok(`stopped fifth detected at ${res.freq.toFixed(1)} Hz`);
 
 await page.screenshot({ path: "e2e/bowing.png" });
 
-// 9. stop bowing, lift finger, pluck with the pick
-await page.evaluate(() => {
-  window.__debug.state.autoBow = false;
-});
+// 10. releasing Space stops the auto-bow; lift finger, pluck with the pick
+await page.keyboard.up("Space");
+const autoBowAfter = await page.evaluate(() => window.__debug.state.autoBow);
+if (autoBowAfter) fail("releasing Space did not stop auto-bow");
+else ok("releasing Space stopped auto-bow");
 await page.keyboard.press("Escape");
 await page.click('[data-tool="pick"]');
 const pl = await page.evaluate(() => window.__debug.view.stringToScreen(0.85, 0));

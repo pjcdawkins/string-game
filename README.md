@@ -36,19 +36,20 @@ npm run build    # production build (worklet bundles to a self-contained file)
   length) — the model kills every partial without a node there, just like a
   real flageolet.
 - **Play from the keyboard** (desktop): hands sit like on the instrument.
-  Right hand on the arrows — `→` is a down bow, `←` an up bow (the stroke
-  dies away when you run out of bow; flip direction to keep it singing),
-  `↑`/`↓` slide the contact point toward the nut/bridge, and holding `[`/`]`
-  eases off / leans into the string (bow pressure). Left hand on the number
-  row —
-  hold `1`–`5` to stop the string in whole-tone steps above the open string,
-  add `Shift` for a semitone lower (even mid-note, so it doubles as a
-  semitone slide). Keys behave like real fingers: release to lift (falling
-  back to any finger still held, so trills just work), `0` is the open
-  string. Everything combines mid-stroke — slide the contact point, swell,
-  and change fingers while bowing (a finger landing under a live stroke
-  re-articulates with a little extra bow weight, as a player would, so the
-  new note speaks instead of choking).
+  Right hand — `→` is a down bow, `←` an up bow (the stroke dies away when
+  you run out of bow; flip direction to keep it singing), holding `Space`
+  sustains an automatic détaché (release to stop; the arrows stay manual
+  and override it while held), `↑`/`↓` slide the contact point toward the
+  nut/bridge, and holding `[`/`]` eases off / leans into the string (bow
+  pressure). Left hand on the number row — digits are semitones above the
+  open string (`1` = semitone, `2` = whole tone … `9`) and held digits
+  *add*, so `4`+`3` stops a fifth and `9`+`3` an octave; releasing a digit
+  peels its interval off again, `0` is the open string, and holding `Shift`
+  turns pitch changes into portamento slides. Everything combines
+  mid-stroke — slide the contact point, swell, and change fingers while
+  bowing (a finger landing under a live stroke re-articulates with a little
+  extra bow weight, as a player would, so the new note speaks instead of
+  choking).
 - **Slow-motion string**: the visual vibration runs at an adjustable visual
   rate. Bowing draws true Helmholtz motion (a corner travelling around a
   parabolic envelope); plucks draw the standing-wave mode sum seeded by the

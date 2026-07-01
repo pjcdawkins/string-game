@@ -1,32 +1,40 @@
 /**
  * Desktop keyboard play, hands sitting like on the instrument. The left hand
- * lives on the number row: 1–5 stop the string in whole-tone steps above the
- * open string, Shift lowers the held finger a semitone (2n−1 semitones), and
- * 0 forces the open string. Number keys behave like real fingers — the note
- * sounds while the key is held, and releasing falls back to the next held
- * finger (so trills just work) or lifts the hand. The right hand lives on the
- * arrows: → is a down bow, ← an up bow, ↑/↓ slide the contact point toward
- * the nut/bridge, and holding [ / ] eases off / leans into the string (bow
- * pressure). All of it combines mid-stroke.
+ * lives on the number row: each held digit contributes its value in semitones
+ * above the open string (1 = semitone, 2 = whole tone … 9), and chords of
+ * digits ADD — 4+3 stops a fifth, 9+3 an octave — so intervals beyond nine
+ * semitones are quick to build. 0 forces the open string. Digits behave like
+ * real fingers: the note sounds while held, releasing peels its interval off
+ * again (or lifts the hand entirely), and holding Shift makes pitch changes
+ * portamento — the finger glides instead of jumping. The right hand lives on
+ * the arrows: → is a down bow, ← an up bow, ↑/↓ slide the contact point
+ * toward the nut/bridge, and holding [ / ] eases off / leans into the string
+ * (bow pressure). Holding Space sustains an automatic détaché instead
+ * (release to stop); the arrows stay fully manual, and override it while
+ * held. All of it combines mid-stroke.
  */
 import { engine } from "../audio/engine";
 import { state, notify, FINGER_RADIUS } from "../state";
 import type { Interactions } from "./interactions";
 
-/** Semitones above the open string for each finger key (before Shift). */
+/** Semitones above the open string contributed by each held finger key. */
 const FINGER_KEYS: Record<string, number> = {
-  Digit1: 2,
-  Digit2: 4,
-  Digit3: 6,
-  Digit4: 8,
-  Digit5: 10,
+  Digit1: 1,
+  Digit2: 2,
+  Digit3: 3,
+  Digit4: 4,
+  Digit5: 5,
+  Digit6: 6,
+  Digit7: 7,
+  Digit8: 8,
+  Digit9: 9,
 };
 
 const BOW_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 
 export class Keyboard {
-  /** Finger keys currently held, in press order — the newest one wins. */
-  private heldFingers: string[] = [];
+  /** Finger keys currently held; their semitone values add up. */
+  private heldFingers = new Set<string>();
   private heldArrows = new Set<string>();
   private heldBrackets = new Set<string>();
   private shiftHeld = false;
@@ -41,11 +49,7 @@ export class Keyboard {
   private onKeyDown(e: KeyboardEvent): void {
     if (isEditable(e.target)) return;
     if (e.key === "Shift") {
-      // re-pitch a held finger live, so Shift doubles as a semitone slide
-      if (!this.shiftHeld) {
-        this.shiftHeld = true;
-        this.applyFinger();
-      }
+      this.shiftHeld = true; // portamento: pitch changes glide while held
       return;
     }
     if (e.code in FINGER_KEYS) {
@@ -53,15 +57,23 @@ export class Keyboard {
       if (e.repeat) return;
       void engine.ensureStarted();
       this.shiftHeld = e.shiftKey;
-      this.heldFingers = this.heldFingers.filter((c) => c !== e.code);
-      this.heldFingers.push(e.code);
+      this.heldFingers.add(e.code);
       this.applyFinger();
       return;
     }
     if (e.code === "Digit0") {
       e.preventDefault();
-      this.heldFingers = [];
+      this.heldFingers.clear();
       this.input.liftFinger();
+      return;
+    }
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (e.repeat) return;
+      void engine.ensureStarted();
+      if (state.tool !== "bow") state.tool = "bow";
+      state.autoBow = true;
+      notify();
       return;
     }
     if (BOW_KEYS.has(e.code)) {
@@ -73,6 +85,8 @@ export class Keyboard {
         state.tool = "bow";
         notify();
       }
+      // the resting ghost bow follows the keys now, not the last mouse hover
+      this.input.hover = null;
       this.heldArrows.add(e.code);
       this.syncArrows();
       return;
@@ -87,16 +101,18 @@ export class Keyboard {
 
   private onKeyUp(e: KeyboardEvent): void {
     if (e.key === "Shift") {
-      if (this.shiftHeld) {
-        this.shiftHeld = false;
-        this.applyFinger();
-      }
+      this.shiftHeld = false;
       return;
     }
     if (e.code in FINGER_KEYS) {
-      this.heldFingers = this.heldFingers.filter((c) => c !== e.code);
-      if (this.heldFingers.length) this.applyFinger();
+      this.heldFingers.delete(e.code);
+      if (this.heldFingers.size) this.applyFinger();
       else this.input.liftFinger();
+      return;
+    }
+    if (e.code === "Space") {
+      state.autoBow = false;
+      notify();
       return;
     }
     if (BOW_KEYS.has(e.code)) {
@@ -111,23 +127,25 @@ export class Keyboard {
   }
 
   private releaseAll(): void {
-    if (this.heldFingers.length) this.input.liftFinger();
-    this.heldFingers = [];
+    if (this.heldFingers.size) this.input.liftFinger();
+    this.heldFingers.clear();
     this.heldArrows.clear();
     this.heldBrackets.clear();
     this.shiftHeld = false;
+    state.autoBow = false;
     this.syncArrows();
     this.syncBrackets();
   }
 
-  /** Latch the newest held finger onto its equal-tempered position. */
+  /** Latch the finger onto the equal-tempered position for the sum of all
+   * held digits' semitones (gliding there if Shift asks for portamento). */
   private applyFinger(): void {
-    const code = this.heldFingers[this.heldFingers.length - 1];
-    if (!code) return;
-    const semis = FINGER_KEYS[code] - (this.shiftHeld ? 1 : 0);
+    if (this.heldFingers.size === 0) return;
+    let semis = 0;
+    for (const code of this.heldFingers) semis += FINGER_KEYS[code];
     // aim the fingertip's bridge-side edge (the acoustic stop) at the node
     const stop = 1 - Math.pow(2, -semis / 12);
-    this.input.placeFingerAt(stop - FINGER_RADIUS);
+    this.input.placeFingerAt(stop - FINGER_RADIUS, this.shiftHeld);
   }
 
   private syncArrows(): void {

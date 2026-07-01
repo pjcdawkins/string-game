@@ -33,6 +33,10 @@ const KEY_FORCE_RATE = 0.35;
 const FORCE_MIN = 0.05;
 const FORCE_MAX = 1.2;
 
+// Portamento (Shift + a finger key): exponential approach rate of the finger
+// toward its target position — fast at first, easing in, like a real slide.
+const FINGER_GLIDE_RATE = 8;
+
 export class Interactions {
   // public state read by the render loop
   grabbed: GrabState | null = null;
@@ -64,6 +68,7 @@ export class Interactions {
   private wasAutoBow = false;
   private prevKeyBowDir = 0;
   private wasKeyBowing = false;
+  private fingerGlideTarget: number | null = null;
 
   constructor(private view: SceneView, canvas: HTMLCanvasElement) {
     canvas.addEventListener("pointerdown", (e) => this.onDown(e));
@@ -188,24 +193,34 @@ export class Interactions {
     this.placeFingerAt(p);
   }
 
-  /** Latch or move the finger directly (used by the keyboard shortcuts). */
-  placeFingerAt(s: number): void {
+  /** Latch or move the finger directly (used by the keyboard shortcuts).
+   * With `glide`, a finger already down slides to the new position
+   * (portamento) instead of jumping. */
+  placeFingerAt(s: number, glide = false): void {
+    const p = clamp(s, FINGER_MIN, FINGER_MAX);
+    if (glide && state.fingerOn) {
+      this.fingerGlideTarget = p;
+    } else {
+      state.fingerPos = p;
+      this.fingerGlideTarget = null;
+      this.rearticulate();
+    }
     state.fingerOn = true;
-    state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
     this.pressureTarget = state.leftMode === "press" ? 1 : 0.13;
-    this.rearticulate();
     notify();
   }
 
   private moveFinger(s: number): void {
     this.tappedExistingFinger = false;
     state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
+    this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();
   }
 
   liftFinger(): void {
     state.fingerOn = false;
     this.pressureTarget = 0;
+    this.fingerGlideTarget = null;
     this.rearticulate();
     notify();
   }
@@ -219,6 +234,17 @@ export class Interactions {
 
   /** Per-frame: ramps, auto-bow, and pushing state into the audio engine. */
   update(dt: number): void {
+    // portamento: the finger slides toward its target position
+    if (this.fingerGlideTarget !== null && state.fingerOn) {
+      const d = this.fingerGlideTarget - state.fingerPos;
+      if (Math.abs(d) < 0.002) {
+        state.fingerPos = this.fingerGlideTarget;
+        this.fingerGlideTarget = null;
+      } else {
+        state.fingerPos += d * Math.min(1, dt * FINGER_GLIDE_RATE);
+      }
+    }
+
     // finger pressure ramp (fast but not instant — like a real finger landing)
     const rate = this.pressureTarget > this.fingerPressure ? 14 : 22;
     this.fingerPressure +=
