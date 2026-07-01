@@ -241,8 +241,16 @@ export class Interactions {
       this.bowVel += (target - this.bowVel) * Math.min(1, dt * 12);
       engine.setBow(true, this.bowVel, force * bite, this.bowPos);
     } else if (this.keyBowing) {
-      // a fresh stroke or a bow change gets the starting "bite"
-      if (this.keyBowDir !== this.prevKeyBowDir) this.biteTimer = 0;
+      if (this.keyBowDir !== this.prevKeyBowDir) {
+        // a fresh stroke or a bow change gets the starting "bite"
+        this.biteTimer = 0;
+        // with under half the travel left in the new direction, retake the
+        // bow (lift and reset to the far end) — so a repeated down bow / up
+        // bow speaks instead of starting where the last stroke ran out
+        const remaining =
+          this.keyBowDir > 0 ? KEY_BOW_END - this.bowX : this.bowX + KEY_BOW_END;
+        if (remaining < KEY_BOW_END * 0.5) this.bowX = -this.keyBowDir * KEY_BOW_END;
+      }
       // the stroke dies away when it runs out of bow at either end; flipping
       // direction (a bow change) is the way to keep the sound going
       const atEnd = this.keyBowDir > 0 ? this.bowX >= KEY_BOW_END : this.bowX <= -KEY_BOW_END;
