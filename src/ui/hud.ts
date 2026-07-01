@@ -71,10 +71,11 @@ export class Hud {
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing with another.</p>
         <p><b>Keyboard</b> (desktop): right hand on the arrows — <kbd>→</kbd> down bow,
         <kbd>←</kbd> up bow (flip direction when you run out of bow), <kbd>↑</kbd>/<kbd>↓</kbd>
-        slide the contact point toward the nut/bridge, <kbd>[</kbd>/<kbd>]</kbd> ease off /
-        lean into the string. Left hand on the number row — hold <kbd>1</kbd>–<kbd>5</kbd> to
-        stop the string in whole-tone steps (add <kbd>Shift</kbd> for a semitone lower);
-        release to lift, <kbd>0</kbd> is the open string.</p>
+        slide the contact point toward the nut/bridge, hold <kbd>[</kbd>/<kbd>]</kbd> to ease
+        off / lean into the string. Left hand on the number row — hold <kbd>1</kbd>–<kbd>5</kbd>
+        to stop the string in whole-tone steps (add <kbd>Shift</kbd> for a semitone lower);
+        release to lift, <kbd>0</kbd> is the open string. Everything combines mid-stroke:
+        slide the contact point, swell, and change fingers while bowing.</p>
         <p>Try: slide the bow toward the bridge (ponticello glassiness) or over the
         fingerboard (tasto flute); crank bow pressure at low speed for the raucous
         regime; touch ½, ⅓, ¼ nodes for harmonics.</p>

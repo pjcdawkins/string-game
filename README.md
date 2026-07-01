@@ -38,13 +38,17 @@ npm run build    # production build (worklet bundles to a self-contained file)
 - **Play from the keyboard** (desktop): hands sit like on the instrument.
   Right hand on the arrows — `→` is a down bow, `←` an up bow (the stroke
   dies away when you run out of bow; flip direction to keep it singing),
-  `↑`/`↓` slide the contact point toward the nut/bridge, and `[`/`]` ease
-  off / lean into the string (bow pressure). Left hand on the number row —
+  `↑`/`↓` slide the contact point toward the nut/bridge, and holding `[`/`]`
+  eases off / leans into the string (bow pressure). Left hand on the number
+  row —
   hold `1`–`5` to stop the string in whole-tone steps above the open string,
   add `Shift` for a semitone lower (even mid-note, so it doubles as a
   semitone slide). Keys behave like real fingers: release to lift (falling
   back to any finger still held, so trills just work), `0` is the open
-  string.
+  string. Everything combines mid-stroke — slide the contact point, swell,
+  and change fingers while bowing (a finger landing under a live stroke
+  re-articulates with a little extra bow weight, as a player would, so the
+  new note speaks instead of choking).
 - **Slow-motion string**: the visual vibration runs at an adjustable visual
   rate. Bowing draws true Helmholtz motion (a corner travelling around a
   parabolic envelope); plucks draw the standing-wave mode sum seeded by the

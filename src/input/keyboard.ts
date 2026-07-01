@@ -6,7 +6,8 @@
  * sounds while the key is held, and releasing falls back to the next held
  * finger (so trills just work) or lifts the hand. The right hand lives on the
  * arrows: → is a down bow, ← an up bow, ↑/↓ slide the contact point toward
- * the nut/bridge, and [ / ] ease off / lean into the string (bow pressure).
+ * the nut/bridge, and holding [ / ] eases off / leans into the string (bow
+ * pressure). All of it combines mid-stroke.
  */
 import { engine } from "../audio/engine";
 import { state, notify, FINGER_RADIUS } from "../state";
@@ -23,15 +24,11 @@ const FINGER_KEYS: Record<string, number> = {
 
 const BOW_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
 
-// matches the HUD pressure slider's range
-const FORCE_MIN = 0.05;
-const FORCE_MAX = 1.2;
-const FORCE_STEP = 0.05;
-
 export class Keyboard {
   /** Finger keys currently held, in press order — the newest one wins. */
   private heldFingers: string[] = [];
   private heldArrows = new Set<string>();
+  private heldBrackets = new Set<string>();
   private shiftHeld = false;
 
   constructor(private input: Interactions) {
@@ -82,9 +79,9 @@ export class Keyboard {
     }
     if (e.code === "BracketLeft" || e.code === "BracketRight") {
       e.preventDefault();
-      const step = e.code === "BracketRight" ? FORCE_STEP : -FORCE_STEP;
-      state.bowForce = Math.min(FORCE_MAX, Math.max(FORCE_MIN, state.bowForce + step));
-      notify();
+      if (e.repeat) return;
+      this.heldBrackets.add(e.code);
+      this.syncBrackets();
     }
   }
 
@@ -105,6 +102,11 @@ export class Keyboard {
     if (BOW_KEYS.has(e.code)) {
       this.heldArrows.delete(e.code);
       this.syncArrows();
+      return;
+    }
+    if (e.code === "BracketLeft" || e.code === "BracketRight") {
+      this.heldBrackets.delete(e.code);
+      this.syncBrackets();
     }
   }
 
@@ -112,8 +114,10 @@ export class Keyboard {
     if (this.heldFingers.length) this.input.liftFinger();
     this.heldFingers = [];
     this.heldArrows.clear();
+    this.heldBrackets.clear();
     this.shiftHeld = false;
     this.syncArrows();
+    this.syncBrackets();
   }
 
   /** Latch the newest held finger onto its equal-tempered position. */
@@ -133,6 +137,13 @@ export class Keyboard {
     );
     this.input.keyContactDir = sign(
       (a.has("ArrowDown") ? 1 : 0) - (a.has("ArrowUp") ? 1 : 0)
+    );
+  }
+
+  private syncBrackets(): void {
+    const b = this.heldBrackets;
+    this.input.keyForceDir = sign(
+      (b.has("BracketRight") ? 1 : 0) - (b.has("BracketLeft") ? 1 : 0)
     );
   }
 }

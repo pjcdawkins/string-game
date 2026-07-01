@@ -28,6 +28,11 @@ const KEY_BOW_END = 1.2;
 const KEY_BOW_XRATE = 4.0;
 const KEY_CONTACT_RATE = 0.35;
 
+// [ / ] ramp the bow pressure while held, over the HUD slider's range.
+const KEY_FORCE_RATE = 0.35;
+const FORCE_MIN = 0.05;
+const FORCE_MAX = 1.2;
+
 export class Interactions {
   // public state read by the render loop
   grabbed: GrabState | null = null;
@@ -40,6 +45,7 @@ export class Interactions {
   // keyboard bowing intents (written by input/keyboard.ts, consumed in update)
   keyBowDir: -1 | 0 | 1 = 0;
   keyContactDir: -1 | 0 | 1 = 0;
+  keyForceDir: -1 | 0 | 1 = 0;
 
   private leftPointer = -1;
   private rightPointer = -1;
@@ -187,6 +193,7 @@ export class Interactions {
     state.fingerOn = true;
     state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
     this.pressureTarget = state.leftMode === "press" ? 1 : 0.13;
+    this.rearticulate();
     notify();
   }
 
@@ -199,7 +206,15 @@ export class Interactions {
   liftFinger(): void {
     state.fingerOn = false;
     this.pressureTarget = 0;
+    this.rearticulate();
     notify();
+  }
+
+  /** A finger landing or lifting under a live stroke re-triggers the bow
+   * "bite" (as a player re-articulates with a touch of extra weight), so the
+   * new string length recaptures Helmholtz instead of choking to a whisper. */
+  private rearticulate(): void {
+    if (this.bowEngaged || this.keyBowing || state.autoBow) this.biteTimer = 0;
   }
 
   /** Per-frame: ramps, auto-bow, and pushing state into the audio engine. */
@@ -224,6 +239,16 @@ export class Interactions {
         this.implementMin(),
         BOW_MAX
       );
+    }
+
+    // [ / ] lean into / ease off the string, live even mid-stroke
+    if (this.keyForceDir !== 0) {
+      state.bowForce = clamp(
+        state.bowForce + this.keyForceDir * KEY_FORCE_RATE * dt,
+        FORCE_MIN,
+        FORCE_MAX
+      );
+      notify();
     }
 
     const force = this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;

@@ -86,17 +86,17 @@ function updateTools(): void {
   // note guide: show what the cursor position would sound under the finger
   hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);
 
-  // holding just the up/down arrows shows a ghost bow at its contact point
-  const keyGhost = input.keyContactDir !== 0;
-  if (state.tool === "bow" && (input.bowEngaged || state.autoBow || input.keyBowing || keyGhost || hoverRight)) {
+  if (state.tool === "bow") {
+    // the bow never disappears: solid while stroking, a ghost resting at its
+    // contact point otherwise (hovering previews where a stroke would land)
     t.bow.visible = true;
     const engaged = input.bowEngaged || state.autoBow || input.keyBowing;
-    const atBow = engaged || keyGhost;
-    const s = atBow ? input.bowPos : Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));
-    const x = atBow ? input.bowX * 0.25 : hover!.x * 0.25;
+    const atHover = !engaged && input.keyContactDir === 0 && hoverRight;
+    const s = atHover ? Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s)) : input.bowPos;
+    const x = atHover ? hover!.x * 0.25 : input.bowX * 0.25;
     t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
-  } else if (state.tool !== "bow") {
+  } else {
     const mesh = state.tool === "pick" ? t.pick : t.rightFinger;
     if (input.grabbed) {
       mesh.visible = true;

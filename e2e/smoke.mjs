@@ -92,7 +92,49 @@ await page.keyboard.up("ArrowRight");
 if (res.rms < 0.003) fail(`repeated down bow was silent (rms=${res.rms})`);
 else ok(`repeated down bow retakes and sounds, rms=${res.rms.toFixed(4)}`);
 
-// 3. keyboard finger: Shift+4 = 8−1 = 7 semitones above open A -> E5 659.3
+// 3. simultaneous shortcuts: slide the contact point (↑) during a stroke —
+// the bow keeps sounding while sul tasto/ponticello changes
+await page.keyboard.down("ArrowRight");
+await page.waitForTimeout(300);
+const posBefore = await page.evaluate(() => window.__debug.input.bowPos);
+await page.keyboard.down("ArrowUp");
+await page.waitForTimeout(350);
+await page.keyboard.up("ArrowUp");
+res = await page.evaluate(() => ({
+  pos: window.__debug.input.bowPos,
+  rms: window.__debug.state.meter.rms,
+}));
+await page.keyboard.up("ArrowRight");
+if (posBefore - res.pos < 0.05)
+  fail(`contact point did not slide mid-stroke (${posBefore.toFixed(2)} -> ${res.pos.toFixed(2)})`);
+else if (res.rms < 0.003) fail(`stroke died while sliding the contact point (rms=${res.rms})`);
+else ok(`contact point slid mid-stroke (${posBefore.toFixed(2)} -> ${res.pos.toFixed(2)}), still sounding`);
+
+// 4. a finger landing mid-stroke re-articulates: the note changes and speaks
+// (Digit2 = 4 semitones above open A -> C#5 554.4)
+await page.keyboard.down("ArrowRight");
+await page.waitForTimeout(1300); // park the bow at the right end
+await page.keyboard.up("ArrowRight");
+await page.keyboard.down("ArrowLeft"); // full travel for the up bow
+await page.waitForTimeout(300);
+await page.keyboard.down("Digit2");
+await page.waitForTimeout(500);
+{
+  const vals = [];
+  for (let i = 0; i < 3; i++) {
+    vals.push(await page.evaluate(() => window.__debug.state.detectedFreq));
+    await page.waitForTimeout(100);
+  }
+  vals.sort((a, b) => a - b);
+  res = { freq: vals[1] };
+}
+await page.keyboard.up("Digit2");
+await page.keyboard.up("ArrowLeft");
+if (Math.abs(res.freq - 554.4) > 554.4 * 0.04)
+  fail(`mid-stroke finger change pitch off: ${res.freq.toFixed(1)} Hz (expected ~554.4)`);
+else ok(`mid-stroke finger change speaks at ${res.freq.toFixed(1)} Hz`);
+
+// 5. keyboard finger: Shift+4 = 8−1 = 7 semitones above open A -> E5 659.3
 await page.keyboard.down("Shift");
 await page.keyboard.down("Digit4");
 res = await keyboardBow();
@@ -105,17 +147,21 @@ res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
 if (res.fingerOn) fail("finger did not lift when its key was released");
 else ok("finger lifted on key release");
 
-// 4. brackets adjust bow pressure
+// 6. brackets ramp bow pressure while held
 const before = await page.evaluate(() => window.__debug.state.bowForce);
-await page.keyboard.press("BracketRight");
-await page.keyboard.press("BracketRight");
-await page.keyboard.press("BracketLeft");
-const after = await page.evaluate(() => window.__debug.state.bowForce);
-if (Math.abs(after - (before + 0.05)) > 1e-6)
-  fail(`brackets did not step bow pressure: ${before} -> ${after}`);
-else ok(`brackets step bow pressure: ${before.toFixed(2)} -> ${after.toFixed(2)}`);
+await page.keyboard.down("BracketRight");
+await page.waitForTimeout(500);
+await page.keyboard.up("BracketRight");
+const up = await page.evaluate(() => window.__debug.state.bowForce);
+await page.keyboard.down("BracketLeft");
+await page.waitForTimeout(300);
+await page.keyboard.up("BracketLeft");
+const down = await page.evaluate(() => window.__debug.state.bowForce);
+if (up - before < 0.05) fail(`holding ] did not raise bow pressure: ${before} -> ${up}`);
+else if (down >= up) fail(`holding [ did not lower bow pressure: ${up} -> ${down}`);
+else ok(`brackets ramp bow pressure: ${before.toFixed(2)} -> ${up.toFixed(2)} -> ${down.toFixed(2)}`);
 
-// 5. auto-bow (no HUD control; driven via the debug hook) and verify ~440
+// 7. auto-bow (no HUD control; driven via the debug hook) and verify ~440
 await page.evaluate(() => {
   window.__debug.state.autoBow = true;
 });
@@ -136,7 +182,7 @@ if (Math.abs(res.freq - 440) > 440 * 0.04 && Math.abs(res.freq - 880) > 880 * 0.
   fail(`open A pitch off: ${res.freq.toFixed(1)} Hz (expected ~440 or its octave)`);
 else ok(`auto-bowed open A detected at ${res.freq.toFixed(1)} Hz`);
 
-// 6. stop a perfect fifth (7 semitones -> E5 659.3) via pointer on the fingerboard.
+// 8. stop a perfect fifth (7 semitones -> E5 659.3) via pointer on the fingerboard.
 // The touch point is the fingertip centre; the note speaks from its bridge-side
 // edge, so aim the centre a finger-radius short of the target node.
 const stopNode = 1 - Math.pow(2, -7 / 12);
@@ -162,7 +208,7 @@ else ok(`stopped fifth detected at ${res.freq.toFixed(1)} Hz`);
 
 await page.screenshot({ path: "e2e/bowing.png" });
 
-// 7. stop bowing, lift finger, pluck with the pick
+// 9. stop bowing, lift finger, pluck with the pick
 await page.evaluate(() => {
   window.__debug.state.autoBow = false;
 });
