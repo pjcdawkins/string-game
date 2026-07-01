@@ -195,6 +195,10 @@ export class Hud {
  */
 function tap(el: HTMLElement, fn: () => void): void {
   el.addEventListener("pointerdown", (e) => {
+    // Only the main button: right/middle clicks must not activate. Every
+    // touch contact reports button 0, so this keeps non-primary fingers
+    // working — an isPrimary check here would re-break mid-stroke taps.
+    if (e.button !== 0) return;
     e.preventDefault(); // keep focus where it is; no compat mouse events
     fn();
   });

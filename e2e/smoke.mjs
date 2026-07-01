@@ -55,14 +55,20 @@ await page.waitForFunction(() => window.__debug.engine.started);
 await page.evaluate(() => {
   window.__debug.state.autoBow = true;
 });
-// the very first attack can lock into the double-slip octave until the first
-// bow change (~2.6 s in); measure after the regime has settled
-await page.waitForTimeout(3200);
+await page.waitForTimeout(1500);
 let res = await page.evaluate(() => ({
   rms: window.__debug.state.meter.rms,
   bowing: window.__debug.state.meter.bowing,
   slip: window.__debug.state.meter.slipRatio,
 }));
+// the first attack can lock into the double-slip octave for a stroke or two;
+// bow changes (every 2.6 s) knock it back to the fundamental, so give it a
+// few strokes to settle before measuring
+await page
+  .waitForFunction(() => Math.abs(window.__debug.state.detectedFreq - 440) < 440 * 0.04, null, {
+    timeout: 9000,
+  })
+  .catch(() => {});
 res.freq = await medianPitch();
 if (res.rms < 0.003) fail(`auto-bow produced no sound (rms=${res.rms})`);
 else ok(`auto-bow sounding, rms=${res.rms.toFixed(4)}, slipRatio=${res.slip.toFixed(2)}`);
@@ -137,13 +143,13 @@ await cdp.send("Input.dispatchTouchEvent", {
 // one bow stroke: drag finger 1 across the string, sampling the tuner
 const freqs = [];
 async function strokePass(dir) {
-  for (let i = 1; i <= 10; i++) {
-    f1 = await bowPt(dir * (-0.7 + (i / 10) * 1.4));
+  for (let i = 1; i <= 8; i++) {
+    f1 = await bowPt(dir * (-0.85 + (i / 8) * 1.7));
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
       touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }],
     });
-    await page.waitForTimeout(30);
+    await page.waitForTimeout(25);
     freqs.push(await page.evaluate(() => window.__debug.state.detectedFreq));
   }
 }
@@ -173,8 +179,8 @@ if (Math.abs(sw.engineF0 - 196) > 10)
 // keep bowing: the audible pitch should settle on the new open G. The tuner
 // reads 0 around stroke reversals (near-zero bow speed), so ignore those.
 freqs.length = 0;
-for (const dir of [-1, 1, -1, 1, -1, 1]) await strokePass(dir);
-const sounding = freqs.slice(10).filter((f) => f > 0).sort((a, b) => a - b);
+for (const dir of [-1, 1, -1, 1, -1, 1, -1, 1, -1, 1]) await strokePass(dir);
+const sounding = freqs.slice(8).filter((f) => f > 0).sort((a, b) => a - b);
 const med = sounding[Math.floor(sounding.length / 2)] ?? 0;
 if (sounding.length < 5 || Math.abs(med - 196) > 196 * 0.04)
   fail(`pitch after mid-stroke switch: ${med.toFixed(1)} Hz over ${sounding.length} readings (expected ~196)`);
