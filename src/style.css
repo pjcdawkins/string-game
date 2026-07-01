@@ -164,19 +164,16 @@ body {
   color: #ef8367;
 }
 
-.bottom {
+.bottom-left {
   bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 12px;
   display: flex;
-  gap: 14px;
-  align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
   max-width: 96vw;
 }
 
-.bottom label {
+.bottom-left label {
   font-size: 11px;
   display: flex;
   align-items: center;
@@ -185,9 +182,13 @@ body {
   white-space: nowrap;
 }
 
-.bottom input[type="range"] {
+.bottom-left input[type="range"] {
   width: 90px;
   accent-color: #6aa6ff;
+}
+
+.bottom-left .row {
+  justify-content: flex-start;
 }
 
 .chk input {

@@ -36,7 +36,6 @@ export interface AppState {
   fingerOn: boolean;
   fingerPos: number; // 0..1 from nut
   fingerPressure: number;
-  vibrato: boolean;
   markers: boolean;
   slowMo: number; // visual slow-motion factor (Hz of visual fundamental)
   meter: AudioMeter;
@@ -53,7 +52,6 @@ export const state: AppState = {
   fingerOn: false,
   fingerPos: 0.3,
   fingerPressure: 0,
-  vibrato: false,
   markers: false,
   slowMo: 2.4,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
