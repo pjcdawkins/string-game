@@ -87,25 +87,25 @@ export class Hud {
     this.posNoteEl = $("#posnote");
 
     this.root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) =>
-      b.addEventListener("click", () => {
+      tap(b, () => {
         state.tool = b.dataset.tool as Tool;
         notify();
       })
     );
     this.root.querySelectorAll<HTMLButtonElement>(".lm").forEach((b) =>
-      b.addEventListener("click", () => {
+      tap(b, () => {
         state.leftMode = b.dataset.lm as LeftMode;
         notify();
       })
     );
     this.root.querySelectorAll<HTMLButtonElement>(".str").forEach((b) =>
-      b.addEventListener("click", () => {
+      tap(b, () => {
         state.stringIdx = Number(b.dataset.str);
         void engine.ensureStarted().then(() => engine.setString(STRINGS[state.stringIdx].spec));
         notify();
       })
     );
-    $("#lift").addEventListener("click", () => {
+    tap($("#lift"), () => {
       state.fingerOn = false;
       notify();
     });
@@ -113,8 +113,8 @@ export class Hud {
     const force = $<HTMLInputElement>("#force");
     force.addEventListener("input", () => (state.bowForce = Number(force.value)));
 
-    $("#helpBtn").addEventListener("click", () => $("#help").classList.remove("hidden"));
-    $("#closeHelp").addEventListener("click", () => $("#help").classList.add("hidden"));
+    tap($("#helpBtn"), () => $("#help").classList.remove("hidden"));
+    tap($("#closeHelp"), () => $("#help").classList.add("hidden"));
     // show help on first load
     $("#help").classList.remove("hidden");
   }
@@ -181,4 +181,24 @@ export class Hud {
       this.posNoteEl.innerHTML = "&nbsp;";
     }
   }
+}
+
+/**
+ * Activate a HUD button on `pointerdown` rather than `click`. Browsers only
+ * synthesise `click` for the *primary* pointer, so while one finger holds a
+ * bow stroke on the canvas, a second finger tapping a button would otherwise
+ * do nothing until the first is lifted — you couldn't switch strings
+ * mid-stroke. Reacting on press (not release) also makes switching feel
+ * immediate, and it keeps engine.ensureStarted() inside the live user
+ * gesture, which iOS requires to unlock audio. Keyboard activation still
+ * arrives as a `click` with detail 0 and no preceding pointerdown.
+ */
+function tap(el: HTMLElement, fn: () => void): void {
+  el.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); // keep focus where it is; no compat mouse events
+    fn();
+  });
+  el.addEventListener("click", (e) => {
+    if (e.detail === 0) fn(); // keyboard (Enter/Space) only
+  });
 }
