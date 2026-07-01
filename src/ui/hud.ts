@@ -1,5 +1,5 @@
 /** DOM heads-up display: tool/string pickers, technique controls, tuner. */
-import { state, notify, subscribe, STRINGS, freqToNote, Tool, LeftMode } from "../state";
+import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode } from "../state";
 import { engine } from "../audio/engine";
 
 export class Hud {
@@ -172,10 +172,10 @@ export class Hud {
     // note under the finger, or a guide for the hovered position
     const f0 = STRINGS[state.stringIdx].spec.f0;
     if (state.fingerOn) {
-      const n = freqToNote(f0 / (1 - state.fingerPos));
+      const n = freqToNote(f0 / (1 - fingerStop(state.fingerPos)));
       if (n) this.posNoteEl.textContent = `stop: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else if (this.hoverS !== null && this.hoverS > 0.01) {
-      const n = freqToNote(f0 / (1 - this.hoverS));
+      const n = freqToNote(f0 / (1 - fingerStop(this.hoverS)));
       if (n) this.posNoteEl.textContent = `here: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else {
       this.posNoteEl.innerHTML = "&nbsp;";

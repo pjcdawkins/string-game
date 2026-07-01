@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { StringSim } from "../src/audio/dsp/StringSim";
+import { FINGER_RADIUS } from "../src/state";
 
 const FS = 48000;
 
@@ -103,7 +104,9 @@ describe("StringSim", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
     sim.fingerOn = true;
-    sim.fingerPosition = 0.25; // quarter of the string from the nut -> perfect fourth
+    // centre the fingertip so its bridge-side edge (the node) lands a quarter of
+    // the string from the nut -> perfect fourth
+    sim.fingerPosition = 0.25 - FINGER_RADIUS;
     sim.fingerPressure = 1;
     sim.bowOn = true;
     sim.bowVelocity = 0.2;
@@ -117,11 +120,31 @@ describe("StringSim", () => {
     expect(f).toBeLessThan(expected * 1.03);
   });
 
+  it("a firm finger at the nut sounds the open string, not sharp", () => {
+    // regression: dragging a pressed finger up onto the nut should release
+    // into the fully open string (f0), not terminate a hair short and play
+    // slightly sharp
+    const sim = new StringSim(FS);
+    sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
+    sim.fingerOn = true;
+    sim.fingerPosition = -FINGER_RADIUS; // fingertip slid up onto the nut -> open string
+    sim.fingerPressure = 1;
+    sim.bowOn = true;
+    sim.bowVelocity = 0.2;
+    sim.bowForce = 0.5;
+    sim.bowPosition = 0.88;
+    const out = render(sim, 1.4);
+    expectNoNaN(out);
+    const f = estimatePitch(out, 0.7, 1.3);
+    expect(f).toBeGreaterThan(220 * 0.99);
+    expect(f).toBeLessThan(220 * 1.01);
+  });
+
   it("light touch at the midpoint produces the octave harmonic", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.25, loss: 0.3, stiffness: 0.05, nonlinearity: 0 });
     sim.fingerOn = true;
-    sim.fingerPosition = 0.5;
+    sim.fingerPosition = 0.5 - FINGER_RADIUS; // node at the midpoint
     sim.fingerPressure = 0.12; // light harmonic touch
     sim.bowPosition = 0.88;
     sim.pluck(0.7, 1.0);
