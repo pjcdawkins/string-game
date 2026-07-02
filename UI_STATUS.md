@@ -13,6 +13,13 @@ narrow portrait screens (`max-width: 600px`, see `src/style.css`) they dock
 into the left/right gutters and the strip below the bridge instead, so the
 whole vertical string stays reachable for fingering and bowing.
 
+The HUD and the WebGL scene both follow the system colour scheme
+(`prefers-color-scheme`, applied live — there is no in-app toggle): the CSS
+variables live in `src/style.css` and the scene palette in
+`src/scene/theme.ts`, whose `--bg` and `bg` values must stay in sync.
+`node e2e/screenshot.mjs` captures a screenshot of the built app in each
+scheme for design review.
+
 ## Operable now
 
 All HUD buttons act on `pointerdown` rather than `click` (see `tap()` in

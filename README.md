@@ -54,6 +54,8 @@ npm run build    # production build (worklet bundles to a self-contained file)
   rate. Bowing draws true Helmholtz motion (a corner travelling around a
   parabolic envelope); plucks draw the standing-wave mode sum seeded by the
   pluck point; harmonics show only the surviving modes.
+- **Light & dark**: the whole interface — the HUD and the drawn instrument
+  alike — follows the system colour scheme, switching live when it changes.
 
 Some of these (auto-bow, the node-marker dots, the slow-mo rate) are
 implemented but currently have no HUD control — see
