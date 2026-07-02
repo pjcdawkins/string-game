@@ -23,9 +23,26 @@ export const STRING_TOP = 2.1;
 // the bottom end leaves room below for the bridge (and a glimpse of the
 // belly) to stay visible above the bottom control panel, so you can see how
 // close to it you bow
-export const STRING_BOT = -1.45;
+export const STRING_BOT = -1.62;
 export const STRING_LEN = STRING_TOP - STRING_BOT;
 export const BOARD_SURFACE_Z = -0.08;
+
+// Fake raked perspective, baked into the flat artwork rather than a camera
+// tilt (which would make the screen<->string mapping non-affine): the body
+// keeps true proportions from its top edge down to the bridge line (that
+// span is pinned by the string), and everything below the bridge — the
+// region nearest the viewer — is progressively squashed, as real
+// foreshortening would. The bridge itself is squashed harder and shows its
+// top edge, as if seen from slightly above. The playable string and
+// fingerboard stay straight-on, so pointer accuracy is untouched; the
+// compression frees vertical screen space for the string.
+const LOWER_SQUASH = 0.55; // vertical scale well below the bridge
+const SQUASH_RAMP0 = 0.2; // squash blends in between these distances
+const SQUASH_RAMP1 = 0.6; // below the bridge line (body-local units)
+const BRIDGE_SQUASH = 0.62;
+const BODY_LEN = 3.9; // outline design length (see OUTLINE_HALF)
+const BRIDGE_AT = 0.55; // bridge sits at 55% of the body length (C-bout)
+const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin
 
 // instrument palette: wood tones shared by both themes
 const WOOD = {
@@ -36,9 +53,10 @@ const WOOD = {
   fhole: 0x140c06,
   board: 0x16120f, // ebony fingerboard
   boardSheen: 0x241d17,
-  nut: 0xe7dabd, // bone
-  nutShadow: 0x453824,
+  nut: 0x2a221b, // ebony like the board, only just distinguishable
+  nutEdge: 0x554738, // faint warm line where the string breaks over it
   bridge: 0xddba8a, // maple
+  bridgeTop: 0xecd9ae, // its top edge, caught by the raked view
   bridgeLine: 0x6b4826,
   tailpiece: 0x1a1512,
   tailSheen: 0x322a23,
@@ -69,9 +87,8 @@ export class SceneView {
     this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, 50);
     this.camera.position.set(0, 0, 6.4);
 
-    // a whisper of rotation keeps some parallax between the flat layers (and
-    // makes the string's z-depression under a firm finger faintly visible)
-    this.instrument.rotation.y = -0.12;
+    // straight-on and symmetric, like a luthier's portrait photograph; the
+    // raked perspective is baked into the artwork (see BODY_SQUASH above)
     this.scene.add(this.instrument);
 
     this.buildFurniture();
@@ -138,32 +155,38 @@ export class SceneView {
     this.buildNodeMarkers();
   }
 
-  /** Violin top plate to real proportions: upper/lower bouts, C-bout waist
-   * with protruding corners, purfling inset from a dark edge. The top edge
-   * sits at 40% of the string length (so the fingerboard overhangs it), the
-   * bridge lands in the C-bout, and the lower bout runs off the view. */
+  /** Violin top plate (upper/lower bouts, deep C-bout with protruding
+   * corners, purfling inset from a dark edge), foreshortened below the
+   * bridge line for the raked view (see warpY). The fingerboard overhangs
+   * the top edge; the compressed lower bout runs toward the view's bottom. */
   private buildBody(): void {
-    const outlineShape = violinOutline();
-    const bodyTopY = this.sToY(0.4);
     const zPlate = -0.3;
 
     const body = new THREE.Group();
+    const bodyTopY = this.sToY(BODY_TOP_S);
     body.position.set(0, bodyTopY, 0);
 
-    const plate = new THREE.Mesh(new THREE.ShapeGeometry(outlineShape, 18), this.flat(WOOD.plate));
+    // scale the design outline so the bridge fraction lands exactly on the
+    // string's end, then foreshorten everything below that line
+    const yBridge = STRING_BOT - bodyTopY; // body-local bridge line
+    const yScale = -yBridge / (BODY_LEN * BRIDGE_AT);
+    const pts = dedupe(violinOutline().getPoints(12)).map(
+      (p) => new THREE.Vector2(p.x, warpY(p.y * yScale, yBridge))
+    );
+
+    const plate = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)), this.flat(WOOD.plate));
     plate.position.z = zPlate;
     body.add(plate);
 
-    const pts = dedupe(outlineShape.getPoints(12));
-
-    // subtle lighter centre: a scaled-down copy of the outline, suggesting
-    // the arching of the top without any lighting
+    // subtle lighter centre: the outline offset well inward, suggesting the
+    // arching of the top without any lighting (an inset, not a centroid
+    // scale — scaling pokes outside the waist once the lower bout is
+    // foreshortened)
     const centroid = pts
       .reduce((a, p) => a.add(p), new THREE.Vector2())
       .multiplyScalar(1 / pts.length);
-    const sheenPts = pts.map((p) => p.clone().sub(centroid).multiplyScalar(0.86).add(centroid));
     const sheen = new THREE.Mesh(
-      new THREE.ShapeGeometry(new THREE.Shape(sheenPts)),
+      new THREE.ShapeGeometry(new THREE.Shape(inset(pts, 0.15, centroid))),
       this.flat(WOOD.plateSheen, { opacity: 0.32 })
     );
     sheen.position.z = zPlate + 0.005;
@@ -172,11 +195,11 @@ export class SceneView {
     body.add(this.outline(pts, zPlate + 0.015, WOOD.edge, 2.4));
     body.add(this.outline(inset(pts, 0.055, centroid), zPlate + 0.01, WOOD.purfling, 1.2));
 
-    // f-holes flanking the bridge, nicks level with its feet
+    // f-holes flanking the bridge, nicks level with its line
     for (const side of [-1, 1] as const) {
       const f = this.makeFHole();
-      f.position.set(side * 0.4, STRING_BOT - 0.12 - bodyTopY, zPlate + 0.02);
-      f.rotation.z = side * 0.14;
+      f.position.set(side * 0.415, STRING_BOT + 0.02 - bodyTopY, zPlate + 0.02);
+      f.rotation.z = side * 0.16;
       f.scale.x = side;
       body.add(f);
     }
@@ -184,34 +207,35 @@ export class SceneView {
     this.instrument.add(body);
   }
 
-  /** One f-hole (right-hand variant; mirror with scale.x = -1): two eyes of
-   * different sizes joined by an S-curved stem, with the two middle nicks. */
+  /** One f-hole (right-hand variant; mirror with scale.x = -1), after the
+   * Stradivari pattern: a small round upper eye, a larger lower eye, a slim
+   * S-curved stem flaring into wings at both ends, and the middle nicks. */
   private makeFHole(): THREE.Group {
     const mat = this.flat(WOOD.fhole);
     const g = new THREE.Group();
 
     const stem = new THREE.Shape();
-    stem.moveTo(-0.068, 0.24);
-    stem.bezierCurveTo(-0.08, 0.03, -0.018, -0.04, 0.022, -0.255);
-    stem.lineTo(0.068, -0.255);
-    stem.bezierCurveTo(0.015, -0.03, -0.046, 0.04, -0.032, 0.245);
+    stem.moveTo(-0.108, 0.275); // upper wing, left of the top eye
+    stem.bezierCurveTo(-0.09, 0.1, -0.01, -0.02, 0.048, -0.285);
+    stem.lineTo(0.112, -0.27); // lower wing, above the bottom eye
+    stem.bezierCurveTo(0.02, -0.02, -0.06, 0.08, -0.052, 0.283);
     stem.closePath();
-    g.add(new THREE.Mesh(new THREE.ShapeGeometry(stem, 12), mat));
+    g.add(new THREE.Mesh(new THREE.ShapeGeometry(stem, 14), mat));
 
-    const eyeT = new THREE.Mesh(new THREE.CircleGeometry(0.036, 20), mat);
-    eyeT.position.set(-0.068, 0.27, 0);
-    const eyeB = new THREE.Mesh(new THREE.CircleGeometry(0.05, 20), mat);
-    eyeB.position.set(0.068, -0.285, 0);
+    const eyeT = new THREE.Mesh(new THREE.CircleGeometry(0.034, 20), mat);
+    eyeT.position.set(-0.09, 0.295, 0);
+    const eyeB = new THREE.Mesh(new THREE.CircleGeometry(0.052, 20), mat);
+    eyeB.position.set(0.095, -0.3, 0);
     g.add(eyeT, eyeB);
 
     for (const [x0, dir] of [
-      [-0.072, 1],
-      [0.035, -1],
+      [-0.075, 1],
+      [0.028, -1],
     ] as const) {
       const nick = new THREE.Shape();
-      nick.moveTo(x0, 0.013);
-      nick.lineTo(x0 + dir * 0.034, -0.004);
-      nick.lineTo(x0, -0.021);
+      nick.moveTo(x0, 0.008);
+      nick.lineTo(x0 + dir * 0.032, -0.01);
+      nick.lineTo(x0, -0.028);
       nick.closePath();
       g.add(new THREE.Mesh(new THREE.ShapeGeometry(nick), mat));
     }
@@ -244,16 +268,17 @@ export class SceneView {
     sheenMesh.position.z = BOARD_SURFACE_Z - 0.005;
     this.instrument.add(sheenMesh);
 
-    // nut: a slim rounded bone bar right at the top of the string — a finger
+    // nut: ebony like the board (as on the real instrument), so it reads as
+    // little more than a break line right at the top of the string — a finger
     // can stop all the way up to it (on it, the string is effectively open)
     const nut = new THREE.Mesh(
-      new THREE.ShapeGeometry(roundedRect(0.42, 0.075, 0.025)),
+      new THREE.ShapeGeometry(roundedRect(0.4, 0.07, 0.02)),
       this.flat(WOOD.nut)
     );
-    nut.position.set(0, STRING_TOP + 0.045, -0.02);
-    const nutShadow = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.014), this.flat(WOOD.nutShadow));
-    nutShadow.position.set(0, STRING_TOP + 0.004, -0.02);
-    this.instrument.add(nut, nutShadow);
+    nut.position.set(0, STRING_TOP + 0.042, -0.02);
+    const nutEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.011), this.flat(WOOD.nutEdge));
+    nutEdge.position.set(0, STRING_TOP + 0.008, -0.019);
+    this.instrument.add(nut, nutEdge);
   }
 
   /** Maple bridge (feet, kidneys and heart) carrying the string's end, and
@@ -286,14 +311,25 @@ export class SceneView {
     }
 
     const bridge = new THREE.Group();
-    // crown peak at local y≈+0.02, so the string's end rests on it
-    bridge.position.set(0, STRING_BOT - 0.02, -0.02);
+    // squashed for the raked view, crown peak carrying the string's end
+    bridge.scale.y = BRIDGE_SQUASH;
+    bridge.position.set(0, STRING_BOT - 0.02 * BRIDGE_SQUASH, -0.02);
     bridge.add(new THREE.Mesh(new THREE.ShapeGeometry(b, 10), this.flat(WOOD.bridge)));
+    // the top edge of the bridge, visible from the raked viewpoint
+    const top = new THREE.Shape();
+    top.moveTo(-0.235, -0.07);
+    top.quadraticCurveTo(0, 0.04, 0.235, -0.07);
+    top.lineTo(0.235, -0.038);
+    top.quadraticCurveTo(0, 0.075, -0.235, -0.038);
+    top.closePath();
+    const topMesh = new THREE.Mesh(new THREE.ShapeGeometry(top, 10), this.flat(WOOD.bridgeTop));
+    topMesh.position.z = 0.003;
+    bridge.add(topMesh);
     const bridgeLine = this.outline(dedupe(b.getPoints(8)), 0.005, WOOD.bridgeLine, 1.4);
     bridge.add(bridgeLine);
     this.instrument.add(bridge);
 
-    // tailpiece below, with the string's afterlength running down to it
+    // tailpiece below (squashed with the body), with the string's afterlength
     const t = new THREE.Shape();
     t.moveTo(-0.115, 0);
     t.quadraticCurveTo(0, 0.05, 0.115, 0);
@@ -302,7 +338,8 @@ export class SceneView {
     t.quadraticCurveTo(-0.19, -1.13, -0.185, -0.98);
     t.closePath();
     const tail = new THREE.Mesh(new THREE.ShapeGeometry(t, 10), this.flat(WOOD.tailpiece));
-    tail.position.set(0, -1.95, -0.06);
+    tail.scale.y = 0.72;
+    tail.position.set(0, -1.916, -0.06);
     const ridge = new THREE.Shape();
     ridge.moveTo(-0.018, 0.01);
     ridge.lineTo(0.018, 0.01);
@@ -310,13 +347,14 @@ export class SceneView {
     ridge.lineTo(-0.03, -1.02);
     ridge.closePath();
     const ridgeMesh = new THREE.Mesh(new THREE.ShapeGeometry(ridge), this.flat(WOOD.tailSheen));
-    ridgeMesh.position.set(0, -1.95, -0.055);
+    ridgeMesh.scale.y = 0.72;
+    ridgeMesh.position.set(0, -1.916, -0.055);
 
     // in front of the bridge face, as on a real violin seen from the front
     const afterMat = this.flat(0xffffff);
     this.stringTintMats.push(afterMat);
-    const afterLen = new THREE.Mesh(new THREE.PlaneGeometry(0.016, 0.48), afterMat);
-    afterLen.position.set(0, STRING_BOT - 0.24, -0.005);
+    const afterLen = new THREE.Mesh(new THREE.PlaneGeometry(0.016, 0.28), afterMat);
+    afterLen.position.set(0, STRING_BOT - 0.13, -0.005);
     this.instrument.add(tail, ridgeMesh, afterLen);
   }
 
@@ -427,15 +465,39 @@ export class SceneView {
 }
 
 /** Right half of the violin outline (top centre at the origin, y downward),
- * as cubic segments [c1x, c1y, c2x, c2y, x, y]. Direction breaks at the
- * segment joints give the protruding C-bout corners. */
+ * as cubic segments [c1x, c1y, c2x, c2y, x, y], after the Stradivari
+ * pattern: full, nearly level shoulders; the bout curves sweep *inward*
+ * before each corner and a short flick juts back out, so the C-bout corners
+ * protrude as real cornices do. */
 const OUTLINE_HALF: number[][] = [
-  [0.52, 0.02, 0.95, -0.28, 0.96, -0.8], // upper bout
-  [0.98, -1.1, 0.8, -1.34, 0.7, -1.5], // in to the upper corner
-  [0.44, -1.6, 0.47, -2.3, 0.73, -2.5], // C-bout waist to the lower corner
-  [0.97, -2.62, 1.17, -2.8, 1.17, -3.1], // out into the lower bout
-  [1.17, -3.55, 0.72, -3.9, 0, -3.9], // round to the bottom centre
+  [0.62, 0.004, 0.98, -0.15, 0.94, -0.72], // shoulder and upper bout
+  [0.91, -1.06, 0.78, -1.26, 0.64, -1.36], // sweep in toward the upper corner
+  [0.7, -1.385, 0.735, -1.42, 0.73, -1.48], // upper corner flick
+  [0.46, -1.56, 0.45, -2.3, 0.74, -2.5], // C-bout waist to the lower corner
+  [0.745, -2.53, 0.71, -2.58, 0.63, -2.61], // lower corner flick
+  [0.96, -2.65, 1.16, -2.85, 1.15, -3.16], // out into the lower bout
+  [1.13, -3.62, 0.7, -3.9, 0, -3.9], // round to the bottom centre
 ];
+
+/** Foreshortening below the bridge line: identity above `yBridge`, then the
+ * vertical scale eases from 1 down to LOWER_SQUASH over the ramp interval,
+ * so the outline stays kink-free where the squash begins. */
+function warpY(y: number, yBridge: number): number {
+  if (y >= yBridge) return y;
+  const d = yBridge - y;
+  if (d <= SQUASH_RAMP0) return y;
+  const ramp = SQUASH_RAMP1 - SQUASH_RAMP0;
+  let compressed: number;
+  if (d <= SQUASH_RAMP1) {
+    // scale falls linearly across the ramp; integrate for the position
+    const t = (d - SQUASH_RAMP0) / ramp;
+    compressed = SQUASH_RAMP0 + (d - SQUASH_RAMP0) * (1 - ((1 - LOWER_SQUASH) * t) / 2);
+  } else {
+    const rampLen = ramp * (1 + LOWER_SQUASH) / 2;
+    compressed = SQUASH_RAMP0 + rampLen + (d - SQUASH_RAMP1) * LOWER_SQUASH;
+  }
+  return yBridge - compressed;
+}
 
 function violinOutline(): THREE.Shape {
   const sh = new THREE.Shape();

@@ -309,7 +309,7 @@ body {
  *
  * The string is drawn down the centre of the viewport and — because the
  * camera is fixed — always projects to the same fractions of the height
- * (nut ≈ 4% from the top, bridge ≈ 82%). On a narrow screen the corner
+ * (nut ≈ 4% from the top, bridge ≈ 85%). On a narrow screen the corner
  * panels overlap that centre column, so you can't finger the upper
  * positions. Dock every control into the left/right gutters and the strip
  * below the bridge instead, leaving the whole string clear.

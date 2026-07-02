@@ -294,6 +294,13 @@ await page.screenshot({ path: "e2e/pluck.png" });
 // used to listen for `click`, which browsers only fire for the *primary*
 // pointer, so the switch was deferred until the bowing finger lifted.
 await page.click('[data-tool="bow"]');
+// Reset the pressure slider first: test 7 leaves bowForce at ~0.52, and CDP
+// touches report pressure 1.0 (a ×1.8 force multiplier), which parks the G
+// string right on the pressed/choke boundary — whether it speaks then hinges
+// on the runner's exact gesture timing. This test is about the mid-stroke
+// switch, not the Schelleng regime, so pin the force via the HUD control.
+await page.locator("#force").fill("0.45");
+await page.locator("#force").dispatchEvent("input");
 const cdp = await page.context().newCDPSession(page);
 const bowPt = (x) => page.evaluate((xx) => window.__debug.view.stringToScreen(0.9, xx), x);
 
@@ -303,18 +310,28 @@ await cdp.send("Input.dispatchTouchEvent", {
   touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }],
 });
 
-// one bow stroke: drag finger 1 across the string, sampling the tuner
+// One bow stroke: drag finger 1 across the string, then sample the tuner
+// once. The points are precomputed and there are no page round-trips between
+// moves: the drag velocity IS the model's bow speed, so per-move evaluate()
+// latency (slow on software-rendered CI runners) would slow the stroke into
+// the quiet/pressed regime where the pitch detector cannot lock.
 const freqs = [];
 async function strokePass(dir) {
-  for (let i = 1; i <= 8; i++) {
-    f1 = await bowPt(dir * (-0.85 + (i / 8) * 1.7));
+  const xs = [];
+  for (let i = 1; i <= 8; i++) xs.push(dir * (-0.85 + (i / 8) * 1.7));
+  const pts = await page.evaluate(
+    (arr) => arr.map((xx) => window.__debug.view.stringToScreen(0.9, xx)),
+    xs
+  );
+  for (const q of pts) {
+    f1 = q;
     await cdp.send("Input.dispatchTouchEvent", {
       type: "touchMove",
-      touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }],
+      touchPoints: [{ x: q.clientX, y: q.clientY, id: 1 }],
     });
     await page.waitForTimeout(25);
-    freqs.push(await page.evaluate(() => window.__debug.state.detectedFreq));
   }
+  freqs.push(await page.evaluate(() => window.__debug.state.detectedFreq));
 }
 for (const dir of [1, -1, 1]) await strokePass(dir);
 
@@ -339,13 +356,12 @@ if (!sw.bowEngaged) fail("bow stroke was dropped by the string switch");
 if (Math.abs(sw.engineF0 - 196) > 10)
   fail(`engine f0 not updated on switch (${sw.engineF0.toFixed(1)})`);
 
-// keep bowing: the audible pitch should settle on the new open G. The tuner
-// reads 0 around stroke reversals (near-zero bow speed), so ignore those —
-// on slow headless runners only a few readings per pass land mid-stroke,
-// hence the modest quorum of 3.
+// keep bowing: the audible pitch should settle on the new open G. Each pass
+// contributes one end-of-stroke reading; skip the first two (the switch
+// transient) and allow a couple of failed attacks in the quorum.
 freqs.length = 0;
 for (const dir of [-1, 1, -1, 1, -1, 1, -1, 1, -1, 1]) await strokePass(dir);
-const sounding = freqs.slice(8).filter((f) => f > 0).sort((a, b) => a - b);
+const sounding = freqs.slice(2).filter((f) => f > 0).sort((a, b) => a - b);
 const med = sounding[Math.floor(sounding.length / 2)] ?? 0;
 if (sounding.length < 3 || Math.abs(med - 196) > 196 * 0.04)
   fail(`pitch after mid-stroke switch: ${med.toFixed(1)} Hz over ${sounding.length} readings (expected ~196)`);

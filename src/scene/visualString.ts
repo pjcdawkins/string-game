@@ -242,6 +242,9 @@ export class VisualString {
     this.glow.geometry.setPositions(Array.from(this.positions));
     this.glowMat.opacity =
       Math.min(0.55, this.glowAmp * 4.4 + (grab ? 0.12 : 0)) * this.glowOpacityScale;
+    // skip the (full-length, 9px-wide) glow line entirely while inaudible —
+    // a real saving on weak GPUs and software renderers
+    this.glow.visible = this.glowMat.opacity > 0.01;
     // colour shifts warmer when the tone is raucous/crunchy
     this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, this.glowLightness);
   }
