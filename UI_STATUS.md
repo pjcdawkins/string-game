@@ -7,8 +7,12 @@ is added, removed, or hidden.
 
 ## Layout
 
-The string is drawn down the centre of the viewport (nut at the top, bridge
-near the bottom). On wide screens the controls sit in the four corners. On
+All four strings are drawn down the centre of the viewport (nut at the top,
+bridge near the bottom), fanning apart slightly toward the bridge as on a
+real setup — G, D, A, E left to right, i.e. IV..I in classical numbering
+(`src/scene/lanes.ts`). Only the *selected* string is playable: it draws at
+full contrast and vibrates over the three faint idle ones. On wide screens
+the controls sit in the four corners. On
 narrow portrait screens (`max-width: 600px`, see `src/style.css`) they dock
 into the left/right gutters and the strip below the bridge instead, so the
 whole vertical string stays reachable for fingering and bowing.

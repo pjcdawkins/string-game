@@ -26,7 +26,8 @@ export class Hud {
 
   private template(): string {
     const stringBtns = STRINGS.map(
-      (s, i) => `<button class="seg str" data-str="${i}">${s.name[0]}<sub>${s.name.slice(1)}</sub></button>`
+      (s, i) =>
+        `<button class="seg str" data-str="${i}" title="${s.numeral} string">${s.name[0]}<sub>${s.name.slice(1)}</sub></button>`
     ).join("");
     return `
     <div class="panel top-left">

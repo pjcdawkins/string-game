@@ -15,6 +15,9 @@ export interface SceneTheme {
   light: boolean;
   bg: number;
   string: number;
+  /** Opacity of the three idle (unselected) strings — the selected string
+   * draws at full contrast over them. */
+  idleStringOpacity: number;
   /** HSL lightness of the vibration glow (hue is set live by the string). */
   glowLightness: number;
   /** Scale on the glow opacity envelope. */
@@ -26,6 +29,7 @@ export const DARK: SceneTheme = {
   light: false,
   bg: 0x0b0e14,
   string: 0xdde3ee,
+  idleStringOpacity: 0.3,
   glowLightness: 0.62,
   glowOpacity: 1,
   additiveGlow: true,
@@ -33,8 +37,12 @@ export const DARK: SceneTheme = {
 
 export const LIGHT: SceneTheme = {
   light: true,
+  // strings are metal: a mid silver reads against the ebony board, the
+  // maple body AND the light background (the old near-black string
+  // disappeared against the fingerboard it actually lies over)
+  string: 0xaab4c4,
+  idleStringOpacity: 0.45,
   bg: 0xece8df,
-  string: 0x2b303b,
   glowLightness: 0.5,
   glowOpacity: 0.85,
   additiveGlow: false,

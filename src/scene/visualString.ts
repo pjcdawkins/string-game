@@ -24,6 +24,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import * as THREE from "three";
 import { WaveString } from "./waveString";
 import { FINGER_RADIUS } from "../state";
+import { laneX, LANE_LINEWIDTH } from "./lanes";
 import type { SceneTheme } from "./theme";
 
 export const NPTS = 160;
@@ -65,7 +66,10 @@ export class VisualString {
   private positions = new Float32Array(NPTS * 3);
 
   private readonly yTop: number;
-  private readonly yLen: number;
+  private yLen: number;
+  // the lane this string occupies (0 = IV/lowest, leftmost); its rest line
+  // fans with s like the idle strings, and the vibration displaces around it
+  private lane = 0;
 
   private wave = new WaveString(NPTS);
   private vibAmp = 0; // smoothed drive amplitude (follows audio RMS while bowing)
@@ -113,6 +117,16 @@ export class VisualString {
     this.glowMat.resolution.set(w, h);
   }
 
+  /** Move the string onto lane `idx`, ending on the bridge at `yBottom`
+   * (the crown is lower toward its edges, so the outer lanes break over it
+   * slightly below the middle ones). The gauge follows the lane: G heavy,
+   * E fine. */
+  setLane(idx: number, yBottom: number): void {
+    this.lane = idx;
+    this.yLen = this.yTop - yBottom;
+    this.lineMat.linewidth = LANE_LINEWIDTH[idx];
+  }
+
   setTheme(t: SceneTheme): void {
     this.lineMat.color.set(t.string);
     this.glowLightness = t.glowLightness;
@@ -124,7 +138,7 @@ export class VisualString {
   private fillStraight(): void {
     for (let i = 0; i < NPTS; i++) {
       const s = i / (NPTS - 1);
-      this.positions[i * 3] = 0;
+      this.positions[i * 3] = laneX(this.lane, s);
       this.positions[i * 3 + 1] = this.yTop - s * this.yLen;
       this.positions[i * 3 + 2] = 0;
     }
@@ -233,7 +247,7 @@ export class VisualString {
         }
       }
 
-      this.positions[i * 3] = x;
+      this.positions[i * 3] = laneX(this.lane, s) + x;
       this.positions[i * 3 + 1] = this.yTop - s * this.yLen;
       this.positions[i * 3 + 2] = z;
     }
