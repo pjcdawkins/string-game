@@ -132,8 +132,10 @@ await page.keyboard.up("ArrowDown");
 
 // 4. a finger landing mid-stroke re-articulates: the note changes and speaks
 // (Digit2 = 2 semitones above open A -> B4 493.9). Retried like the other
-// pitch checks — the attack onto the fresh stop is stochastic.
-for (let attempt = 0; attempt < 3; attempt++) {
+// pitch checks — the attack onto the fresh stop is stochastic, and runs
+// occasionally capture the double-slip octave several attempts in a row
+// (a wrong note mapping would fail every attempt, so retries stay honest).
+for (let attempt = 0; attempt < 5; attempt++) {
   await page.keyboard.down("ArrowRight");
   await page.waitForTimeout(1300); // park the bow at the right end
   await page.keyboard.up("ArrowRight");

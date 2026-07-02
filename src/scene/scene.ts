@@ -27,21 +27,15 @@ export const STRING_BOT = -1.62;
 export const STRING_LEN = STRING_TOP - STRING_BOT;
 export const BOARD_SURFACE_Z = -0.08;
 
-// Fake raked perspective, baked into the flat artwork rather than a camera
-// tilt (which would make the screen<->string mapping non-affine): the body
-// keeps true proportions from its top edge down to the bridge line (that
-// span is pinned by the string), and everything below the bridge — the
-// region nearest the viewer — is progressively squashed, as real
-// foreshortening would. The bridge itself is squashed harder and shows its
-// top edge, as if seen from slightly above. The playable string and
-// fingerboard stay straight-on, so pointer accuracy is untouched; the
-// compression frees vertical screen space for the string.
-const LOWER_SQUASH = 0.55; // vertical scale well below the bridge
-const SQUASH_RAMP0 = 0.2; // squash blends in between these distances
-const SQUASH_RAMP1 = 0.6; // below the bridge line (body-local units)
+// The body is drawn in true proportions (an earlier below-bridge
+// foreshortening made the violin read as squashed) — the viewport simply
+// crops the lower bout. Only the bridge is drawn raked: squashed with its
+// top edge showing, as if seen from slightly above. A real camera tilt
+// would make the screen<->string mapping non-affine and cost pointer
+// accuracy on the fingerboard.
 const BRIDGE_SQUASH = 0.62;
 const BODY_LEN = 3.9; // outline design length (see OUTLINE_HALF)
-const BRIDGE_AT = 0.55; // bridge sits at 55% of the body length (C-bout)
+const BRIDGE_AT = 0.54; // bridge at 54% of the body, as measured on the photo
 const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin
 
 // instrument palette: wood tones shared by both themes
@@ -152,9 +146,9 @@ export class SceneView {
   }
 
   /** Violin top plate (upper/lower bouts, deep C-bout with protruding
-   * corners, purfling inset from a dark edge), foreshortened below the
-   * bridge line for the raked view (see warpY). The fingerboard overhangs
-   * the top edge; the compressed lower bout runs toward the view's bottom. */
+   * corners, purfling inset from a dark edge) in true proportions, fitted
+   * to the reference photograph. The fingerboard overhangs the top edge;
+   * the lower bout runs off the bottom of the view. */
   private buildBody(): void {
     const zPlate = -0.3;
 
@@ -162,12 +156,11 @@ export class SceneView {
     const bodyTopY = this.sToY(BODY_TOP_S);
     body.position.set(0, bodyTopY, 0);
 
-    // scale the design outline so the bridge fraction lands exactly on the
-    // string's end, then foreshorten everything below that line
-    const yBridge = STRING_BOT - bodyTopY; // body-local bridge line
-    const yScale = -yBridge / (BODY_LEN * BRIDGE_AT);
+    // scale the design outline so the bridge fraction of the body lands
+    // exactly on the string's end
+    const yScale = (bodyTopY - STRING_BOT) / (BODY_LEN * BRIDGE_AT);
     const pts = dedupe(violinOutline().getPoints(12)).map(
-      (p) => new THREE.Vector2(p.x, warpY(p.y * yScale, yBridge))
+      (p) => new THREE.Vector2(p.x, p.y * yScale)
     );
 
     const plate = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)), this.flat(WOOD.plate));
@@ -182,7 +175,7 @@ export class SceneView {
       .reduce((a, p) => a.add(p), new THREE.Vector2())
       .multiplyScalar(1 / pts.length);
     const sheen = new THREE.Mesh(
-      new THREE.ShapeGeometry(new THREE.Shape(inset(pts, 0.15, centroid))),
+      new THREE.ShapeGeometry(new THREE.Shape(inset(pts, 0.15, centroid, true))),
       this.flat(WOOD.plateSheen, { opacity: 0.32 })
     );
     sheen.position.z = zPlate + 0.005;
@@ -434,44 +427,26 @@ export class SceneView {
 }
 
 /** Right half of the violin outline (top centre at the origin, y downward),
- * as cubic segments [c1x, c1y, c2x, c2y, x, y], to Stradivari body stations
- * (356 mm body; bouts 168/112/208 mm → half-widths 0.236 L / 0.157 L /
- * 0.292 L; upper bout widest at 0.15 L, upper corners 0.365 L, waist
- * 0.47 L, lower corners 0.58 L, lower bout widest 0.77 L — here L = 3.9).
- * The corner construction follows the instrument: each bout flank runs
- * almost smoothly into a short flaring corner run ending at the tip, and
- * the deep concavity is on the C-side, arriving/departing near-horizontally
- * at the tips so the cornices read as points. Iterated visually against a
- * Strad front photograph in a standalone SVG harness. */
+ * as cubic segments [c1x, c1y, c2x, c2y, x, y], with L = 3.9. Fitted in the
+ * SVG harness (e2e/outline-harness.mjs) to an edge-scanned width profile of
+ * the reference photograph: upper bout widest 0.94 at 0.16 L, upper corner
+ * tips 0.87 at 0.33 L, waist 0.62 around 0.41 L, lower corner tips 1.02 at
+ * 0.58 L, lower bout widest 1.19 at 0.79 L, and a broad bottom. The bout
+ * flanks run full into the corner tips; the deep concavity and the curls
+ * under the tips are on the C-side, so the cornices overhang and read as
+ * points. */
 const OUTLINE_HALF: number[][] = [
-  [0.48, 0.005, 0.94, -0.15, 0.92, -0.55], // shoulder out to the upper bout's widest
-  [0.93, -0.92, 0.85, -1.14, 0.71, -1.26], // straight-ish full flank down to the notch
-  [0.74, -1.34, 0.77, -1.41, 0.78, -1.46], // corner run flaring out to the tip
-  [0.545, -1.52, 0.575, -2.14, 0.78, -2.22], // C-bout, near-horizontal at the tips
-  [0.775, -2.3, 0.75, -2.35, 0.7, -2.4], // lower corner run back in
-  [0.88, -2.54, 1.12, -2.7, 1.15, -3.0], // lower bout, widest at 0.77 L
-  [1.14, -3.5, 0.8, -3.9, 0, -3.9], // broad bottom arc
+  [0.2, -0.01, 0.4, -0.02, 0.56, -0.04], // top edge, gently bowed
+  [0.74, -0.1, 0.92, -0.36, 0.94, -0.64], // shoulder rounding into the widest
+  [0.93, -0.92, 0.9, -1.1, 0.87, -1.285], // flank, full, ending at the corner tip
+  [0.75, -1.315, 0.71, -1.345, 0.665, -1.37], // concave curl under the corner
+  [0.607, -1.55, 0.607, -1.8, 0.66, -1.95], // C-bout upper half through the waist
+  [0.7, -2.08, 0.8, -2.25, 1.02, -2.27], // C-bout lower half flaring to the tip
+  [0.99, -2.32, 0.975, -2.38, 1.005, -2.43], // concave curl under the lower corner
+  [1.06, -2.6, 1.187, -2.82, 1.187, -3.06], // lower bout out to the widest
+  [1.185, -3.35, 1.06, -3.58, 0.95, -3.7], // lower bout, broad
+  [0.85, -3.84, 0.55, -3.9, 0, -3.9], // bottom
 ];
-
-/** Foreshortening below the bridge line: identity above `yBridge`, then the
- * vertical scale eases from 1 down to LOWER_SQUASH over the ramp interval,
- * so the outline stays kink-free where the squash begins. */
-function warpY(y: number, yBridge: number): number {
-  if (y >= yBridge) return y;
-  const d = yBridge - y;
-  if (d <= SQUASH_RAMP0) return y;
-  const ramp = SQUASH_RAMP1 - SQUASH_RAMP0;
-  let compressed: number;
-  if (d <= SQUASH_RAMP1) {
-    // scale falls linearly across the ramp; integrate for the position
-    const t = (d - SQUASH_RAMP0) / ramp;
-    compressed = SQUASH_RAMP0 + (d - SQUASH_RAMP0) * (1 - ((1 - LOWER_SQUASH) * t) / 2);
-  } else {
-    const rampLen = ramp * (1 + LOWER_SQUASH) / 2;
-    compressed = SQUASH_RAMP0 + rampLen + (d - SQUASH_RAMP1) * LOWER_SQUASH;
-  }
-  return yBridge - compressed;
-}
 
 function violinOutline(): THREE.Shape {
   const sh = new THREE.Shape();
@@ -514,11 +489,18 @@ function dedupe(pts: THREE.Vector2[]): THREE.Vector2[] {
 
 /** Offset a closed polyline inward by d along per-point normals (toward the
  * centroid — exact enough for the purfling line). At the sharp C-bout corner
- * tips the offset curve self-intersects and pokes outside the outline; a
- * point landing outside is clamped to `d` inward of its source point along
- * the centroid direction instead, keeping the polyline continuous (dropping
- * points would leave chords that cut across the concave corner notches). */
-function inset(pts: THREE.Vector2[], d: number, centroid: THREE.Vector2): THREE.Vector2[] {
+ * tips the offset curve self-intersects and pokes outside the outline. Two
+ * remedies, by use: for a stroked line (the purfling), *drop* outside points
+ * — the resulting chord clips the corner like a purfling bee-sting; for a
+ * filled shape (the plate sheen), *clamp* them to `d` inward of the source
+ * point along the centroid direction — dropping would leave chords that cut
+ * across the concave corner notches and spill the fill outside the plate. */
+function inset(
+  pts: THREE.Vector2[],
+  d: number,
+  centroid: THREE.Vector2,
+  clampOutside = false
+): THREE.Vector2[] {
   const n = pts.length;
   const out: THREE.Vector2[] = [];
   for (let i = 0; i < n; i++) {
@@ -529,7 +511,7 @@ function inset(pts: THREE.Vector2[], d: number, centroid: THREE.Vector2): THREE.
     const q = p.clone().addScaledVector(nrm, d);
     if (insidePolygon(q, pts)) {
       out.push(q);
-    } else {
+    } else if (clampOutside) {
       out.push(p.clone().addScaledVector(centroid.clone().sub(p).normalize(), d));
     }
   }
