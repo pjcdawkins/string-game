@@ -55,11 +55,11 @@ function bridgeBreakY(x: number): number {
 // Afterlength: below the bridge the strings fan in again toward the
 // tailpiece, which hangs below the bottom of the view (the vertical FOV
 // puts the viewport edge at y ≈ -2.33), so the lines simply run off-screen
-// aimed at it. TAIL_GAP is the lane spacing where they leave the picture —
-// chosen so the spacing *at* the (virtual) tailpiece matches a real setup,
-// about the same as at the nut.
+// aimed at it. TAIL_GAP is the lane spacing at the lines' (off-screen) end:
+// the nut spacing, since the strings never sit closer together than at the
+// nut — everything visible stays wider than that.
 const TAIL_Y = STRING_BOT - 0.78;
-const TAIL_GAP = 0.04;
+const TAIL_GAP = 0.062;
 
 function tailX(idx: number): number {
   return (idx - 1.5) * TAIL_GAP;
