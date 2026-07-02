@@ -52,6 +52,19 @@ function bridgeBreakY(x: number): number {
   return STRING_BOT + (local - 0.02) * BRIDGE_SQUASH;
 }
 
+// Afterlength: below the bridge the strings fan in again toward the
+// tailpiece, which hangs below the bottom of the view (the vertical FOV
+// puts the viewport edge at y ≈ -2.33), so the lines simply run off-screen
+// aimed at it. TAIL_GAP is the lane spacing where they leave the picture —
+// chosen so the spacing *at* the (virtual) tailpiece matches a real setup,
+// about the same as at the nut.
+const TAIL_Y = STRING_BOT - 0.78;
+const TAIL_GAP = 0.04;
+
+function tailX(idx: number): number {
+  return (idx - 1.5) * TAIL_GAP;
+}
+
 // instrument palette: wood tones shared by both themes. Flat fills only —
 // no sheens or shading; the vector look carries the form by outline alone.
 const WOOD = {
@@ -82,6 +95,7 @@ export class SceneView {
   // hidden and the live VisualString vibrates over the others in its place
   private idleStrings: Line2[] = [];
   private idleStringMats: LineMaterial[] = [];
+  private afterLength!: Line2; // the selected string below the bridge
   private activeString = -1;
 
   // cached affine mapping screen px -> (s along string, x lateral world units)
@@ -133,6 +147,7 @@ export class SceneView {
       m.color.set(t.string);
       m.opacity = t.idleStringOpacity;
     }
+    (this.afterLength.material as LineMaterial).color.set(t.string);
     const fc = this.fingerContact.material as THREE.MeshBasicMaterial;
     fc.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
     fc.needsUpdate = true;
@@ -162,15 +177,18 @@ export class SceneView {
     this.buildNodeMarkers();
   }
 
-  /** The four strings at rest: straight faint lines, one per lane, fanning
-   * out from the nut to their break point on the bridge crown. */
+  /** The four strings at rest: faint polylines, one per lane, fanning out
+   * from the nut to their break point on the bridge crown and back in below
+   * it, down to the out-of-view tailpiece. Drawn just in front of the
+   * bridge, as the strings pass over it. */
   private buildStrings(): void {
     for (let i = 0; i < N_LANES; i++) {
       const xBridge = laneX(i, 1);
       const geo = new LineGeometry();
       geo.setPositions([
-        laneX(i, 0), STRING_TOP, -0.03,
-        xBridge, bridgeBreakY(xBridge), -0.03,
+        laneX(i, 0), STRING_TOP, -0.01,
+        xBridge, bridgeBreakY(xBridge), -0.01,
+        tailX(i), TAIL_Y, -0.01,
       ]);
       const mat = new LineMaterial({
         color: 0xffffff, // themed in applyTheme
@@ -186,15 +204,32 @@ export class SceneView {
       this.idleStrings.push(line);
       this.instrument.add(line);
     }
+
+    // the selected string's own afterlength (its idle polyline is hidden,
+    // and the live VisualString stops at the bridge, where it is pinned)
+    this.afterLength = new Line2(
+      new LineGeometry(),
+      new LineMaterial({ color: 0xffffff, linewidth: 2.6, worldUnits: false })
+    );
+    this.fatLineMats.push(this.afterLength.material as LineMaterial);
+    this.instrument.add(this.afterLength);
   }
 
   /** Select the sounding string: the live VisualString moves onto its lane
-   * (vibrating over the idle neighbours) and that lane's idle line hides. */
+   * (vibrating over the idle neighbours) and that lane's idle line hides,
+   * while its full-contrast afterlength keeps the string continuing over
+   * the bridge toward the tailpiece. */
   setActiveString(idx: number): void {
     if (idx === this.activeString) return;
     this.activeString = idx;
     this.idleStrings.forEach((l, i) => (l.visible = i !== idx));
-    this.visual.setLane(idx, bridgeBreakY(laneX(idx, 1)));
+    const xBridge = laneX(idx, 1);
+    this.visual.setLane(idx, bridgeBreakY(xBridge));
+    this.afterLength.geometry.setPositions([
+      xBridge, bridgeBreakY(xBridge), -0.005,
+      tailX(idx), TAIL_Y, -0.005,
+    ]);
+    (this.afterLength.material as LineMaterial).linewidth = LANE_LINEWIDTH[idx];
     this.nodeBase = -1; // re-seat the harmonic markers onto the new lane
   }
 

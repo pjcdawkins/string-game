@@ -9,10 +9,11 @@
  * viola/cello set can keep the same lane indexing.
  *
  * As on the reference photograph the strings fan out from the nut to the
- * bridge (they fan in again toward the tailpiece, but that is below the
- * view). The spacings match a real setup — ≈5.5 mm between strings at the
- * nut and ≈11.3 mm at the bridge on a 328 mm speaking length — at this
- * scene's scale of 1 world unit ≈ 88 mm.
+ * bridge (below the bridge they fan in again toward the out-of-view
+ * tailpiece — that afterlength is drawn by scene.ts). The spacings match a
+ * real setup — ≈5.5 mm between strings at the nut and ≈11.3 mm at the
+ * bridge on a 328 mm speaking length — at this scene's scale of 1 world
+ * unit ≈ 88 mm.
  */
 export const N_LANES = 4;
 const NUT_GAP = 0.062;
