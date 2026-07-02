@@ -27,6 +27,11 @@ const KEY_BOW_SPEED = 0.32;
 const KEY_BOW_END = 1.2;
 const KEY_BOW_XRATE = 4.0;
 const KEY_CONTACT_RATE = 0.35;
+// Attack ramp of a keyboard stroke: speed rises from rest over this long
+// while the bite holds the force up. Measured against StringSim (see PR):
+// ~90 ms captures the Helmholtz fundamental only ~80% of the time (else the
+// octave or a surface whistle); 200 ms captures it ~98% of the time.
+const KEY_ATTACK_S = 0.2;
 
 // [ / ] ramp the bow pressure while held, over the HUD slider's range.
 const KEY_FORCE_RATE = 0.35;
@@ -68,6 +73,7 @@ export class Interactions {
   private wasAutoBow = false;
   private prevKeyBowDir = 0;
   private wasKeyBowing = false;
+  private keyStrokeTime = 0; // seconds since the current keyboard stroke began
   private fingerGlideTarget: number | null = null;
 
   constructor(private view: SceneView, canvas: HTMLCanvasElement) {
@@ -295,6 +301,7 @@ export class Interactions {
       if (this.keyBowDir !== this.prevKeyBowDir) {
         // a fresh stroke or a bow change gets the starting "bite"
         this.biteTimer = 0;
+        this.keyStrokeTime = 0;
         // with under half the travel left in the new direction, retake the
         // bow (lift and reset to the far end) — so a repeated down bow / up
         // bow speaks instead of starting where the last stroke ran out
@@ -302,11 +309,19 @@ export class Interactions {
           this.keyBowDir > 0 ? KEY_BOW_END - this.bowX : this.bowX + KEY_BOW_END;
         if (remaining < KEY_BOW_END * 0.5) this.bowX = -this.keyBowDir * KEY_BOW_END;
       }
+      this.keyStrokeTime += dt;
       // the stroke dies away when it runs out of bow at either end; flipping
       // direction (a bow change) is the way to keep the sound going
       const atEnd = this.keyBowDir > 0 ? this.bowX >= KEY_BOW_END : this.bowX <= -KEY_BOW_END;
-      const target = atEnd ? 0 : this.keyBowDir * KEY_BOW_SPEED;
-      this.bowVel += (target - this.bowVel) * Math.min(1, dt * 10);
+      if (atEnd) {
+        this.bowVel += (0 - this.bowVel) * Math.min(1, dt * 10);
+      } else {
+        // linear attack: force held up (the bite) while speed rises gently
+        // from zero reliably captures the Helmholtz fundamental instead of
+        // a higher slip regime
+        const ramp = Math.min(1, this.keyStrokeTime / KEY_ATTACK_S);
+        this.bowVel = this.keyBowDir * KEY_BOW_SPEED * ramp;
+      }
       this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -KEY_BOW_END, KEY_BOW_END);
       this.lastFrameX = this.bowX;
       engine.setBow(true, this.bowVel, force * bite, this.bowPos);
