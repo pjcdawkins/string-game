@@ -27,11 +27,15 @@ const KEY_BOW_SPEED = 0.32;
 const KEY_BOW_END = 1.2;
 const KEY_BOW_XRATE = 4.0;
 const KEY_CONTACT_RATE = 0.35;
-// Attack ramp of a keyboard stroke: speed rises from rest over this long
-// while the bite holds the force up. Measured against StringSim (see PR):
-// ~90 ms captures the Helmholtz fundamental only ~80% of the time (else the
-// octave or a surface whistle); 200 ms captures it ~98% of the time.
-const KEY_ATTACK_S = 0.2;
+// Attack of a keyboard stroke: speed rises from rest over KEY_ATTACK_S while
+// an extra-heavy bite (KEY_BITE_AMP over the pointer/auto-bow 0.4) holds the
+// force up. The coordination matters more than the duration (Guettler's
+// attack wedge): measured against StringSim over cold, ringing and
+// finger-landing attacks, 90 ms at bite 0.4 captures the Helmholtz
+// fundamental ~80% of the time, 200 ms at 0.4 ~98%, and 150 ms at 0.8 ~99%
+// — faster and more reliable. 80 ms at 0.8 still manages ~95%.
+const KEY_ATTACK_S = 0.15;
+const KEY_BITE_AMP = 0.8;
 
 // [ / ] ramp the bow pressure while held, over the HUD slider's range.
 const KEY_FORCE_RATE = 0.35;
@@ -324,7 +328,8 @@ export class Interactions {
       }
       this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -KEY_BOW_END, KEY_BOW_END);
       this.lastFrameX = this.bowX;
-      engine.setBow(true, this.bowVel, force * bite, this.bowPos);
+      const kbite = 1 + KEY_BITE_AMP * Math.max(0, 1 - this.biteTimer / 0.25);
+      engine.setBow(true, this.bowVel, force * kbite, this.bowPos);
     } else if (state.autoBow) {
       if (!this.wasAutoBow) this.biteTimer = 0;
       this.autoBowTimer += dt;
