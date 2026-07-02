@@ -58,8 +58,6 @@ const WOOD = {
   bridge: 0xddba8a, // maple
   bridgeTop: 0xecd9ae, // its top edge, caught by the raked view
   bridgeLine: 0x6b4826,
-  tailpiece: 0x1a1512,
-  tailSheen: 0x322a23,
 };
 
 export class SceneView {
@@ -73,7 +71,6 @@ export class SceneView {
   private nodeMarkers = new THREE.Group();
   private fingerContact: THREE.Mesh;
   private fatLineMats: LineMaterial[] = [];
-  private stringTintMats: THREE.MeshBasicMaterial[] = [];
 
   // cached affine mapping screen px -> (s along string, x lateral world units)
   private mapOrigin = new THREE.Vector2();
@@ -119,7 +116,6 @@ export class SceneView {
   private applyTheme(t: SceneTheme): void {
     this.renderer.setClearColor(t.bg);
     this.visual.setTheme(t);
-    for (const m of this.stringTintMats) m.color.set(t.string);
     const fc = this.fingerContact.material as THREE.MeshBasicMaterial;
     fc.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
     fc.needsUpdate = true;
@@ -151,7 +147,7 @@ export class SceneView {
   private buildFurniture(): void {
     this.buildBody();
     this.buildBoardAndNut();
-    this.buildBridgeAndTailpiece();
+    this.buildBridge();
     this.buildNodeMarkers();
   }
 
@@ -281,9 +277,10 @@ export class SceneView {
     this.instrument.add(nut, nutEdge);
   }
 
-  /** Maple bridge (feet, kidneys and heart) carrying the string's end, and
-   * the ebony tailpiece with the string's afterlength running down to it. */
-  private buildBridgeAndTailpiece(): void {
+  /** Maple bridge (feet, kidneys and heart) carrying the string's end. No
+   * tailpiece — the picture stops at the playable string, and below the
+   * bridge only a glimpse of the belly remains. */
+  private buildBridge(): void {
     const b = new THREE.Shape();
     b.moveTo(-0.235, -0.07);
     b.quadraticCurveTo(0, 0.04, 0.235, -0.07); // crown
@@ -328,34 +325,6 @@ export class SceneView {
     const bridgeLine = this.outline(dedupe(b.getPoints(8)), 0.005, WOOD.bridgeLine, 1.4);
     bridge.add(bridgeLine);
     this.instrument.add(bridge);
-
-    // tailpiece below (squashed with the body), with the string's afterlength
-    const t = new THREE.Shape();
-    t.moveTo(-0.115, 0);
-    t.quadraticCurveTo(0, 0.05, 0.115, 0);
-    t.lineTo(0.185, -0.98);
-    t.quadraticCurveTo(0.19, -1.13, 0, -1.14);
-    t.quadraticCurveTo(-0.19, -1.13, -0.185, -0.98);
-    t.closePath();
-    const tail = new THREE.Mesh(new THREE.ShapeGeometry(t, 10), this.flat(WOOD.tailpiece));
-    tail.scale.y = 0.72;
-    tail.position.set(0, -1.916, -0.06);
-    const ridge = new THREE.Shape();
-    ridge.moveTo(-0.018, 0.01);
-    ridge.lineTo(0.018, 0.01);
-    ridge.lineTo(0.03, -1.02);
-    ridge.lineTo(-0.03, -1.02);
-    ridge.closePath();
-    const ridgeMesh = new THREE.Mesh(new THREE.ShapeGeometry(ridge), this.flat(WOOD.tailSheen));
-    ridgeMesh.scale.y = 0.72;
-    ridgeMesh.position.set(0, -1.916, -0.055);
-
-    // in front of the bridge face, as on a real violin seen from the front
-    const afterMat = this.flat(0xffffff);
-    this.stringTintMats.push(afterMat);
-    const afterLen = new THREE.Mesh(new THREE.PlaneGeometry(0.016, 0.28), afterMat);
-    afterLen.position.set(0, STRING_BOT - 0.13, -0.005);
-    this.instrument.add(tail, ridgeMesh, afterLen);
   }
 
   private buildNodeMarkers(): void {
@@ -465,18 +434,23 @@ export class SceneView {
 }
 
 /** Right half of the violin outline (top centre at the origin, y downward),
- * as cubic segments [c1x, c1y, c2x, c2y, x, y], after the Stradivari
- * pattern: full, nearly level shoulders; the bout curves sweep *inward*
- * before each corner and a short flick juts back out, so the C-bout corners
- * protrude as real cornices do. */
+ * as cubic segments [c1x, c1y, c2x, c2y, x, y], to Stradivari body stations
+ * (356 mm body; bouts 168/112/208 mm → half-widths 0.236 L / 0.157 L /
+ * 0.292 L; upper bout widest at 0.15 L, upper corners 0.365 L, waist
+ * 0.47 L, lower corners 0.58 L, lower bout widest 0.77 L — here L = 3.9).
+ * The corner construction follows the instrument: each bout flank runs
+ * almost smoothly into a short flaring corner run ending at the tip, and
+ * the deep concavity is on the C-side, arriving/departing near-horizontally
+ * at the tips so the cornices read as points. Iterated visually against a
+ * Strad front photograph in a standalone SVG harness. */
 const OUTLINE_HALF: number[][] = [
-  [0.62, 0.004, 0.98, -0.15, 0.94, -0.72], // shoulder and upper bout
-  [0.91, -1.06, 0.78, -1.26, 0.64, -1.36], // sweep in toward the upper corner
-  [0.7, -1.385, 0.735, -1.42, 0.73, -1.48], // upper corner flick
-  [0.46, -1.56, 0.45, -2.3, 0.74, -2.5], // C-bout waist to the lower corner
-  [0.745, -2.53, 0.71, -2.58, 0.63, -2.61], // lower corner flick
-  [0.96, -2.65, 1.16, -2.85, 1.15, -3.16], // out into the lower bout
-  [1.13, -3.62, 0.7, -3.9, 0, -3.9], // round to the bottom centre
+  [0.48, 0.005, 0.94, -0.15, 0.92, -0.55], // shoulder out to the upper bout's widest
+  [0.93, -0.92, 0.85, -1.14, 0.71, -1.26], // straight-ish full flank down to the notch
+  [0.74, -1.34, 0.77, -1.41, 0.78, -1.46], // corner run flaring out to the tip
+  [0.545, -1.52, 0.575, -2.14, 0.78, -2.22], // C-bout, near-horizontal at the tips
+  [0.775, -2.3, 0.75, -2.35, 0.7, -2.4], // lower corner run back in
+  [0.88, -2.54, 1.12, -2.7, 1.15, -3.0], // lower bout, widest at 0.77 L
+  [1.14, -3.5, 0.8, -3.9, 0, -3.9], // broad bottom arc
 ];
 
 /** Foreshortening below the bridge line: identity above `yBridge`, then the
@@ -540,9 +514,10 @@ function dedupe(pts: THREE.Vector2[]): THREE.Vector2[] {
 
 /** Offset a closed polyline inward by d along per-point normals (toward the
  * centroid — exact enough for the purfling line). At the sharp C-bout corner
- * tips the offset curve self-intersects and pokes outside the outline;
- * points landing outside are dropped, so the line sweeps across the corner
- * base instead of looping. */
+ * tips the offset curve self-intersects and pokes outside the outline; a
+ * point landing outside is clamped to `d` inward of its source point along
+ * the centroid direction instead, keeping the polyline continuous (dropping
+ * points would leave chords that cut across the concave corner notches). */
 function inset(pts: THREE.Vector2[], d: number, centroid: THREE.Vector2): THREE.Vector2[] {
   const n = pts.length;
   const out: THREE.Vector2[] = [];
@@ -552,7 +527,11 @@ function inset(pts: THREE.Vector2[], d: number, centroid: THREE.Vector2): THREE.
     const nrm = new THREE.Vector2(t.y, -t.x);
     if (nrm.dot(centroid.clone().sub(p)) < 0) nrm.negate();
     const q = p.clone().addScaledVector(nrm, d);
-    if (insidePolygon(q, pts)) out.push(q);
+    if (insidePolygon(q, pts)) {
+      out.push(q);
+    } else {
+      out.push(p.clone().addScaledVector(centroid.clone().sub(p).normalize(), d));
+    }
   }
   return out;
 }
