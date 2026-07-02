@@ -28,12 +28,11 @@ const KEY_BOW_END = 1.2;
 const KEY_BOW_XRATE = 4.0;
 const KEY_CONTACT_RATE = 0.35;
 // Attack of a keyboard stroke: speed rises from rest over KEY_ATTACK_S while
-// an extra-heavy bite (KEY_BITE_AMP over the pointer/auto-bow 0.4) holds the
-// force up. The coordination matters more than the duration (Guettler's
-// attack wedge): measured against StringSim over cold, ringing and
-// finger-landing attacks, 90 ms at bite 0.4 captures the Helmholtz
-// fundamental ~80% of the time, 200 ms at 0.4 ~98%, and 150 ms at 0.8 ~99%
-// — faster and more reliable. 80 ms at 0.8 still manages ~95%.
+// an extra-heavy bite (KEY_BITE_AMP, vs 0.4 for pointer/auto-bow) holds the
+// force up. This pairing captures the Helmholtz fundamental ~99% of the time
+// across cold, ringing and finger-landing attacks; the measurements and the
+// alternatives (including the model upgrades that would allow real-violin
+// attack speeds) are written up in MODEL_NOTES.md.
 const KEY_ATTACK_S = 0.15;
 const KEY_BITE_AMP = 0.8;
 

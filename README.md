@@ -161,3 +161,7 @@ string that visibly depresses onto the fingerboard under the finger.
   below.
 - Ideas next: four strings + sympathetic coupling, recorded-impulse body
   convolution, bow tilt/hair width, pizz damping (palm mute), practice games.
+- On bow-attack reliability (why attacks are enveloped the way they are, and
+  the model upgrades — torsional waves, thermal friction, finite bow width —
+  that would make attacks as responsive as a real violin's), see
+  [MODEL_NOTES.md](MODEL_NOTES.md).
