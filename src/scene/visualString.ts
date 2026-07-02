@@ -24,6 +24,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import * as THREE from "three";
 import { WaveString } from "./waveString";
 import { FINGER_RADIUS } from "../state";
+import type { SceneTheme } from "./theme";
 
 export const NPTS = 160;
 
@@ -72,6 +73,11 @@ export class VisualString {
   private helmPhase = 0; // bowed corner travel phase, cycles
   private harmPhase = 0; // bowed-flageolet standing-mode swing phase, cycles
 
+  // theme-dependent glow treatment (see ./theme.ts): additive halo on dark,
+  // normal-blended deeper colour on light (additive is invisible there)
+  private glowLightness = 0.62;
+  private glowOpacityScale = 1;
+
   constructor(yTop: number, yBottom: number) {
     this.yTop = yTop;
     this.yLen = yTop - yBottom;
@@ -105,6 +111,14 @@ export class VisualString {
   setResolution(w: number, h: number): void {
     this.lineMat.resolution.set(w, h);
     this.glowMat.resolution.set(w, h);
+  }
+
+  setTheme(t: SceneTheme): void {
+    this.lineMat.color.set(t.string);
+    this.glowLightness = t.glowLightness;
+    this.glowOpacityScale = t.glowOpacity;
+    this.glowMat.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
+    this.glowMat.needsUpdate = true;
   }
 
   private fillStraight(): void {
@@ -226,9 +240,10 @@ export class VisualString {
 
     this.line.geometry.setPositions(Array.from(this.positions));
     this.glow.geometry.setPositions(Array.from(this.positions));
-    this.glowMat.opacity = Math.min(0.55, this.glowAmp * 4.4 + (grab ? 0.12 : 0));
+    this.glowMat.opacity =
+      Math.min(0.55, this.glowAmp * 4.4 + (grab ? 0.12 : 0)) * this.glowOpacityScale;
     // colour shifts warmer when the tone is raucous/crunchy
-    this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, 0.62);
+    this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, this.glowLightness);
   }
 
   /** Write the travelling Helmholtz corner onto the string for this frame. */

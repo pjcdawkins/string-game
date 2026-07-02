@@ -1,3 +1,63 @@
+/* ------------------------------------------------------------------ *
+ * Theme: the HUD follows the system colour scheme. Dark values are the
+ * defaults; light overrides live in the media query below. The WebGL
+ * scene follows the same switch in src/scene/theme.ts — keep --bg in
+ * sync with the `bg` colours there.
+ * ------------------------------------------------------------------ */
+:root {
+  color-scheme: dark;
+  --bg: #0b0e14;
+  --fg: #cdd6e4;
+  --fg-strong: #eaf2ff;
+  --panel-bg: rgba(14, 18, 28, 0.78);
+  --panel-border: rgba(140, 160, 200, 0.14);
+  --seg-bg: rgba(70, 85, 115, 0.25);
+  --seg-border: rgba(140, 160, 200, 0.18);
+  --seg-hover-bg: rgba(90, 110, 150, 0.35);
+  --seg-on-bg: rgba(86, 156, 255, 0.3);
+  --seg-on-border: rgba(120, 180, 255, 0.6);
+  --accent-bg: rgba(255, 170, 70, 0.22);
+  --accent-border: rgba(255, 190, 110, 0.45);
+  --card-bg: #131826;
+  --overlay-bg: rgba(5, 8, 14, 0.72);
+  --kbd-bg: rgba(255, 255, 255, 0.12);
+  --needle: #fff;
+  --range-accent: #6aa6ff;
+  --cents-off: #7a4040;
+  --cents-in: #3f6b46;
+  --good: #7fd98a;
+  --warn: #e6c96e;
+  --bad: #ef8367;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --bg: #ece8df;
+    --fg: #3a4150;
+    --fg-strong: #1a2f55;
+    --panel-bg: rgba(252, 251, 247, 0.8);
+    --panel-border: rgba(70, 85, 110, 0.18);
+    --seg-bg: rgba(70, 85, 115, 0.08);
+    --seg-border: rgba(70, 85, 110, 0.24);
+    --seg-hover-bg: rgba(70, 85, 115, 0.16);
+    --seg-on-bg: rgba(40, 110, 220, 0.14);
+    --seg-on-border: rgba(40, 110, 220, 0.5);
+    --accent-bg: rgba(210, 130, 30, 0.16);
+    --accent-border: rgba(190, 115, 30, 0.5);
+    --card-bg: #fbfaf6;
+    --overlay-bg: rgba(64, 61, 54, 0.45);
+    --kbd-bg: rgba(0, 0, 0, 0.08);
+    --needle: #1c222e;
+    --range-accent: #2f6fd0;
+    --cents-off: #d9a3a3;
+    --cents-in: #96c49f;
+    --good: #2c8a44;
+    --warn: #9c7a14;
+    --bad: #c2502e;
+  }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -8,9 +68,9 @@ html,
 body {
   height: 100%;
   overflow: hidden;
-  background: #0b0e14;
+  background: var(--bg);
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #cdd6e4;
+  color: var(--fg);
   user-select: none;
 }
 
@@ -29,9 +89,9 @@ body {
 .panel {
   position: fixed;
   pointer-events: auto;
-  background: rgba(14, 18, 28, 0.78);
+  background: var(--panel-bg);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(140, 160, 200, 0.14);
+  border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 10px 12px;
 }
@@ -79,9 +139,9 @@ body {
   /* a second-finger tap must stay a tap: without this, iOS may fold it into
      a pinch/double-tap zoom gesture instead of delivering pointerdown */
   touch-action: none;
-  background: rgba(70, 85, 115, 0.25);
-  color: #cdd6e4;
-  border: 1px solid rgba(140, 160, 200, 0.18);
+  background: var(--seg-bg);
+  color: var(--fg);
+  border: 1px solid var(--seg-border);
   border-radius: 8px;
   padding: 6px 10px;
   font-size: 13px;
@@ -90,18 +150,18 @@ body {
 }
 
 .seg:hover {
-  background: rgba(90, 110, 150, 0.35);
+  background: var(--seg-hover-bg);
 }
 
 .seg.on {
-  background: rgba(86, 156, 255, 0.3);
-  border-color: rgba(120, 180, 255, 0.6);
-  color: #eaf2ff;
+  background: var(--seg-on-bg);
+  border-color: var(--seg-on-border);
+  color: var(--fg-strong);
 }
 
 .seg.accent {
-  background: rgba(255, 170, 70, 0.22);
-  border-color: rgba(255, 190, 110, 0.45);
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
 }
 
 .seg.str sub {
@@ -135,7 +195,13 @@ body {
   position: relative;
   height: 6px;
   margin: 6px 0 4px;
-  background: linear-gradient(90deg, #7a4040, #3f6b46 45%, #3f6b46 55%, #7a4040);
+  background: linear-gradient(
+    90deg,
+    var(--cents-off),
+    var(--cents-in) 45%,
+    var(--cents-in) 55%,
+    var(--cents-off)
+  );
   border-radius: 3px;
 }
 
@@ -144,7 +210,7 @@ body {
   top: -3px;
   width: 2px;
   height: 12px;
-  background: #fff;
+  background: var(--needle);
   transition: left 0.08s linear;
 }
 
@@ -158,13 +224,13 @@ body {
 }
 
 .slip.good {
-  color: #7fd98a;
+  color: var(--good);
 }
 .slip.warn {
-  color: #e6c96e;
+  color: var(--warn);
 }
 .slip.bad {
-  color: #ef8367;
+  color: var(--bad);
 }
 
 .bottom-left {
@@ -188,13 +254,13 @@ body {
 
 .bottom-left input[type="range"] {
   width: 90px;
-  accent-color: #6aa6ff;
+  accent-color: var(--range-accent);
 }
 
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(5, 8, 14, 0.72);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -210,8 +276,8 @@ body {
 .overlay .card {
   max-width: 560px;
   margin: 16px;
-  background: #131826;
-  border: 1px solid rgba(140, 160, 200, 0.2);
+  background: var(--card-bg);
+  border: 1px solid var(--panel-border);
   border-radius: 14px;
   padding: 22px 26px;
   line-height: 1.55;
@@ -228,7 +294,7 @@ body {
 }
 
 .card kbd {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--kbd-bg);
   border-radius: 4px;
   padding: 1px 5px;
   font-size: 12px;
