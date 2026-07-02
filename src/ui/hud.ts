@@ -2,6 +2,9 @@
 import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode } from "../state";
 import { engine } from "../audio/engine";
 
+/** localStorage flag: the intro help has been dismissed once already. */
+const HELP_SEEN_KEY = "stringGame.helpSeen";
+
 export class Hud {
   private root: HTMLElement;
   private noteEl!: HTMLElement;
@@ -130,7 +133,15 @@ export class Hud {
     force.addEventListener("input", () => (state.bowForce = Number(force.value)));
 
     const help = $("#help");
-    const closeHelp = () => help.classList.add("hidden");
+    const closeHelp = () => {
+      help.classList.add("hidden");
+      // any dismissal counts as having seen the intro
+      try {
+        localStorage.setItem(HELP_SEEN_KEY, "1");
+      } catch {
+        /* storage unavailable (private mode etc.) — just don't persist */
+      }
+    };
     tap($("#helpBtn"), () => help.classList.remove("hidden"));
     tap($("#closeHelp"), closeHelp);
     tap($("#closeHelpX"), closeHelp);
@@ -150,8 +161,14 @@ export class Hud {
       },
       true
     );
-    // show help on first load
-    help.classList.remove("hidden");
+    // auto-open help on the first visit only; the ? button reopens it
+    let seen = false;
+    try {
+      seen = localStorage.getItem(HELP_SEEN_KEY) === "1";
+    } catch {
+      /* storage unavailable — treat as first visit */
+    }
+    if (!seen) help.classList.remove("hidden");
   }
 
   /** Position (0..1 from the nut) the cursor is hovering over, or null. */
