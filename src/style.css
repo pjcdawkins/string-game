@@ -76,6 +76,9 @@ body {
 
 .seg {
   pointer-events: auto;
+  /* a second-finger tap must stay a tap: without this, iOS may fold it into
+     a pinch/double-tap zoom gesture instead of delivering pointerdown */
+  touch-action: none;
   background: rgba(70, 85, 115, 0.25);
   color: #cdd6e4;
   border: 1px solid rgba(140, 160, 200, 0.18);

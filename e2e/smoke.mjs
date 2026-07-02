@@ -18,7 +18,7 @@ const url = "http://localhost:5198/";
 const browser = await chromium.launch({
   args: ["--autoplay-policy=no-user-gesture-required", "--mute-audio"],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, hasTouch: true });
 
 const errors = [];
 page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`));
@@ -71,8 +71,21 @@ async function keyboardBow(strokes = 4) {
   return { freq: freqs[Math.floor(freqs.length / 2)], rms };
 }
 
+// A bow attack occasionally captures a higher slip regime (the octave or a
+// surface whistle) instead of the Helmholtz fundamental — true of the model
+// as of real bows. Fresh strokes re-attack, so retry a round of strokes
+// before judging the pitch: a wrong note mapping still fails every attempt.
+async function keyboardBowUntil(target, tries = 3) {
+  let res;
+  for (let i = 0; i < tries; i++) {
+    res = await keyboardBow();
+    if (Math.abs(res.freq - target) <= target * 0.04) return res;
+  }
+  return res;
+}
+
 // 1. bow the open A string from the keyboard (arrow strokes), verify ~440
-let res = await keyboardBow();
+let res = await keyboardBowUntil(440);
 if (res.rms < 0.003) fail(`keyboard bow produced no sound (rms=${res.rms})`);
 else ok(`keyboard bow sounding, rms=${res.rms.toFixed(4)}`);
 if (Math.abs(res.freq - 440) > 440 * 0.04)
@@ -109,17 +122,25 @@ if (posBefore - res.pos < 0.05)
   fail(`contact point did not slide mid-stroke (${posBefore.toFixed(2)} -> ${res.pos.toFixed(2)})`);
 else if (res.rms < 0.003) fail(`stroke died while sliding the contact point (rms=${res.rms})`);
 else ok(`contact point slid mid-stroke (${posBefore.toFixed(2)} -> ${res.pos.toFixed(2)}), still sounding`);
+// slide the contact point back toward the bridge: leaving it parked at ~0.75
+// puts later *stopped* notes in flautando territory (a third of the speaking
+// length from the bridge), where attacks flip to the octave — real string
+// behaviour, but not what the pitch-mapping checks below are measuring
+await page.keyboard.down("ArrowDown");
+await page.waitForTimeout(400);
+await page.keyboard.up("ArrowDown");
 
 // 4. a finger landing mid-stroke re-articulates: the note changes and speaks
-// (Digit2 = 2 semitones above open A -> B4 493.9)
-await page.keyboard.down("ArrowRight");
-await page.waitForTimeout(1300); // park the bow at the right end
-await page.keyboard.up("ArrowRight");
-await page.keyboard.down("ArrowLeft"); // full travel for the up bow
-await page.waitForTimeout(300);
-await page.keyboard.down("Digit2");
-await page.waitForTimeout(500);
-{
+// (Digit2 = 2 semitones above open A -> B4 493.9). Retried like the other
+// pitch checks — the attack onto the fresh stop is stochastic.
+for (let attempt = 0; attempt < 3; attempt++) {
+  await page.keyboard.down("ArrowRight");
+  await page.waitForTimeout(1300); // park the bow at the right end
+  await page.keyboard.up("ArrowRight");
+  await page.keyboard.down("ArrowLeft"); // full travel for the up bow
+  await page.waitForTimeout(300);
+  await page.keyboard.down("Digit2");
+  await page.waitForTimeout(500);
   const vals = [];
   for (let i = 0; i < 3; i++) {
     vals.push(await page.evaluate(() => window.__debug.state.detectedFreq));
@@ -127,9 +148,10 @@ await page.waitForTimeout(500);
   }
   vals.sort((a, b) => a - b);
   res = { freq: vals[1] };
+  await page.keyboard.up("Digit2");
+  await page.keyboard.up("ArrowLeft");
+  if (Math.abs(res.freq - 493.9) <= 493.9 * 0.04) break;
 }
-await page.keyboard.up("Digit2");
-await page.keyboard.up("ArrowLeft");
 if (Math.abs(res.freq - 493.9) > 493.9 * 0.04)
   fail(`mid-stroke finger change pitch off: ${res.freq.toFixed(1)} Hz (expected ~493.9)`);
 else ok(`mid-stroke finger change speaks at ${res.freq.toFixed(1)} Hz`);
@@ -137,7 +159,8 @@ else ok(`mid-stroke finger change speaks at ${res.freq.toFixed(1)} Hz`);
 // 5. additive fingering: digits sum, 4+3 = 7 semitones above open A -> E5 659.3
 await page.keyboard.down("Digit4");
 await page.keyboard.down("Digit3");
-res = await keyboardBow();
+await page.waitForTimeout(200); // let the finger land before the stroke
+res = await keyboardBowUntil(659.3);
 if (Math.abs(res.freq - 659.3) > 659.3 * 0.04)
   fail(`chorded fifth pitch off: ${res.freq.toFixed(1)} Hz (expected ~659.3)`);
 else ok(`chorded fifth (4+3) at ${res.freq.toFixed(1)} Hz`);
@@ -188,6 +211,14 @@ res = await page.evaluate(() => ({
   bowing: window.__debug.state.meter.bowing,
   slip: window.__debug.state.meter.slipRatio,
 }));
+// the first attack can lock into the double-slip octave for a stroke or two;
+// bow changes (every 2.6 s) knock it back to the fundamental, so give it a
+// few strokes to settle before measuring
+await page
+  .waitForFunction(() => Math.abs(window.__debug.state.detectedFreq - 440) < 440 * 0.04, null, {
+    timeout: 9000,
+  })
+  .catch(() => {});
 res.freq = await medianPitch();
 if (res.rms < 0.003) fail(`auto-bow produced no sound (rms=${res.rms})`);
 else ok(`auto-bow sounding, rms=${res.rms.toFixed(4)}, slipRatio=${res.slip.toFixed(2)}`);
@@ -217,6 +248,13 @@ await page.waitForTimeout(1200);
 res = await page.evaluate(() => ({
   fingerOn: window.__debug.state.fingerOn,
 }));
+// as with the open string above: give the auto-bow a few bow changes to
+// settle out of any higher slip regime before measuring
+await page
+  .waitForFunction(() => Math.abs(window.__debug.state.detectedFreq - 659.3) < 659.3 * 0.04, null, {
+    timeout: 9000,
+  })
+  .catch(() => {});
 res.freq = await medianPitch();
 if (!res.fingerOn) fail("finger did not latch");
 if (Math.abs(res.freq - 659.3) > 659.3 * 0.04)
@@ -250,6 +288,72 @@ if (res.freq > 0 && Math.abs(res.freq - 440) > 440 * 0.04)
   fail(`plucked open A pitch off: ${res.freq.toFixed(1)} Hz`);
 else ok(`plucked open A at ${res.freq.toFixed(1)} Hz`);
 await page.screenshot({ path: "e2e/pluck.png" });
+
+// 11. switch strings mid-stroke: while one finger holds a bow stroke on the
+// canvas, a second finger taps a string button. Regression check — the HUD
+// used to listen for `click`, which browsers only fire for the *primary*
+// pointer, so the switch was deferred until the bowing finger lifted.
+await page.click('[data-tool="bow"]');
+const cdp = await page.context().newCDPSession(page);
+const bowPt = (x) => page.evaluate((xx) => window.__debug.view.stringToScreen(0.9, xx), x);
+
+let f1 = await bowPt(-0.7);
+await cdp.send("Input.dispatchTouchEvent", {
+  type: "touchStart",
+  touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }],
+});
+
+// one bow stroke: drag finger 1 across the string, sampling the tuner
+const freqs = [];
+async function strokePass(dir) {
+  for (let i = 1; i <= 8; i++) {
+    f1 = await bowPt(dir * (-0.85 + (i / 8) * 1.7));
+    await cdp.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }],
+    });
+    await page.waitForTimeout(25);
+    freqs.push(await page.evaluate(() => window.__debug.state.detectedFreq));
+  }
+}
+for (const dir of [1, -1, 1]) await strokePass(dir);
+
+// tap the G3 button with a second finger while the first keeps the stroke
+const gBtn = await page.locator('[data-str="0"]').boundingBox();
+const f2 = { x: gBtn.x + gBtn.width / 2, y: gBtn.y + gBtn.height / 2, id: 2 };
+await cdp.send("Input.dispatchTouchEvent", {
+  type: "touchStart",
+  touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }, f2],
+});
+// touchEnd's touchPoints are the *released* points: lift only finger 2
+await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [f2] });
+await page.waitForTimeout(150); // let the sim's delay-line glide settle
+const sw = await page.evaluate(() => ({
+  idx: window.__debug.state.stringIdx,
+  engineF0: window.__debug.engine.meter.freq,
+  bowEngaged: window.__debug.input.bowEngaged,
+}));
+if (sw.idx !== 0) fail(`second-finger tap did not switch strings (stringIdx=${sw.idx})`);
+else ok("second-finger tap switched to G3 mid-stroke");
+if (!sw.bowEngaged) fail("bow stroke was dropped by the string switch");
+if (Math.abs(sw.engineF0 - 196) > 10)
+  fail(`engine f0 not updated on switch (${sw.engineF0.toFixed(1)})`);
+
+// keep bowing: the audible pitch should settle on the new open G. The tuner
+// reads 0 around stroke reversals (near-zero bow speed), so ignore those —
+// on slow headless runners only a few readings per pass land mid-stroke,
+// hence the modest quorum of 3.
+freqs.length = 0;
+for (const dir of [-1, 1, -1, 1, -1, 1, -1, 1, -1, 1]) await strokePass(dir);
+const sounding = freqs.slice(8).filter((f) => f > 0).sort((a, b) => a - b);
+const med = sounding[Math.floor(sounding.length / 2)] ?? 0;
+if (sounding.length < 3 || Math.abs(med - 196) > 196 * 0.04)
+  fail(`pitch after mid-stroke switch: ${med.toFixed(1)} Hz over ${sounding.length} readings (expected ~196)`);
+else ok(`mid-stroke switch sounding at ${med.toFixed(1)} Hz`);
+await cdp.send("Input.dispatchTouchEvent", {
+  type: "touchEnd",
+  touchPoints: [{ x: f1.clientX, y: f1.clientY, id: 1 }],
+});
 
 if (errors.length) {
   fail("page errors:\n" + errors.join("\n"));

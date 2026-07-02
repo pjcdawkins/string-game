@@ -15,6 +15,12 @@ whole vertical string stays reachable for fingering and bowing.
 
 ## Operable now
 
+All HUD buttons act on `pointerdown` rather than `click` (see `tap()` in
+`src/ui/hud.ts`), so they respond to *any* finger — including a second finger
+tapped mid-stroke while the first holds a bow gesture on the canvas. Browsers
+only fire `click` for the primary pointer, which used to make string switching
+impossible until the bowing finger lifted.
+
 - **Tool picker** — Bow / Pick / Pizz (top-left).
 - **Left hand** — Press / Touch (harmonic) / Lift (top-left).
 - **String picker** — G / D / A / E (top-right).
