@@ -19,6 +19,32 @@ const FINGER_MIN = -FINGER_RADIUS;
 const FINGER_MAX = 0.82;
 const MAX_BEND = 0.55;
 
+// Keyboard bowing (arrow keys, see input/keyboard.ts): model bow speed while
+// a stroke key is held, how far the bow may travel laterally before it runs
+// out of hair, how fast model velocity sweeps that travel, and how fast the
+// up/down arrows slide the contact point along the string.
+const KEY_BOW_SPEED = 0.32;
+const KEY_BOW_END = 1.2;
+const KEY_BOW_XRATE = 4.0;
+const KEY_CONTACT_RATE = 0.35;
+// Attack of a keyboard stroke: speed rises from rest over KEY_ATTACK_S while
+// an extra-heavy bite (KEY_BITE_AMP, vs 0.4 for pointer/auto-bow) holds the
+// force up. This pairing captures the Helmholtz fundamental ~99% of the time
+// across cold, ringing and finger-landing attacks; the measurements and the
+// alternatives (including the model upgrades that would allow real-violin
+// attack speeds) are written up in MODEL_NOTES.md.
+const KEY_ATTACK_S = 0.15;
+const KEY_BITE_AMP = 0.8;
+
+// [ / ] ramp the bow pressure while held, over the HUD slider's range.
+const KEY_FORCE_RATE = 0.35;
+const FORCE_MIN = 0.05;
+const FORCE_MAX = 1.2;
+
+// Portamento (Shift + a finger key): exponential approach rate of the finger
+// toward its target position — fast at first, easing in, like a real slide.
+const FINGER_GLIDE_RATE = 8;
+
 export class Interactions {
   // public state read by the render loop
   grabbed: GrabState | null = null;
@@ -28,6 +54,10 @@ export class Interactions {
   bowX = 0; // lateral position of the bow mesh
   hover: { s: number; x: number } | null = null;
   fingerPressure = 0; // ramped actual pressure
+  // keyboard bowing intents (written by input/keyboard.ts, consumed in update)
+  keyBowDir: -1 | 0 | 1 = 0;
+  keyContactDir: -1 | 0 | 1 = 0;
+  keyForceDir: -1 | 0 | 1 = 0;
 
   private leftPointer = -1;
   private rightPointer = -1;
@@ -44,6 +74,10 @@ export class Interactions {
   // of the double-slip octave
   private biteTimer = 999;
   private wasAutoBow = false;
+  private prevKeyBowDir = 0;
+  private wasKeyBowing = false;
+  private keyStrokeTime = 0; // seconds since the current keyboard stroke began
+  private fingerGlideTarget: number | null = null;
 
   constructor(private view: SceneView, canvas: HTMLCanvasElement) {
     canvas.addEventListener("pointerdown", (e) => this.onDown(e));
@@ -54,6 +88,12 @@ export class Interactions {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.liftFinger();
     });
+  }
+
+  /** True while the arrow keys are driving a bow stroke (a held pointer
+   * stroke always wins over the keyboard). */
+  get keyBowing(): boolean {
+    return this.keyBowDir !== 0 && !this.bowEngaged;
   }
 
   /** Where the left-hand zone ends and the implement zone begins. The bow
@@ -159,8 +199,22 @@ export class Interactions {
     if (state.fingerOn && Math.abs(p - state.fingerPos) < 0.035) {
       this.tappedExistingFinger = true;
     }
+    this.placeFingerAt(p);
+  }
+
+  /** Latch or move the finger directly (used by the keyboard shortcuts).
+   * With `glide`, a finger already down slides to the new position
+   * (portamento) instead of jumping. */
+  placeFingerAt(s: number, glide = false): void {
+    const p = clamp(s, FINGER_MIN, FINGER_MAX);
+    if (glide && state.fingerOn) {
+      this.fingerGlideTarget = p;
+    } else {
+      state.fingerPos = p;
+      this.fingerGlideTarget = null;
+      this.rearticulate();
+    }
     state.fingerOn = true;
-    state.fingerPos = p;
     this.pressureTarget = state.leftMode === "press" ? 1 : 0.13;
     notify();
   }
@@ -168,17 +222,38 @@ export class Interactions {
   private moveFinger(s: number): void {
     this.tappedExistingFinger = false;
     state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
+    this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();
   }
 
   liftFinger(): void {
     state.fingerOn = false;
     this.pressureTarget = 0;
+    this.fingerGlideTarget = null;
+    this.rearticulate();
     notify();
+  }
+
+  /** A finger landing or lifting under a live stroke re-triggers the bow
+   * "bite" (as a player re-articulates with a touch of extra weight), so the
+   * new string length recaptures Helmholtz instead of choking to a whisper. */
+  private rearticulate(): void {
+    if (this.bowEngaged || this.keyBowing || state.autoBow) this.biteTimer = 0;
   }
 
   /** Per-frame: ramps, auto-bow, and pushing state into the audio engine. */
   update(dt: number): void {
+    // portamento: the finger slides toward its target position
+    if (this.fingerGlideTarget !== null && state.fingerOn) {
+      const d = this.fingerGlideTarget - state.fingerPos;
+      if (Math.abs(d) < 0.002) {
+        state.fingerPos = this.fingerGlideTarget;
+        this.fingerGlideTarget = null;
+      } else {
+        state.fingerPos += d * Math.min(1, dt * FINGER_GLIDE_RATE);
+      }
+    }
+
     // finger pressure ramp (fast but not instant — like a real finger landing)
     const rate = this.pressureTarget > this.fingerPressure ? 14 : 22;
     this.fingerPressure +=
@@ -191,6 +266,25 @@ export class Interactions {
 
     // a finger sliding up under a held bow/stroke pushes it toward the bridge
     this.bowPos = clamp(this.bowPos, this.implementMin(), BOW_MAX);
+
+    // up/down arrows slide the bow's contact point toward the nut/bridge
+    if (this.keyContactDir !== 0 && !this.bowEngaged) {
+      this.bowPos = clamp(
+        this.bowPos + this.keyContactDir * KEY_CONTACT_RATE * dt,
+        this.implementMin(),
+        BOW_MAX
+      );
+    }
+
+    // [ / ] lean into / ease off the string, live even mid-stroke
+    if (this.keyForceDir !== 0) {
+      state.bowForce = clamp(
+        state.bowForce + this.keyForceDir * KEY_FORCE_RATE * dt,
+        FORCE_MIN,
+        FORCE_MAX
+      );
+      notify();
+    }
 
     const force = this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;
 
@@ -206,6 +300,35 @@ export class Interactions {
       const target = clamp(v * 0.06, -0.75, 0.75);
       this.bowVel += (target - this.bowVel) * Math.min(1, dt * 12);
       engine.setBow(true, this.bowVel, force * bite, this.bowPos);
+    } else if (this.keyBowing) {
+      if (this.keyBowDir !== this.prevKeyBowDir) {
+        // a fresh stroke or a bow change gets the starting "bite"
+        this.biteTimer = 0;
+        this.keyStrokeTime = 0;
+        // with under half the travel left in the new direction, retake the
+        // bow (lift and reset to the far end) — so a repeated down bow / up
+        // bow speaks instead of starting where the last stroke ran out
+        const remaining =
+          this.keyBowDir > 0 ? KEY_BOW_END - this.bowX : this.bowX + KEY_BOW_END;
+        if (remaining < KEY_BOW_END * 0.5) this.bowX = -this.keyBowDir * KEY_BOW_END;
+      }
+      this.keyStrokeTime += dt;
+      // the stroke dies away when it runs out of bow at either end; flipping
+      // direction (a bow change) is the way to keep the sound going
+      const atEnd = this.keyBowDir > 0 ? this.bowX >= KEY_BOW_END : this.bowX <= -KEY_BOW_END;
+      if (atEnd) {
+        this.bowVel += (0 - this.bowVel) * Math.min(1, dt * 10);
+      } else {
+        // linear attack: force held up (the bite) while speed rises gently
+        // from zero reliably captures the Helmholtz fundamental instead of
+        // a higher slip regime
+        const ramp = Math.min(1, this.keyStrokeTime / KEY_ATTACK_S);
+        this.bowVel = this.keyBowDir * KEY_BOW_SPEED * ramp;
+      }
+      this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -KEY_BOW_END, KEY_BOW_END);
+      this.lastFrameX = this.bowX;
+      const kbite = 1 + KEY_BITE_AMP * Math.max(0, 1 - this.biteTimer / 0.25);
+      engine.setBow(true, this.bowVel, force * kbite, this.bowPos);
     } else if (state.autoBow) {
       if (!this.wasAutoBow) this.biteTimer = 0;
       this.autoBowTimer += dt;
@@ -224,6 +347,11 @@ export class Interactions {
       this.bowX = Math.sin((this.autoBowTimer / STROKE - 0.5) * Math.PI) * -this.autoBowDir * 1.2;
       engine.setBow(true, this.bowVel, state.bowForce * bite, this.bowPos);
     }
+    // releasing the last stroke key or switching auto-bow off ends the stroke
+    const bowingNow = this.bowEngaged || this.keyBowing || state.autoBow;
+    if (!bowingNow && (this.wasKeyBowing || this.wasAutoBow)) engine.setBowOn(false);
+    this.wasKeyBowing = this.keyBowing;
+    this.prevKeyBowDir = this.keyBowing ? this.keyBowDir : 0;
     this.wasAutoBow = state.autoBow;
   }
 }

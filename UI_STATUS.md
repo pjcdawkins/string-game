@@ -29,6 +29,11 @@ impossible until the bowing finger lifted.
 - **Bow pressure slider** — the only slider in the bottom-left panel; sets
   `state.bowForce`.
 - **Help (`?`)** — opens the "How to play" overlay.
+- **Keyboard shortcuts** (`src/input/keyboard.ts`) — arrows bow (`→` down
+  bow, `←` up bow, `↑`/`↓` contact point), `Space` (held) auto-bows,
+  `[`/`]` (held) ramp the bow pressure, digits (held) add their semitones
+  above the open string, `Shift` makes pitch changes glide (portamento),
+  `0` open string, `Esc` lifts the finger. All combine mid-stroke.
 
 ## Implemented but hidden (no HUD control right now)
 
@@ -36,9 +41,9 @@ These work end-to-end in the audio/visual model but currently have nothing
 in the HUD to switch them on — they're candidates for a future settings
 drawer or keyboard shortcuts:
 
-- **Auto-bow** (`state.autoBow`, `state.autoBowSpeed` in `src/state.ts`,
-  driven from `src/input/interactions.ts`) — sustains a bow stroke with
-  bow-change dips so both hands are free.
+- **Auto-bow speed** (`state.autoBowSpeed` in `src/state.ts`) — auto-bow
+  itself is operable now (hold `Space`), but its stroke speed still has no
+  control.
 - **Slow-mo rate** (`state.slowMo`) — the visual vibration's caricature
   speed, consumed by `src/scene/visualString.ts`.
 - **Node markers** (`state.markers`) — the glowing harmonic-node dots drawn

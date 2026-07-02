@@ -1,6 +1,7 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity } from "./scene/tools";
 import { Interactions, BOW_MAX } from "./input/interactions";
+import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
@@ -13,6 +14,7 @@ const uiRoot = document.getElementById("ui") as HTMLElement;
 const view = new SceneView(canvas);
 const hud = new Hud(uiRoot);
 const input = new Interactions(view, canvas);
+new Keyboard(input);
 
 // initialise the engine's string when audio first becomes available
 let stringInitialised = false;
@@ -50,7 +52,7 @@ function frame(now: number): void {
     fingerPos: state.fingerPos,
     fingerPressure: input.fingerPressure,
     bowing: state.meter.bowing,
-    bowEngaged: input.bowEngaged || state.autoBow,
+    bowEngaged: input.bowEngaged || state.autoBow || input.keyBowing,
     bowVelSign: input.bowVel >= 0 ? 1 : -1,
     rms: state.meter.rms,
     slipRatio: state.meter.slipRatio,
@@ -84,14 +86,17 @@ function updateTools(): void {
   // note guide: show what the cursor position would sound under the finger
   hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);
 
-  if (state.tool === "bow" && (input.bowEngaged || state.autoBow || hoverRight)) {
+  if (state.tool === "bow") {
+    // the bow never disappears: solid while stroking, a ghost resting at its
+    // contact point otherwise (hovering previews where a stroke would land)
     t.bow.visible = true;
-    const engaged = input.bowEngaged || state.autoBow;
-    const s = engaged ? input.bowPos : Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));
-    const x = engaged ? input.bowX * 0.25 : hover!.x * 0.25;
+    const engaged = input.bowEngaged || state.autoBow || input.keyBowing;
+    const atHover = !engaged && input.keyContactDir === 0 && hoverRight;
+    const s = atHover ? Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s)) : input.bowPos;
+    const x = atHover ? hover!.x * 0.25 : input.bowX * 0.25;
     t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
-  } else if (state.tool !== "bow") {
+  } else {
     const mesh = state.tool === "pick" ? t.pick : t.rightFinger;
     if (input.grabbed) {
       mesh.visible = true;

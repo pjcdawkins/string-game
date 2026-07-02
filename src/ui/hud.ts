@@ -69,6 +69,15 @@ export class Hud {
         finger only brushes the string: touch a glowing node to sound a natural
         harmonic.</p>
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing with another.</p>
+        <p><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
+        (flip direction when you run out of bow), hold <kbd>Space</kbd> for auto-bowing,
+        <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
+        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. Left hand — digits are
+        semitones above the open string (<kbd>1</kbd> = semitone … <kbd>9</kbd>) and held
+        digits <i>add</i>: 4+3 stops a fifth, 9+3 an octave. Release to peel intervals off,
+        <kbd>0</kbd> is the open string, hold <kbd>Shift</kbd> for portamento slides.
+        Everything combines mid-stroke: slide the contact point, swell, and change fingers
+        while bowing.</p>
         <p>Try: slide the bow toward the bridge (ponticello glassiness) or over the
         fingerboard (tasto flute); crank bow pressure at low speed for the raucous
         regime; touch ½, ⅓, ¼ nodes for harmonics.</p>
