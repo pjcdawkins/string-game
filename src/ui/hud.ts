@@ -54,8 +54,12 @@ export class Hud {
       <button id="helpBtn" class="seg">?</button>
     </div>
     <div class="overlay hidden" id="help">
-      <div class="card">
-        <h2>How to play</h2>
+      <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+        <div class="card-head">
+          <h2 id="helpTitle">How to play</h2>
+          <button class="seg close-x" id="closeHelpX" aria-label="Close help">✕</button>
+        </div>
+        <div class="card-body">
         <p><b>Right hand</b>: with the <b>Bow</b>, press and drag sideways — stroke speed
         is bow speed, vertical position chooses the contact point, from over the
         fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
@@ -69,7 +73,7 @@ export class Hud {
         finger only brushes the string: touch a glowing node to sound a natural
         harmonic.</p>
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing with another.</p>
-        <p><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
+        <p class="desktop-only"><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
         (flip direction when you run out of bow), hold <kbd>Space</kbd> for auto-bowing,
         <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
         <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. Left hand — digits are
@@ -81,7 +85,10 @@ export class Hud {
         <p>Try: slide the bow toward the bridge (ponticello glassiness) or over the
         fingerboard (tasto flute); crank bow pressure at low speed for the raucous
         regime; touch ½, ⅓, ¼ nodes for harmonics.</p>
-        <button class="seg accent" id="closeHelp">Close</button>
+        </div>
+        <div class="card-foot">
+          <button class="seg accent" id="closeHelp">Close</button>
+        </div>
       </div>
     </div>`;
   }
@@ -122,10 +129,29 @@ export class Hud {
     const force = $<HTMLInputElement>("#force");
     force.addEventListener("input", () => (state.bowForce = Number(force.value)));
 
-    tap($("#helpBtn"), () => $("#help").classList.remove("hidden"));
-    tap($("#closeHelp"), () => $("#help").classList.add("hidden"));
+    const help = $("#help");
+    const closeHelp = () => help.classList.add("hidden");
+    tap($("#helpBtn"), () => help.classList.remove("hidden"));
+    tap($("#closeHelp"), closeHelp);
+    tap($("#closeHelpX"), closeHelp);
+    // tapping the dimmed backdrop (not the card) also dismisses
+    help.addEventListener("pointerdown", (e) => {
+      if (e.target === help) closeHelp();
+    });
+    // Esc closes the dialog; capture phase so the gameplay Esc handler
+    // (lift finger) doesn't also fire while the dialog is up
+    window.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape" && !help.classList.contains("hidden")) {
+          closeHelp();
+          e.stopPropagation();
+        }
+      },
+      true
+    );
     // show help on first load
-    $("#help").classList.remove("hidden");
+    help.classList.remove("hidden");
   }
 
   /** Position (0..1 from the nut) the cursor is hovering over, or null. */
