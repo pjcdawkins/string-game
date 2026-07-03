@@ -10,12 +10,12 @@ function flat(color: number): THREE.MeshBasicMaterial {
 // Playable hair span in the bow's own (unscaled) coordinates: the tip end sits
 // at the head's hair mortise, the frog end just past the ferrule. A bow stroke
 // sweeps the string's contact point across exactly this range, so these bound
-// how far the contact travels (see main.ts / interactions.ts). The width of the
-// hair mesh itself is 2.86 (see makeBow); these are pulled a hair inside it so
-// the contact sits on hair, not on the head wood or the ferrule.
-export const BOW_HAIR_TIP = -1.58;
-export const BOW_HAIR_FROG = 1.24;
-export const BOW_HAIR_SPAN = BOW_HAIR_FROG - BOW_HAIR_TIP; // 2.82, the base hair length
+// how far the contact travels (see main.ts / interactions.ts). They are pulled
+// a touch inside the drawn hair ribbon so the contact sits on hair, not on the
+// head wood or the ferrule.
+export const BOW_HAIR_TIP = -1.5;
+export const BOW_HAIR_FROG = 1.22;
+export const BOW_HAIR_SPAN = BOW_HAIR_FROG - BOW_HAIR_TIP; // 2.72, the base hair length
 
 const BOW = {
   stick: 0x8a5228, // pernambuco
@@ -31,93 +31,97 @@ const BOW = {
 /**
  * Violin bow, lying along x with the hair ribbon through the group origin
  * (y = 0 is the contact line on the string). Frog to the right (+x), tip to
- * the left. Cambered tapered stick, swan-head tip with an ivory face plate,
- * ebony frog with pearl eye, silver winding and a leather thumb grip.
+ * the left. Drawn slim, at the proportions of a real bow: a fine tapered stick
+ * with a gentle camber that brings it closest to the hair mid-bow, a small
+ * forward-leaning swan head with an ivory face plate, a compact ebony frog with
+ * a pearl eye and silver ferrule, and a short silver winding and leather thumb
+ * grip near the frog. (The whole group is uniformly scaled to size on screen —
+ * see SceneView.applyBowScale — so these proportions hold at every size.)
  */
 export function makeBow(): THREE.Group {
   const g = new THREE.Group();
 
-  // hair: a pale ribbon with a darker edge behind it, ending at the mortise
-  // in the head's underside (the plate band carries on to the toe from there)
-  const hairEdge = new THREE.Mesh(new THREE.PlaneGeometry(2.875, 0.044), flat(BOW.hairEdge));
-  hairEdge.position.set(-0.1675, 0, 0);
-  const hair = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 0.028), flat(BOW.hair));
-  hair.position.set(-0.17, 0, 0.005);
+  // hair: a pale ribbon with a darker edge behind it, running from the head's
+  // hair mortise to the ferrule at the frog. Kept thin so the bow reads fine.
+  const hairEdge = new THREE.Mesh(new THREE.PlaneGeometry(2.83, 0.024), flat(BOW.hairEdge));
+  hairEdge.position.set(-0.155, 0, 0);
+  const hair = new THREE.Mesh(new THREE.PlaneGeometry(2.82, 0.014), flat(BOW.hair));
+  hair.position.set(-0.155, 0.001, 0.005);
 
-  // stick: the camber brings it closest to the hair mid-bow, then it rises
-  // clear of the hair toward the tip — the open daylight between stick and
-  // hair through the throat is what makes the head read as a head. The head
-  // matches the reference photos: its top is simply the stick's own top
-  // line, dead straight to a rounded front corner (no crown bump); below
-  // that the head is a wide solid shape, nearly four stick-widths tall,
-  // whose near-vertical face flares forward at the bottom into an upturned
-  // toe (the swan's bill), while the throat sweeps concave from the mortise
-  // up the back of the head and under the stick.
+  // stick: a thin ribbon, ~0.02 thick and tapering toward the tip, with a
+  // gentle camber (closest to the hair around the middle). The same outline
+  // carries on past the throat into the small swan head — its top edge is the
+  // stick's own line curving up to a rounded nose, its near-vertical front
+  // face (carrying the ivory plate) drops to a forward toe, and the throat
+  // sweeps concave from the hair mortise back up under the stick.
   const s = new THREE.Shape();
-  s.moveTo(1.62, 0.07); // frog-end underside
-  s.quadraticCurveTo(0.5, 0.018, -0.5, 0.044); // camber, closest to the hair
-  s.quadraticCurveTo(-1.0, 0.058, -1.44, 0.121); // rising away toward the head
-  s.quadraticCurveTo(-1.53, 0.118, -1.565, 0.09); // throat sweeping under the stick
-  s.quadraticCurveTo(-1.59, 0.055, -1.585, 0.008); // near-vertical back of the head
-  s.quadraticCurveTo(-1.67, 0.0, -1.722, 0.01); // head underside out to the toe
-  s.quadraticCurveTo(-1.7, 0.028, -1.7, 0.07); // toe flare, gently concave
-  s.quadraticCurveTo(-1.704, 0.12, -1.696, 0.165); // face, nearly vertical
-  s.quadraticCurveTo(-1.69, 0.198, -1.656, 0.199); // rounded front corner
-  s.quadraticCurveTo(-1.1, 0.128, -0.5, 0.09); // head top = the stick's top line
-  s.quadraticCurveTo(0.4, 0.068, 1.62, 0.13); // rising to the frog
+  // top edge, frog end -> tip
+  s.moveTo(1.58, 0.114);
+  s.quadraticCurveTo(1.3, 0.092, 0.7, 0.064);
+  s.quadraticCurveTo(0.05, 0.054, -0.6, 0.06);
+  s.quadraticCurveTo(-1.08, 0.066, -1.44, 0.083); // up to the head throat
+  // the head: the top line runs on almost straight to a rounded front corner
+  // (no nose bump), then a clean near-vertical face drops to a forward toe, and
+  // the throat sweeps concave from the hair mortise back up under the stick
+  s.quadraticCurveTo(-1.57, 0.088, -1.62, 0.083); // top edge to the front corner
+  s.quadraticCurveTo(-1.648, 0.076, -1.652, 0.046); // round the corner into the face
+  s.quadraticCurveTo(-1.655, 0.02, -1.636, 0.004); // face down to the toe
+  s.quadraticCurveTo(-1.6, -0.003, -1.52, 0.001); // toe (the swan's bill) + underside
+  s.quadraticCurveTo(-1.47, 0.005, -1.448, 0.044); // throat, concave, up to the stick
+  // bottom edge, tip -> frog end
+  s.quadraticCurveTo(-1.08, 0.052, -0.6, 0.044);
+  s.quadraticCurveTo(0.05, 0.04, 0.7, 0.05);
+  s.quadraticCurveTo(1.3, 0.076, 1.58, 0.096);
   s.closePath();
   const stick = new THREE.Mesh(new THREE.ShapeGeometry(s, 16), flat(BOW.stick));
   stick.position.z = 0.02;
 
-  // ivory face plate with its black liner: two slightly larger silhouettes
-  // of the head's front, layered *under* the stick so only rims show along
-  // the face and around the toe where the plate wraps under the hair
-  // mortise — ivory outermost, then the thin dark liner against the wood
-  const plateRim = (grow: number): THREE.Shape => {
+  // ivory face plate: a thin light sliver hugging the head's front face, from
+  // the toe up toward the nose, with a hairline dark liner behind it.
+  const facePlate = (w: number): THREE.Shape => {
     const p = new THREE.Shape();
-    p.moveTo(-1.61, 0.03); // tucked inside the head at the mortise
-    // under the head, `grow` below the wood, out around the toe
-    p.quadraticCurveTo(-1.67, -grow * 2, -1.727 - grow * 0.8, 0.004 - grow * 2);
-    // up the concave flare, tapering to a point partway up the face
-    p.quadraticCurveTo(-1.704 - grow, 0.028, -1.702 - grow * 0.3, 0.07 + grow * 1.5);
-    p.quadraticCurveTo(-1.692, 0.05, -1.65, 0.012); // back inside the wood
+    p.moveTo(-1.636, 0.005);
+    p.quadraticCurveTo(-1.66, 0.024, -1.657, 0.05); // outer edge, along the face
+    p.quadraticCurveTo(-1.653, 0.072, -1.633, 0.08); // up to just under the corner
+    p.lineTo(-1.633 + w, 0.078);
+    p.quadraticCurveTo(-1.649 + w, 0.05, -1.634 + w, 0.011); // inner edge
     p.closePath();
     return p;
   };
-  const tipPlate = new THREE.Mesh(new THREE.ShapeGeometry(plateRim(0.012), 10), flat(BOW.tipPlate));
-  tipPlate.position.z = 0.01;
-  const tipLiner = new THREE.Mesh(new THREE.ShapeGeometry(plateRim(0.004), 10), flat(BOW.frog));
-  tipLiner.position.z = 0.015;
+  const tipLiner = new THREE.Mesh(new THREE.ShapeGeometry(facePlate(0.032), 8), flat(BOW.frog));
+  tipLiner.position.z = 0.021;
+  const tipPlate = new THREE.Mesh(new THREE.ShapeGeometry(facePlate(0.022), 8), flat(BOW.tipPlate));
+  tipPlate.position.z = 0.022;
 
-  // frog: ebony block under the stick, thumb bevel toward the winding
+  // frog: compact ebony block under the stick, thumb bevel toward the winding
   const f = new THREE.Shape();
-  f.moveTo(1.26, 0.08);
-  f.lineTo(1.6, 0.085);
-  f.lineTo(1.6, -0.005);
-  f.quadraticCurveTo(1.52, -0.02, 1.44, -0.015);
-  f.quadraticCurveTo(1.3, -0.01, 1.26, 0.02);
+  f.moveTo(1.26, 0.072);
+  f.lineTo(1.55, 0.076);
+  f.lineTo(1.55, 0.004);
+  f.quadraticCurveTo(1.47, -0.008, 1.39, -0.005);
+  f.quadraticCurveTo(1.3, -0.001, 1.26, 0.022);
   f.closePath();
   const frog = new THREE.Mesh(new THREE.ShapeGeometry(f, 8), flat(BOW.frog));
   frog.position.z = 0.025;
 
-  const ferrule = new THREE.Mesh(new THREE.PlaneGeometry(0.04, 0.09), flat(BOW.silver));
-  ferrule.position.set(1.28, 0.025, 0.03);
-  const eye = new THREE.Mesh(new THREE.CircleGeometry(0.024, 16), flat(BOW.pearl));
-  eye.position.set(1.44, 0.035, 0.03);
+  const ferrule = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.072), flat(BOW.silver));
+  ferrule.position.set(1.275, 0.03, 0.03);
+  const eye = new THREE.Mesh(new THREE.CircleGeometry(0.016, 16), flat(BOW.pearl));
+  eye.position.set(1.4, 0.035, 0.03);
 
-  const button = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.05), flat(BOW.silver));
-  button.position.set(1.655, 0.097, 0.015);
-  const buttonRing = new THREE.Mesh(new THREE.PlaneGeometry(0.012, 0.05), flat(BOW.frog));
-  buttonRing.position.set(1.645, 0.097, 0.02);
+  const button = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.04), flat(BOW.silver));
+  button.position.set(1.6, 0.096, 0.015);
+  const buttonRing = new THREE.Mesh(new THREE.PlaneGeometry(0.01, 0.04), flat(BOW.frog));
+  buttonRing.position.set(1.592, 0.096, 0.02);
 
-  const winding = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.058), flat(BOW.silver));
-  winding.position.set(1.02, 0.087, 0.03);
-  winding.rotation.z = 0.02;
-  const grip = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.06), flat(BOW.grip));
-  grip.position.set(1.2, 0.089, 0.03);
-  grip.rotation.z = 0.02;
+  const winding = new THREE.Mesh(new THREE.PlaneGeometry(0.24, 0.03), flat(BOW.silver));
+  winding.position.set(1.0, 0.066, 0.03);
+  winding.rotation.z = 0.035;
+  const grip = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.036), flat(BOW.grip));
+  grip.position.set(1.18, 0.076, 0.03);
+  grip.rotation.z = 0.035;
 
-  g.add(hairEdge, hair, stick, tipPlate, tipLiner, frog, ferrule, eye, button, buttonRing, winding, grip);
+  g.add(hairEdge, hair, stick, tipLiner, tipPlate, frog, ferrule, eye, button, buttonRing, winding, grip);
   return g;
 }
 
