@@ -3,17 +3,17 @@
  * lives on the number row: each held digit contributes its value in semitones
  * above the open string (1 = semitone, 2 = whole tone … 9), and chords of
  * digits ADD — 4+3 stops a fifth, 9+3 an octave — so intervals beyond nine
- * semitones are quick to build. 0 forces the open string. Digits behave like
- * real fingers: the note sounds while held, releasing peels its interval off
- * again (or lifts the hand entirely), and holding Shift makes pitch changes
- * portamento — the finger glides instead of jumping. The right hand lives on
- * the arrows: → is a down bow, ← an up bow, ↑/↓ slide the contact point
- * toward the nut/bridge, and holding [ / ] eases off / leans into the string
- * (bow pressure). Holding Space sustains an automatic détaché instead
- * (release to stop); the arrows stay fully manual, and override it while
- * held. All of it combines mid-stroke. The string is chosen with Page
- * Up/Page Down (one string at a time, no looping) or by its letter name
- * (G/D/A/E); , and . nudge the auto-bow speed down/up; S sets the firm
+ * semitones are quick to build. Chords peel as fingers lift, but the finger
+ * latches: releasing every digit leaves it stopped at the last position (0 or
+ * Esc lift it). Holding Shift makes pitch changes portamento — the finger
+ * glides instead of jumping. The right hand lives on the arrows: → is a down
+ * bow, ← an up bow, ↑/↓ slide the contact point toward the nut/bridge, and
+ * holding [ / ] eases off / leans into the string (bow pressure). Holding
+ * Space sustains an automatic détaché instead (release to stop); the arrows
+ * stay fully manual, and override it while held. All of it combines
+ * mid-stroke. The string is chosen with Page Up/Page Down (one string at a
+ * time, no looping) or by its letter name (G/D/A/E); , and . nudge the bow
+ * speed down/up (manual and auto alike, even mid-stroke); S sets the firm
  * Press stop, Esc lifts the left hand.
  */
 import { engine } from "../audio/engine";
@@ -159,8 +159,10 @@ export class Keyboard {
     }
     if (e.code in FINGER_KEYS) {
       this.heldFingers.delete(e.code);
+      // While other digits are still down the interval peels off; releasing
+      // the last one leaves the finger latched where it is (like a mouse
+      // click). 0 or Esc lift it.
       if (this.heldFingers.size) this.applyFinger();
-      else this.input.liftFinger();
       return;
     }
     if (e.code === "Space") {

@@ -166,11 +166,16 @@ res = await keyboardBowUntil(659.3);
 if (Math.abs(res.freq - 659.3) > 659.3 * 0.04)
   fail(`chorded fifth pitch off: ${res.freq.toFixed(1)} Hz (expected ~659.3)`);
 else ok(`chorded fifth (4+3) at ${res.freq.toFixed(1)} Hz`);
+// releasing every digit leaves the finger latched (it does not lift); 0/Esc lift
 await page.keyboard.up("Digit3");
 await page.keyboard.up("Digit4");
 res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
-if (res.fingerOn) fail("finger did not lift when its keys were released");
-else ok("finger lifted on key release");
+if (!res.fingerOn) fail("finger lifted on key release (should latch)");
+else ok("finger latched after releasing its keys");
+await page.keyboard.press("Escape");
+res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
+if (res.fingerOn) fail("Esc did not lift the latched finger");
+else ok("Esc lifted the latched finger");
 
 // 6. portamento: with Shift held, a pitch change glides instead of jumping
 const fr = await page.evaluate(() => window.__debug.FINGER_RADIUS);
@@ -190,6 +195,7 @@ if (Math.abs(posEnd - glideTarget) > 0.01)
 else if (posMid > glideTarget - 0.03)
   fail(`portamento jumped instead of gliding (pos ${posMid.toFixed(3)} after 100ms)`);
 else ok(`portamento glides: ${posMid.toFixed(3)} en route to ${glideTarget.toFixed(3)}`);
+await page.keyboard.press("Digit0"); // lift the (now latching) finger before the open-string checks
 
 // 7. brackets ramp bow pressure while held
 const before = await page.evaluate(() => window.__debug.state.bowForce);
