@@ -94,7 +94,9 @@ function updateTools(): void {
   const hover = input.hover;
   const boundary = input.zoneBoundary();
   const hoverRight = hover && hover.s >= boundary && hover.s <= 1.05;
-  const hoverLeft = hover && hover.s > -0.02 && hover.s < boundary;
+  // the finger previews across the whole board; above the nut (s < 0) a tap
+  // lifts instead of placing, so no place-ghost is shown there
+  const hoverLeft = hover && hover.s >= 0 && hover.s < boundary;
 
   // note guide: show what the cursor position would sound under the finger
   hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);

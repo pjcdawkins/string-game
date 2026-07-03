@@ -1,9 +1,13 @@
 /**
  * Pointer interaction layer. The viewport is split at the end of the
- * fingerboard: gestures on the fingerboard control the left hand (stopping /
- * harmonic touches, with glissando and tap-to-lift), gestures below it apply
- * the selected implement (bow strokes, plectrum/finger plucks).
- * Multi-touch works: one finger can hold a stop while another bows.
+ * fingerboard: a tap anywhere on the board places (or moves) the left-hand
+ * finger, and a drag may carry it on past the board's end toward the bridge
+ * (glissando). Gestures below the board apply the selected implement (bow
+ * strokes, plectrum/finger plucks) — the bow and plucks can still be *swept*
+ * up onto the board once under way (sul tasto), they just can't be started
+ * there. A tap above the nut lifts the finger, and a quick tap on an already
+ * placed finger lifts it too. Multi-touch works: one finger can hold a stop
+ * while another bows.
  */
 import { SceneView } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
@@ -14,10 +18,18 @@ import type { GrabState } from "../scene/visualString";
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
 export const BOW_MAX = 0.985;
+// Minimum gap kept between a stopped finger and the bow contact: the bow always
+// sits on the bridge side of the finger, with at least this much string between
+// them (see implementMin) — roughly the width the bow itself needs.
+const BOW_CLEARANCE = 0.06;
 // fingerPos is the fingertip CENTRE; letting it slide a radius up onto the nut
 // puts the note's terminating edge on the nut, i.e. the open string
 const FINGER_MIN = -FINGER_RADIUS;
-const FINGER_MAX = 0.82;
+// A tap only ever lands on the fingerboard (s < FINGERBOARD_END), but a drag
+// may carry the finger on past the board's end toward the bridge — as far up as
+// a bow can still fit between it and the bridge, i.e. one bow-clearance short of
+// the bow's own bridge-side limit (about a bow-width from the bridge).
+const FINGER_DRAG_MAX = BOW_MAX - BOW_CLEARANCE;
 const MAX_BEND = 0.55;
 
 // How far the bow may travel laterally (in bowX units) before it runs out of
@@ -134,18 +146,19 @@ export class Interactions {
     return this.keyBowDir !== 0 && !this.bowEngaged;
   }
 
-  /** Where the left-hand zone ends and the implement zone begins. The bow
-   * and the plucking implements may all reach over the fingerboard (sul
-   * tasto); only while auto-bow holds the stroke does the whole fingerboard
-   * belong to the left hand. */
+  /** Where the left-hand zone ends and the implement zone begins: the end of
+   * the fingerboard. The whole board belongs to the left hand — a tap anywhere
+   * on it stops the string — while the bow and plucking implements live on the
+   * bridge side of the board. They can still be *swept* up onto it (sul tasto)
+   * once a stroke is under way; they just can't be started there. */
   zoneBoundary(): number {
-    return state.autoBow ? FINGERBOARD_END : BOW_MIN;
+    return FINGERBOARD_END;
   }
 
   /** Lowest position the bow/pluck may take: always on the bridge side of a
    * stopped finger — the nut-side portion of the string is not modelled. */
   implementMin(): number {
-    return state.fingerOn ? Math.max(BOW_MIN, state.fingerPos + 0.06) : BOW_MIN;
+    return state.fingerOn ? Math.max(BOW_MIN, state.fingerPos + BOW_CLEARANCE) : BOW_MIN;
   }
 
   private onDown(e: PointerEvent): void {
@@ -154,6 +167,14 @@ export class Interactions {
     const c = this.view.screenToString(e.clientX, e.clientY);
     if (c.s < this.zoneBoundary() && Math.abs(c.x) < 1.2) {
       if (this.leftPointer !== -1) return;
+      // A tap above the nut (s < 0, off the top of the board) lifts the finger
+      // — the "clear the hand" gesture. Only the nut side can do this: a tap
+      // off the bridge end of the board would be mistaken for placing the bow.
+      // It doesn't begin a drag.
+      if (c.s < 0) {
+        this.liftFinger();
+        return;
+      }
       this.leftPointer = e.pointerId;
       this.leftMoved = false;
       this.leftDownTime = performance.now();
@@ -242,7 +263,7 @@ export class Interactions {
   private tappedExistingFinger = false;
 
   private placeFinger(s: number): void {
-    const p = clamp(s, FINGER_MIN, FINGER_MAX);
+    const p = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     if (state.fingerOn && Math.abs(p - state.fingerPos) < 0.035) {
       this.tappedExistingFinger = true;
     }
@@ -253,7 +274,7 @@ export class Interactions {
    * With `glide`, a finger already down slides to the new position
    * (portamento) instead of jumping. */
   placeFingerAt(s: number, glide = false): void {
-    const p = clamp(s, FINGER_MIN, FINGER_MAX);
+    const p = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     if (glide && state.fingerOn) {
       this.fingerGlideTarget = p;
     } else {
@@ -268,7 +289,7 @@ export class Interactions {
 
   private moveFinger(s: number): void {
     this.tappedExistingFinger = false;
-    state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
+    state.fingerPos = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();
   }

@@ -35,8 +35,11 @@ npm run build    # production build (worklet bundles to a self-contained file)
 - **Pluck** with a plectrum (hard, bright) or a fingertip (soft, round): grab
   the string, bend it, release. The bend point shapes the spectrum (comb
   filtering — pluck at 1/4 and the 4th harmonic family is missing).
-- **Stop** the string anywhere on the fingerboard: click to latch a finger,
-  drag for glissando, quick-tap to lift, `Esc` to clear. Multi-touch: hold a
+- **Stop** the string anywhere on the fingerboard: a tap on the board latches
+  a finger, a drag glissandos — and the drag can carry the finger on past the
+  end of the board toward the bridge, higher in pitch than the board itself
+  reaches (as far as a bow-width from the bridge). Quick-tap a placed finger,
+  or tap above the nut, to lift it; `Esc` clears it too. Multi-touch: hold a
   stop while bowing. The bow and plucks always stay on the bridge side of a
   stopped finger — the nut-side portion of the string is not modelled.
 - **Harmonics**: switch the left hand to *Touch* mode and brush a node
