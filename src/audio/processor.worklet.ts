@@ -29,7 +29,7 @@ class StringProcessor extends AudioWorkletProcessor {
       const m = e.data;
       switch (m.type) {
         case "pluck":
-          this.sim.pluck(m.force, m.widthMs);
+          this.sim.pluck(m.force, m.widthMs, m.periodFrac);
           break;
         case "setString":
           this.sim.setString(m.spec);
