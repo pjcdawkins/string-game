@@ -7,6 +7,16 @@ function flat(color: number): THREE.MeshBasicMaterial {
   return new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
 }
 
+// Playable hair span in the bow's own (unscaled) coordinates: the tip end sits
+// at the head's hair mortise, the frog end just past the ferrule. A bow stroke
+// sweeps the string's contact point across exactly this range, so these bound
+// how far the contact travels (see main.ts / interactions.ts). The width of the
+// hair mesh itself is 2.86 (see makeBow); these are pulled a hair inside it so
+// the contact sits on hair, not on the head wood or the ferrule.
+export const BOW_HAIR_TIP = -1.58;
+export const BOW_HAIR_FROG = 1.24;
+export const BOW_HAIR_SPAN = BOW_HAIR_FROG - BOW_HAIR_TIP; // 2.82, the base hair length
+
 const BOW = {
   stick: 0x8a5228, // pernambuco
   hair: 0xefe7d2,

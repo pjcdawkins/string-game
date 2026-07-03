@@ -1,5 +1,5 @@
 import { SceneView } from "./scene/scene";
-import { setToolOpacity } from "./scene/tools";
+import { setToolOpacity, BOW_HAIR_TIP, BOW_HAIR_FROG } from "./scene/tools";
 import { Interactions, BOW_MAX, BOW_END } from "./input/interactions";
 import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
@@ -73,11 +73,17 @@ function frame(now: number): void {
   hud.updateMeters();
 }
 
-// World units the bow mesh moves per unit of bowX: at full travel (±BOW_END)
-// the string's contact point sits near the tip / the frog, so a full stroke
-// visibly plays the whole bow — legible even on a narrow touchscreen, where
-// the finger itself can only cover a small lateral distance.
-const BOW_MESH_X = 0.9;
+// World-x for the bow group so that the string's contact point sits at the
+// given fraction of the way along the hair: bowX = -BOW_END puts it at the frog
+// end, +BOW_END at the tip end, so a full stroke sweeps the whole playable hair
+// (and, near the ends, actually reaches them). Everything scales with the bow's
+// current on-screen size (view.bowMeshScale); the small lateral lane offset
+// keeps the contact on the selected string.
+function bowGroupX(view: SceneView, bowX: number, s: number): number {
+  const t = (bowX + BOW_END) / (2 * BOW_END); // 0 at the frog, 1 at the tip
+  const contact = BOW_HAIR_FROG + t * (BOW_HAIR_TIP - BOW_HAIR_FROG);
+  return view.activeLaneX(s) - contact * view.bowMeshScale;
+}
 
 function updateTools(): void {
   const t = view.tools;
@@ -100,9 +106,8 @@ function updateTools(): void {
     const engaged = input.bowEngaged || state.autoBow || input.keyBowing;
     const atHover = !engaged && input.keyContactDir === 0 && hoverRight;
     const s = atHover ? Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s)) : input.bowPos;
-    const hx = atHover ? Math.max(-BOW_END, Math.min(BOW_END, hover!.x)) : input.bowX;
-    const x = hx * BOW_MESH_X;
-    t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
+    const bx = atHover ? Math.max(-BOW_END, Math.min(BOW_END, hover!.x)) : input.bowX;
+    t.bow.position.set(bowGroupX(view, bx, s), view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
   } else {
     const mesh = state.tool === "pick" ? t.pick : t.rightFinger;

@@ -6,6 +6,7 @@
  * Multi-touch works: one finger can hold a stop while another bows.
  */
 import { SceneView } from "../scene/scene";
+import { BOW_HAIR_SPAN } from "../scene/tools";
 import { engine } from "../audio/engine";
 import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop } from "../state";
 import type { GrabState } from "../scene/visualString";
@@ -24,20 +25,30 @@ const MAX_BEND = 0.55;
 export const BOW_END = 1.2;
 
 // Pointer bowing responds like a mouse with pointer acceleration: a slow,
-// deliberate drag maps ~1:1 (the drag velocity is the bow speed, as before),
+// deliberate drag maps ~1:1 in *world space* (the contact point tracks under
+// the pointer, so dragging the width of the bow bows the width of the bow),
 // while faster gestures are progressively amplified, saturating toward
 // ACCEL_MAX×. The gain feeds both the visual bow travel and the audio model's
-// bow velocity, so on a narrow touchscreen a quick flick both sweeps more bow
-// and sounds faster than the same distance covered slowly.
+// bow velocity. Because the bow's on-screen size varies with the viewport
+// (see scene.applyBowScale), a full stroke is a big, deliberate gesture on a
+// wide desktop bow and a quick screen-wide flick on a narrow phone — the world
+// mapping keeps the *feel* honest on both, reconciling the two. With the
+// current constants a leisurely drag lands a medium stroke (~5 s end to end),
+// a brisk drag a fast one (~1.5 s), a flick the extreme-fast floor (~0.5 s),
+// and a slow creep the extreme-slow ceiling (up toward a minute).
 const ACCEL_MAX = 2.2; // gesture gain at very fast speeds
 const ACCEL_REF = 4.0; // gesture speed (world units/s) giving half the extra gain
 
-// Keyboard bowing (arrow keys, see input/keyboard.ts): model bow speed while
-// a stroke key is held, how fast model velocity sweeps the bow's lateral
-// travel, and how fast the up/down arrows slide the contact point along the
-// string.
+// Keyboard bowing (arrow keys, see input/keyboard.ts): model bow speed while a
+// stroke key is held, and how fast that sweeps the bow's normalised travel. The
+// travel rate is tuned for a ~3.5 s full-length stroke — a singing medium
+// détaché that sits in the same speed band as an unhurried pointer stroke, so
+// the keyboard and the mouse feel like the same bow. (The duration is fixed;
+// the *visible* speed scales with the bow's on-screen size, faster on a wide
+// desktop bow, so a held arrow no longer crawls across a stubby bow.) Also how
+// fast the up/down arrows slide the contact point along the string.
 const KEY_BOW_SPEED = 0.32;
-const KEY_BOW_XRATE = 4.0;
+const KEY_BOW_XRATE = 2.1;
 const KEY_CONTACT_RATE = 0.35;
 // Attack of a keyboard stroke: speed rises from rest over KEY_ATTACK_S while
 // an extra-heavy bite (KEY_BITE_AMP, vs 0.4 for pointer/auto-bow) holds the
@@ -101,6 +112,14 @@ export class Interactions {
     window.addEventListener("keydown", (e) => {
       if (e.key === "Escape") this.liftFinger();
     });
+  }
+
+  /** World units the bow's contact point travels per unit of bowX, at the
+   * bow's current on-screen size. A full stroke (bowX over ±BOW_END) sweeps the
+   * whole playable hair, so this is the hair length / the bowX range. Used to
+   * map pointer motion to bow travel 1:1 in world space. */
+  private bowWorldGain(): number {
+    return (BOW_HAIR_SPAN / (2 * BOW_END)) * this.view.bowMeshScale;
   }
 
   /** True while the arrow keys are driving a bow stroke (a held pointer
@@ -315,16 +334,17 @@ export class Interactions {
 
     if (this.bowEngaged) {
       // bow speed follows the gesture: the pointer's lateral movement this
-      // frame, put through the acceleration gain (see ACCEL_MAX above) and
-      // lightly smoothed (it naturally falls to zero when the pointer stops
-      // moving). The amplified motion also drives the bow mesh via bowX,
-      // clamped where the hair runs out.
-      const raw = this.gestureDx / Math.max(1e-3, dt);
+      // frame, put through the acceleration gain (see ACCEL_MAX above). The
+      // amplified movement drives the bow mesh via bowX, mapped 1:1 in world
+      // space (÷ the bow's world size) so the contact tracks under the pointer
+      // regardless of how large the bow is drawn; and the same amplified speed
+      // sets the audio model's (lightly smoothed) bow velocity.
+      const dxWorld = this.gestureDx;
       this.gestureDx = 0;
+      const raw = dxWorld / Math.max(1e-3, dt);
       const gain = 1 + (ACCEL_MAX - 1) * (Math.abs(raw) / (Math.abs(raw) + ACCEL_REF));
-      const v = raw * gain;
-      this.bowX = clamp(this.bowX + v * dt, -BOW_END, BOW_END);
-      const target = clamp(v * 0.06, -0.75, 0.75);
+      this.bowX = clamp(this.bowX + (dxWorld * gain) / this.bowWorldGain(), -BOW_END, BOW_END);
+      const target = clamp(raw * gain * 0.06, -0.75, 0.75);
       this.bowVel += (target - this.bowVel) * Math.min(1, dt * 12);
       engine.setBow(true, this.bowVel, force * bite, this.bowPos);
     } else if (this.keyBowing) {
@@ -358,7 +378,10 @@ export class Interactions {
     } else if (state.autoBow) {
       if (!this.wasAutoBow) this.biteTimer = 0;
       this.autoBowTimer += dt;
-      const STROKE = 2.6;
+      // the détaché's stroke length tracks its speed setting, so a faster
+      // auto-bow visibly sweeps faster (and a slow one lingers), landing in the
+      // same fast→slow band as the manual strokes rather than a fixed tempo.
+      const STROKE = clamp(0.57 / Math.max(0.02, state.autoBowSpeed), 0.6, 40);
       if (this.autoBowTimer > STROKE) {
         this.autoBowTimer = 0;
         this.autoBowDir = -this.autoBowDir;
