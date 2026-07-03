@@ -69,15 +69,18 @@ export class Hud {
         fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
         (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The bow pressure slider
         (or pen/touch pressure) sets bow weight: too little skates on the surface, too
-        much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string below
-        the fingerboard (on the bridge side), bend it sideways and release.</p>
+        much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string below the
+        fingerboard, or reach in from either side of the board, bend it sideways and
+        release — so you can pluck an open string sul tasto, anywhere up its length.</p>
         <p><b>Left hand</b>: tap anywhere on the fingerboard to place a finger — it stays
         (latches) so you can bow with the mouse. Drag for glissando; the drag can even
         carry the finger on past the end of the board, higher than the board itself
         reaches. Quick-tap the finger, tap above the nut, or press <kbd>Esc</kbd> /
         <b>Lift</b> to lift it. In <b>Touch</b> mode the finger only brushes the string:
         touch a glowing node to sound a natural harmonic.</p>
-        <p><b>Multi-touch</b>: hold a stop with one finger while bowing with another.</p>
+        <p><b>Multi-touch</b>: hold a stop with one finger while bowing or plucking with
+        another — a second touch on the board, bridge-side of the stop, plays over the
+        board (sul tasto).</p>
         <p class="desktop-only"><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
         (flip direction when you run out of bow), hold <kbd>Space</kbd> for auto-bowing,
         <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
