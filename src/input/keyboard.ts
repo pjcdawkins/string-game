@@ -3,18 +3,21 @@
  * lives on the number row: each held digit contributes its value in semitones
  * above the open string (1 = semitone, 2 = whole tone … 9), and chords of
  * digits ADD — 4+3 stops a fifth, 9+3 an octave — so intervals beyond nine
- * semitones are quick to build. 0 forces the open string. Digits behave like
- * real fingers: the note sounds while held, releasing peels its interval off
- * again (or lifts the hand entirely), and holding Shift makes pitch changes
- * portamento — the finger glides instead of jumping. The right hand lives on
- * the arrows: → is a down bow, ← an up bow, ↑/↓ slide the contact point
- * toward the nut/bridge, and holding [ / ] eases off / leans into the string
- * (bow pressure). Holding Space sustains an automatic détaché instead
- * (release to stop); the arrows stay fully manual, and override it while
- * held. All of it combines mid-stroke.
+ * semitones are quick to build. Chords peel as fingers lift, but the finger
+ * latches: releasing every digit leaves it stopped at the last position (0 or
+ * Esc lift it). Holding Shift makes pitch changes portamento — the finger
+ * glides instead of jumping. The right hand lives on the arrows: → is a down
+ * bow, ← an up bow, ↑/↓ slide the contact point toward the nut/bridge, and
+ * holding [ / ] eases off / leans into the string (bow pressure). Holding
+ * Space sustains an automatic détaché instead (release to stop); the arrows
+ * stay fully manual, and override it while held. All of it combines
+ * mid-stroke. The string is chosen with Page Up/Page Down (one string at a
+ * time, no looping) or by its letter name (G/D/A/E); , and . nudge the bow
+ * speed down/up (manual and auto alike, even mid-stroke); S sets the firm
+ * Press stop, Esc lifts the left hand.
  */
 import { engine } from "../audio/engine";
-import { state, notify, FINGER_RADIUS } from "../state";
+import { state, notify, STRINGS, FINGER_RADIUS } from "../state";
 import type { Interactions } from "./interactions";
 
 /** Semitones above the open string contributed by each held finger key. */
@@ -31,6 +34,19 @@ const FINGER_KEYS: Record<string, number> = {
 };
 
 const BOW_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"]);
+
+/** Letter keys that jump straight to a named open string (G/D/A/E on a
+ * violin). Derived from the string set's note names, so adding a viola/cello
+ * (with a C string) extends this automatically. */
+const STRING_BY_LETTER: Record<string, number> = {};
+STRINGS.forEach((s, i) => {
+  STRING_BY_LETTER[s.name[0].toUpperCase()] = i;
+});
+
+// , / . nudge the auto-bow speed down / up over the model's range.
+const BOW_SPEED_STEP = 0.03;
+const BOW_SPEED_MIN = 0.02;
+const BOW_SPEED_MAX = 0.6;
 
 export class Keyboard {
   /** Finger keys currently held; their semitone values add up. */
@@ -65,6 +81,43 @@ export class Keyboard {
       e.preventDefault();
       this.heldFingers.clear();
       this.input.liftFinger();
+      return;
+    }
+    // string switching: Page Up/Down step one string (no looping past the ends)
+    if (e.code === "PageUp" || e.code === "PageDown") {
+      e.preventDefault();
+      if (e.repeat) return;
+      this.selectString(state.stringIdx + (e.code === "PageUp" ? 1 : -1));
+      return;
+    }
+    // letter keys jump to a named open string (G/D/A/E)
+    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+      const letter = e.key.toUpperCase();
+      if (letter in STRING_BY_LETTER) {
+        e.preventDefault();
+        if (e.repeat) return;
+        this.selectString(STRING_BY_LETTER[letter]);
+        return;
+      }
+      // S = "stop" with the left hand: the firm Press mode (as in the HUD)
+      if (letter === "S") {
+        e.preventDefault();
+        if (e.repeat) return;
+        state.leftMode = "press";
+        notify();
+        return;
+      }
+    }
+    // , / . decrease / increase the (auto-)bow speed; repeat to sweep
+    if (e.code === "Comma" || e.code === "Period") {
+      e.preventDefault();
+      const dir = e.code === "Period" ? 1 : -1;
+      state.autoBowSpeed = clamp(
+        state.autoBowSpeed + dir * BOW_SPEED_STEP,
+        BOW_SPEED_MIN,
+        BOW_SPEED_MAX
+      );
+      notify();
       return;
     }
     if (e.code === "Space") {
@@ -106,8 +159,10 @@ export class Keyboard {
     }
     if (e.code in FINGER_KEYS) {
       this.heldFingers.delete(e.code);
+      // While other digits are still down the interval peels off; releasing
+      // the last one leaves the finger latched where it is (like a mouse
+      // click). 0 or Esc lift it.
       if (this.heldFingers.size) this.applyFinger();
-      else this.input.liftFinger();
       return;
     }
     if (e.code === "Space") {
@@ -164,10 +219,25 @@ export class Keyboard {
       (b.has("BracketRight") ? 1 : 0) - (b.has("BracketLeft") ? 1 : 0)
     );
   }
+
+  /** Switch to string `idx`, clamped to the ends (no wrap-around), starting
+   * audio and pushing the new string's spec into the engine like the HUD's
+   * string buttons do. */
+  private selectString(idx: number): void {
+    const next = Math.max(0, Math.min(STRINGS.length - 1, idx));
+    if (next === state.stringIdx) return;
+    state.stringIdx = next;
+    void engine.ensureStarted().then(() => engine.setString(STRINGS[next].spec));
+    notify();
+  }
 }
 
 function sign(v: number): -1 | 0 | 1 {
   return v < 0 ? -1 : v > 0 ? 1 : 0;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, v));
 }
 
 function isEditable(t: EventTarget | null): boolean {

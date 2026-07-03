@@ -82,10 +82,16 @@ export class Hud {
         <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
         <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. Left hand — digits are
         semitones above the open string (<kbd>1</kbd> = semitone … <kbd>9</kbd>) and held
-        digits <i>add</i>: 4+3 stops a fifth, 9+3 an octave. Release to peel intervals off,
-        <kbd>0</kbd> is the open string, hold <kbd>Shift</kbd> for portamento slides.
+        digits <i>add</i>: 4+3 stops a fifth, 9+3 an octave. Releasing peels intervals off, and
+        letting go of every digit leaves the finger latched there — <kbd>0</kbd> plays the open
+        string and <kbd>Esc</kbd> lifts the hand. Hold <kbd>Shift</kbd> for portamento slides.
+        <kbd>S</kbd> is the firm press (stop).
         Everything combines mid-stroke: slide the contact point, swell, and change fingers
         while bowing.</p>
+        <p class="desktop-only"><b>Strings</b> (desktop): <kbd>Page&nbsp;Up</kbd>/<kbd>Page&nbsp;Down</kbd>
+        move up/down one string, or press its letter — <kbd>G</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>E</kbd> —
+        to jump straight there. <kbd>,</kbd>/<kbd>.</kbd> slow down / speed up the bow (arrow strokes
+        and auto-bow alike, even mid-stroke), and <kbd>?</kbd> reopens this help.</p>
         <p>Try: slide the bow toward the bridge (ponticello glassiness) or over the
         fingerboard (tasto flute); crank bow pressure at low speed for the raucous
         regime; touch ½, ⅓, ¼ nodes for harmonics.</p>
@@ -150,18 +156,25 @@ export class Hud {
     help.addEventListener("pointerdown", (e) => {
       if (e.target === help) closeHelp();
     });
-    // Esc closes the dialog; capture phase so the gameplay Esc handler
-    // (lift finger) doesn't also fire while the dialog is up
+    const helpOpen = () => !help.classList.contains("hidden");
+    // Esc or Enter dismiss the dialog; capture phase so the gameplay Esc
+    // handler (lift finger) doesn't also fire while the dialog is up, and so
+    // Enter doesn't leak into any focused control
     window.addEventListener(
       "keydown",
       (e) => {
-        if (e.key === "Escape" && !help.classList.contains("hidden")) {
+        if ((e.key === "Escape" || e.key === "Enter") && helpOpen()) {
           closeHelp();
           e.stopPropagation();
+          e.preventDefault();
         }
       },
       true
     );
+    // ? opens the help dialog (mirrors the ? button)
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "?" && !helpOpen()) help.classList.remove("hidden");
+    });
     // auto-open help on the first visit only; the ? button reopens it
     let seen = false;
     try {

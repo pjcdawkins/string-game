@@ -47,7 +47,13 @@ const ACCEL_REF = 4.0; // gesture speed (world units/s) giving half the extra ga
 // the *visible* speed scales with the bow's on-screen size, faster on a wide
 // desktop bow, so a held arrow no longer crawls across a stubby bow.) Also how
 // fast the up/down arrows slide the contact point along the string.
+// KEY_BOW_SPEED is the manual stroke speed at the *default* bow-speed setting;
+// arrow strokes scale with the shared setting (state.autoBowSpeed, nudged by
+// , / .) about that default, so one control governs both the manual and the
+// auto bow and it responds live even mid-stroke. BOW_SPEED_DEFAULT mirrors the
+// state's initial autoBowSpeed.
 const KEY_BOW_SPEED = 0.32;
+const BOW_SPEED_DEFAULT = 0.22;
 const KEY_BOW_XRATE = 2.1;
 const KEY_CONTACT_RATE = 0.35;
 // Attack of a keyboard stroke: speed rises from rest over KEY_ATTACK_S while
@@ -370,7 +376,10 @@ export class Interactions {
         // from zero reliably captures the Helmholtz fundamental instead of
         // a higher slip regime
         const ramp = Math.min(1, this.keyStrokeTime / KEY_ATTACK_S);
-        this.bowVel = this.keyBowDir * KEY_BOW_SPEED * ramp;
+        // scale the tuned default speed by the shared bow-speed setting, so
+        // , / . slow down / speed up the arrow-key strokes too, live
+        const speed = KEY_BOW_SPEED * (state.autoBowSpeed / BOW_SPEED_DEFAULT);
+        this.bowVel = this.keyBowDir * speed * ramp;
       }
       this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -BOW_END, BOW_END);
       const kbite = 1 + KEY_BITE_AMP * Math.max(0, 1 - this.biteTimer / 0.25);
