@@ -1,6 +1,6 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity } from "./scene/tools";
-import { Interactions, BOW_MAX } from "./input/interactions";
+import { Interactions, BOW_MAX, BOW_END } from "./input/interactions";
 import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
@@ -73,6 +73,12 @@ function frame(now: number): void {
   hud.updateMeters();
 }
 
+// World units the bow mesh moves per unit of bowX: at full travel (±BOW_END)
+// the string's contact point sits near the tip / the frog, so a full stroke
+// visibly plays the whole bow — legible even on a narrow touchscreen, where
+// the finger itself can only cover a small lateral distance.
+const BOW_MESH_X = 0.9;
+
 function updateTools(): void {
   const t = view.tools;
   t.bow.visible = false;
@@ -94,7 +100,8 @@ function updateTools(): void {
     const engaged = input.bowEngaged || state.autoBow || input.keyBowing;
     const atHover = !engaged && input.keyContactDir === 0 && hoverRight;
     const s = atHover ? Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s)) : input.bowPos;
-    const x = atHover ? hover!.x * 0.25 : input.bowX * 0.25;
+    const hx = atHover ? Math.max(-BOW_END, Math.min(BOW_END, hover!.x)) : input.bowX;
+    const x = hx * BOW_MESH_X;
     t.bow.position.set(x, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
   } else {
