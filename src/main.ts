@@ -1,6 +1,6 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity, BOW_HAIR_TIP, BOW_HAIR_FROG } from "./scene/tools";
-import { Interactions, BOW_MAX, BOW_END } from "./input/interactions";
+import { Interactions, BOW_MAX, BOW_END, LEFT_CATCH_X } from "./input/interactions";
 import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
@@ -93,8 +93,12 @@ function updateTools(): void {
 
   const hover = input.hover;
   const boundary = input.zoneBoundary();
-  const hoverRight = hover && hover.s >= boundary && hover.s <= 1.05;
-  const hoverLeft = hover && hover.s > -0.02 && hover.s < boundary;
+  // The finger previews over (and just beside) the strings on the board; above
+  // the nut (s < 0) a tap lifts instead of placing, so no place-ghost there.
+  // The implement previews below the board and out in the flanks — where a
+  // touch reaches in to bow / pizz sul tasto (matching onDown's routing).
+  const hoverLeft = hover && hover.s >= 0 && hover.s < boundary && Math.abs(hover.x) < LEFT_CATCH_X;
+  const hoverRight = hover && !hoverLeft && hover.s >= 0 && hover.s <= 1.05;
 
   // note guide: show what the cursor position would sound under the finger
   hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);

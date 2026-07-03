@@ -34,11 +34,19 @@ npm run build    # production build (worklet bundles to a self-contained file)
   modulation, as on the real instrument.
 - **Pluck** with a plectrum (hard, bright) or a fingertip (soft, round): grab
   the string, bend it, release. The bend point shapes the spectrum (comb
-  filtering — pluck at 1/4 and the 4th harmonic family is missing).
-- **Stop** the string anywhere on the fingerboard: click to latch a finger,
-  drag for glissando, quick-tap to lift, `Esc` to clear. Multi-touch: hold a
-  stop while bowing. The bow and plucks always stay on the bridge side of a
-  stopped finger — the nut-side portion of the string is not modelled.
+  filtering — pluck at 1/4 and the 4th harmonic family is missing). Grabbing
+  can start from beside the board too — reach in from the flank and flick — so
+  an open string can be plucked *sul tasto*, anywhere up its length.
+- **Stop** the string anywhere on the fingerboard: a tap on the board latches
+  a finger, a drag glissandos — and the drag can carry the finger on past the
+  end of the board toward the bridge, higher in pitch than the board itself
+  reaches (as far as a bow-width from the bridge). Quick-tap a placed finger,
+  or tap above the nut, to lift it; `Esc` clears it too. The board, right over
+  the strings, is the left hand's; the bow and plucks live below it or reach in
+  from either flank. Multi-touch: hold a stop with one finger and bow or pluck
+  with another — a second touch on the board, bridge-side of the stop, plays
+  over the board (*sul tasto*). The bow and plucks always stay on the bridge
+  side of a stopped finger — the nut-side portion of the string is not modelled.
 - **Harmonics**: switch the left hand to *Touch* mode and brush a node
   (½, ⅓, ¼ … — with a firm stop down they are drawn relative to the stopped
   length) — the model kills every partial without a node there, just like a

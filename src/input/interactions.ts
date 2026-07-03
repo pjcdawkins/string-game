@@ -1,9 +1,13 @@
 /**
- * Pointer interaction layer. The viewport is split at the end of the
- * fingerboard: gestures on the fingerboard control the left hand (stopping /
- * harmonic touches, with glissando and tap-to-lift), gestures below it apply
- * the selected implement (bow strokes, plectrum/finger plucks).
- * Multi-touch works: one finger can hold a stop while another bows.
+ * Pointer interaction layer. The fingerboard, directly over and just beside the
+ * strings, belongs to the left hand: a tap there stops the string, a drag
+ * glissandos, and the drag may carry the finger past the board's end toward the
+ * bridge. Everything else is the right hand — below the board, or reaching in
+ * from the flanks to either side, where a lone touch can bow or pizz sul tasto
+ * without a stop. A tap above the nut lifts the finger; a quick tap on a placed
+ * finger lifts it too. Multi-touch works: one finger holds a stop while another
+ * bows, and a second touch on the board clearly to the bridge side of a held
+ * stop is the right hand playing over the board (sul tasto / pizz).
  */
 import { SceneView } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
@@ -14,11 +18,32 @@ import type { GrabState } from "../scene/visualString";
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
 export const BOW_MAX = 0.985;
+// Minimum gap kept between a stopped finger and the bow contact: the bow always
+// sits on the bridge side of the finger, with at least this much string between
+// them (see implementMin) — roughly the width the bow itself needs.
+const BOW_CLEARANCE = 0.06;
 // fingerPos is the fingertip CENTRE; letting it slide a radius up onto the nut
 // puts the note's terminating edge on the nut, i.e. the open string
 const FINGER_MIN = -FINGER_RADIUS;
-const FINGER_MAX = 0.82;
+// A tap only ever lands on the fingerboard (s < FINGERBOARD_END), but a drag
+// may carry the finger on past the board's end toward the bridge — as far up as
+// a bow can still fit between it and the bridge, i.e. one bow-clearance short of
+// the bow's own bridge-side limit (about a bow-width from the bridge).
+const FINGER_DRAG_MAX = BOW_MAX - BOW_CLEARANCE;
 const MAX_BEND = 0.55;
+
+// Lateral half-width (world units) of the left-hand catch on the fingerboard: a
+// touch within this of the strings' centre line stops the string, while one
+// further out to either side is the right hand reaching in (bow contact / pizz)
+// — so an open string can be bowed or plucked sul tasto from just beside the
+// board, no stop needed. The strings span ~±0.19 and the board ~±0.24, so this
+// stays comfortably wider than the board while leaving the flanks to the bow.
+export const LEFT_CATCH_X = 0.45;
+// While a finger already holds a stop, a second touch over the strings counts
+// as the right hand (sul tasto / pizz over the board) only this far or more
+// toward the bridge from the stop; nearer than that it is ambiguous and ignored
+// so it can't be taken for a second stop. Comfortably more than BOW_CLEARANCE.
+const SECOND_TOUCH_GAP = 0.12;
 
 // How far the bow may travel laterally (in bowX units) before it runs out of
 // hair — shared by keyboard strokes and pointer strokes alike.
@@ -134,52 +159,86 @@ export class Interactions {
     return this.keyBowDir !== 0 && !this.bowEngaged;
   }
 
-  /** Where the left-hand zone ends and the implement zone begins. The bow
-   * and the plucking implements may all reach over the fingerboard (sul
-   * tasto); only while auto-bow holds the stroke does the whole fingerboard
-   * belong to the left hand. */
+  /** Where the left-hand zone ends and the implement zone begins: the end of
+   * the fingerboard. The whole board belongs to the left hand — a tap anywhere
+   * on it stops the string — while the bow and plucking implements live on the
+   * bridge side of the board. They can still be *swept* up onto it (sul tasto)
+   * once a stroke is under way; they just can't be started there. */
   zoneBoundary(): number {
-    return state.autoBow ? FINGERBOARD_END : BOW_MIN;
+    return FINGERBOARD_END;
   }
 
   /** Lowest position the bow/pluck may take: always on the bridge side of a
    * stopped finger — the nut-side portion of the string is not modelled. */
   implementMin(): number {
-    return state.fingerOn ? Math.max(BOW_MIN, state.fingerPos + 0.06) : BOW_MIN;
+    return state.fingerOn ? Math.max(BOW_MIN, state.fingerPos + BOW_CLEARANCE) : BOW_MIN;
   }
 
   private onDown(e: PointerEvent): void {
     (e.target as Element).setPointerCapture?.(e.pointerId);
     void engine.ensureStarted();
     const c = this.view.screenToString(e.clientX, e.clientY);
-    if (c.s < this.zoneBoundary() && Math.abs(c.x) < 1.2) {
-      if (this.leftPointer !== -1) return;
+
+    const onBoard = c.s < this.zoneBoundary();
+    const nearStrings = Math.abs(c.x) < LEFT_CATCH_X;
+
+    // The first touch over (or just beside) the strings on the board is the
+    // left hand: it stops the string.
+    if (onBoard && nearStrings && this.leftPointer === -1) {
+      // A tap above the nut (s < 0, off the top of the board) lifts the finger
+      // — the "clear the hand" gesture; it doesn't begin a drag.
+      if (c.s < 0) {
+        this.liftFinger();
+        return;
+      }
       this.leftPointer = e.pointerId;
       this.leftMoved = false;
       this.leftDownTime = performance.now();
       this.leftDownPos = c.s;
       this.placeFinger(c.s);
-    } else {
-      if (this.rightPointer !== -1) return;
-      this.rightPointer = e.pointerId;
-      this.pointerForce = e.pointerType !== "mouse" && e.pressure > 0 ? e.pressure : -1;
-      if (state.tool === "bow") {
-        this.bowEngaged = true;
-        this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
-        this.bowX = clamp(c.x, -BOW_END, BOW_END);
-        this.pointerRawX = c.x;
-        this.gestureDx = 0;
-        this.bowVel = 0;
-        this.biteTimer = 0;
-      } else {
-        // grab displacement is measured from the string's own lane (the
-        // selected string sits off-centre — see scene/lanes.ts)
-        const p = clamp(c.s, this.implementMin(), BOW_MAX);
-        const dx = c.x - this.view.activeLaneX(p);
-        if (Math.abs(dx) < 0.4) {
-          this.grabbed = { p, dx: clamp(dx, -MAX_BEND, MAX_BEND) };
-        }
+      return;
+    }
+
+    // A second touch over the strings, while a stop is already held, is the
+    // right hand playing over the board (sul tasto / pizz) — but only clearly
+    // on the bridge side of the stop. Nearer than that, or nut-ward of it, is
+    // ambiguous (it could be a second stopping finger), so ignore it.
+    if (onBoard && nearStrings) {
+      if (this.leftPointer !== -1 && c.s > state.fingerPos + SECOND_TOUCH_GAP) {
+        this.startImplement(e, c);
       }
+      return;
+    }
+
+    // Below the board, or reaching in from the flanks to either side: the
+    // right hand (a lone touch here bows/pizzes an open string, no stop).
+    this.startImplement(e, c);
+  }
+
+  /** Begin a right-hand gesture with this pointer: a bow stroke, or a
+   * pluck-grab on the active string. */
+  private startImplement(e: PointerEvent, c: { s: number; x: number }): void {
+    if (this.rightPointer !== -1) return;
+    this.rightPointer = e.pointerId;
+    this.pointerForce = e.pointerType !== "mouse" && e.pressure > 0 ? e.pressure : -1;
+    if (state.tool === "bow") {
+      this.bowEngaged = true;
+      this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
+      this.bowX = clamp(c.x, -BOW_END, BOW_END);
+      this.pointerRawX = c.x;
+      this.gestureDx = 0;
+      this.bowVel = 0;
+      this.biteTimer = 0;
+    } else {
+      // Grab the active string wherever the touch lands and bend it toward the
+      // finger (displacement measured from the string's own lane — the selected
+      // string sits off-centre, see scene/lanes.ts — and clamped to MAX_BEND).
+      // Grabbing no longer needs to start right on the string, so a touch out
+      // in the flank pulls the string aside from there: reach in and flick to
+      // pizz an open string anywhere up its length.
+      const p = clamp(c.s, this.implementMin(), BOW_MAX);
+      const dx = clamp(c.x - this.view.activeLaneX(p), -MAX_BEND, MAX_BEND);
+      this.grabbed = { p, dx };
     }
   }
 
@@ -242,7 +301,7 @@ export class Interactions {
   private tappedExistingFinger = false;
 
   private placeFinger(s: number): void {
-    const p = clamp(s, FINGER_MIN, FINGER_MAX);
+    const p = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     if (state.fingerOn && Math.abs(p - state.fingerPos) < 0.035) {
       this.tappedExistingFinger = true;
     }
@@ -253,7 +312,7 @@ export class Interactions {
    * With `glide`, a finger already down slides to the new position
    * (portamento) instead of jumping. */
   placeFingerAt(s: number, glide = false): void {
-    const p = clamp(s, FINGER_MIN, FINGER_MAX);
+    const p = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     if (glide && state.fingerOn) {
       this.fingerGlideTarget = p;
     } else {
@@ -268,7 +327,7 @@ export class Interactions {
 
   private moveFinger(s: number): void {
     this.tappedExistingFinger = false;
-    state.fingerPos = clamp(s, FINGER_MIN, FINGER_MAX);
+    state.fingerPos = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();
   }
