@@ -132,11 +132,14 @@ export class Interactions {
         this.lastFrameX = c.x;
         this.bowVel = 0;
         this.biteTimer = 0;
-      } else if (Math.abs(c.x) < 0.4) {
-        this.grabbed = {
-          p: clamp(c.s, this.implementMin(), BOW_MAX),
-          dx: clamp(c.x, -MAX_BEND, MAX_BEND),
-        };
+      } else {
+        // grab displacement is measured from the string's own lane (the
+        // selected string sits off-centre — see scene/lanes.ts)
+        const p = clamp(c.s, this.implementMin(), BOW_MAX);
+        const dx = c.x - this.view.activeLaneX(p);
+        if (Math.abs(dx) < 0.4) {
+          this.grabbed = { p, dx: clamp(dx, -MAX_BEND, MAX_BEND) };
+        }
       }
     }
   }
@@ -154,7 +157,11 @@ export class Interactions {
         this.bowX = c.x;
         this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
       } else if (this.grabbed) {
-        this.grabbed.dx = clamp(c.x, -MAX_BEND, MAX_BEND);
+        this.grabbed.dx = clamp(
+          c.x - this.view.activeLaneX(this.grabbed.p),
+          -MAX_BEND,
+          MAX_BEND
+        );
       }
       return;
     }

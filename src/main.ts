@@ -39,6 +39,7 @@ function frame(now: number): void {
     engine.setString(STRINGS[state.stringIdx].spec);
   }
 
+  view.setActiveString(state.stringIdx);
   input.update(dt);
   state.meter = engine.meter;
   if (engine.analyser) {
@@ -100,7 +101,12 @@ function updateTools(): void {
     const mesh = state.tool === "pick" ? t.pick : t.rightFinger;
     if (input.grabbed) {
       mesh.visible = true;
-      mesh.position.set(input.grabbed.dx, view.sToY(input.grabbed.p), 0.06);
+      // the grab displacement is relative to the string's own lane
+      mesh.position.set(
+        view.activeLaneX(input.grabbed.p) + input.grabbed.dx,
+        view.sToY(input.grabbed.p),
+        0.06
+      );
       setToolOpacity(mesh, 1);
     } else if (hoverRight) {
       mesh.visible = true;
@@ -115,12 +121,13 @@ function updateTools(): void {
   if (state.fingerOn) {
     lf.visible = true;
     const depth = Math.min(0.085, 0.1 * input.fingerPressure);
-    lf.position.set(0, view.sToY(state.fingerPos), 0.1 - depth);
+    lf.position.set(view.activeLaneX(state.fingerPos), view.sToY(state.fingerPos), 0.1 - depth);
     setToolOpacity(lf, 1);
     view.showFingerContact(state.fingerPos, input.fingerPressure > 0.7 ? 1 : 0);
   } else if (hoverLeft) {
     lf.visible = true;
-    lf.position.set(0, view.sToY(Math.max(0.02, hover!.s)), 0.16);
+    const s = Math.max(0.02, hover!.s);
+    lf.position.set(view.activeLaneX(s), view.sToY(s), 0.16);
     setToolOpacity(lf, 0.45);
     view.showFingerContact(0, 0);
   } else {

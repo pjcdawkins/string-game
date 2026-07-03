@@ -1,6 +1,9 @@
 /**
- * Three.js scene: a string stretched vertically across the whole viewport,
- * nut at the top, bridge at the bottom, fingerboard behind the upper part.
+ * Three.js scene: four strings stretched vertically across the whole
+ * viewport (G, D, A, E left to right — lanes IV..I, see ./lanes.ts), nut at
+ * the top, bridge at the bottom, fingerboard behind the upper part. The
+ * selected string is a live VisualString drawn at full contrast over the
+ * three faint idle ones.
  * Provides an affine screen<->string mapping used by the input layer
  * (computed by projecting reference points, so it stays correct under any
  * camera/rotation).
@@ -16,7 +19,8 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet } from "./tools";
-import { FINGERBOARD_END } from "../state";
+import { FINGERBOARD_END, state } from "../state";
+import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
 
 export const STRING_TOP = 2.1;
@@ -38,15 +42,37 @@ const BODY_LEN = 3.9; // outline design length (see OUTLINE_HALF)
 const BRIDGE_AT = 0.54; // bridge at 54% of the body, as measured on the photo
 const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin
 
-// instrument palette: wood tones shared by both themes
+/** World y where a string at lateral offset `x` breaks over the bridge: the
+ * crest of the bridge's raked top edge at that x. The crown falls away toward
+ * the ears, so the outer strings break slightly lower than the middle ones —
+ * matching the curve drawn in buildBridge(). */
+function bridgeBreakY(x: number): number {
+  const t = (x / 0.235 + 1) / 2; // parameter along the top-edge quadratic
+  const local = -0.038 + 2 * t * (1 - t) * 0.113;
+  return STRING_BOT + (local - 0.02) * BRIDGE_SQUASH;
+}
+
+// Afterlength: below the bridge the strings fan in again toward the
+// tailpiece, which hangs below the bottom of the view (the vertical FOV
+// puts the viewport edge at y ≈ -2.33), so the lines simply run off-screen
+// aimed at it. TAIL_GAP is the lane spacing at the lines' (off-screen) end:
+// the nut spacing, since the strings never sit closer together than at the
+// nut — everything visible stays wider than that.
+const TAIL_Y = STRING_BOT - 0.78;
+const TAIL_GAP = 0.062;
+
+function tailX(idx: number): number {
+  return (idx - 1.5) * TAIL_GAP;
+}
+
+// instrument palette: wood tones shared by both themes. Flat fills only —
+// no sheens or shading; the vector look carries the form by outline alone.
 const WOOD = {
   plate: 0x8e4d26, // varnished spruce top
-  plateSheen: 0xa65f2f, // lighter centre, suggests the arching
   edge: 0x1f1209, // dark outline around the top plate
   purfling: 0x2b1a0c,
   fhole: 0x140c06,
   board: 0x16120f, // ebony fingerboard
-  boardSheen: 0x241d17,
   nut: 0x2a221b, // ebony like the board, only just distinguishable
   nutEdge: 0x554738, // faint warm line where the string breaks over it
   bridge: 0xddba8a, // maple
@@ -65,6 +91,12 @@ export class SceneView {
   private nodeMarkers = new THREE.Group();
   private fingerContact: THREE.Mesh;
   private fatLineMats: LineMaterial[] = [];
+  // the four strings at rest, one per lane; the selected lane's idle line is
+  // hidden and the live VisualString vibrates over the others in its place
+  private idleStrings: Line2[] = [];
+  private idleStringMats: LineMaterial[] = [];
+  private afterLength!: Line2; // the selected string below the bridge
+  private activeString = -1;
 
   // cached affine mapping screen px -> (s along string, x lateral world units)
   private mapOrigin = new THREE.Vector2();
@@ -85,6 +117,7 @@ export class SceneView {
     this.buildFurniture();
     this.visual = new VisualString(STRING_TOP, STRING_BOT);
     this.instrument.add(this.visual.group);
+    this.setActiveString(state.stringIdx);
     this.tools = makeTools(this.instrument);
 
     this.fingerContact = new THREE.Mesh(
@@ -110,20 +143,18 @@ export class SceneView {
   private applyTheme(t: SceneTheme): void {
     this.renderer.setClearColor(t.bg);
     this.visual.setTheme(t);
+    for (const m of this.idleStringMats) {
+      m.color.set(t.string);
+      m.opacity = t.idleStringOpacity;
+    }
+    (this.afterLength.material as LineMaterial).color.set(t.string);
     const fc = this.fingerContact.material as THREE.MeshBasicMaterial;
     fc.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
     fc.needsUpdate = true;
   }
 
-  private flat(color: number, opts: { opacity?: number } = {}): THREE.MeshBasicMaterial {
-    const transparent = opts.opacity !== undefined && opts.opacity < 1;
-    return new THREE.MeshBasicMaterial({
-      color,
-      side: THREE.DoubleSide,
-      transparent,
-      opacity: opts.opacity ?? 1,
-      depthWrite: !transparent,
-    });
+  private flat(color: number): THREE.MeshBasicMaterial {
+    return new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide });
   }
 
   /** A crisp screen-space outline through `pts` (closed), at depth `z`. */
@@ -142,7 +173,69 @@ export class SceneView {
     this.buildBody();
     this.buildBoardAndNut();
     this.buildBridge();
+    this.buildStrings();
     this.buildNodeMarkers();
+  }
+
+  /** The four strings at rest: faint polylines, one per lane, fanning out
+   * from the nut to their break point on the bridge crown and back in below
+   * it, down to the out-of-view tailpiece. Drawn just in front of the
+   * bridge, as the strings pass over it. */
+  private buildStrings(): void {
+    for (let i = 0; i < N_LANES; i++) {
+      const xBridge = laneX(i, 1);
+      const geo = new LineGeometry();
+      geo.setPositions([
+        laneX(i, 0), STRING_TOP, -0.01,
+        xBridge, bridgeBreakY(xBridge), -0.01,
+        tailX(i), TAIL_Y, -0.01,
+      ]);
+      const mat = new LineMaterial({
+        color: 0xffffff, // themed in applyTheme
+        linewidth: LANE_LINEWIDTH[i],
+        worldUnits: false,
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+      });
+      this.fatLineMats.push(mat);
+      this.idleStringMats.push(mat);
+      const line = new Line2(geo, mat);
+      this.idleStrings.push(line);
+      this.instrument.add(line);
+    }
+
+    // the selected string's own afterlength (its idle polyline is hidden,
+    // and the live VisualString stops at the bridge, where it is pinned)
+    this.afterLength = new Line2(
+      new LineGeometry(),
+      new LineMaterial({ color: 0xffffff, linewidth: 2.6, worldUnits: false })
+    );
+    this.fatLineMats.push(this.afterLength.material as LineMaterial);
+    this.instrument.add(this.afterLength);
+  }
+
+  /** Select the sounding string: the live VisualString moves onto its lane
+   * (vibrating over the idle neighbours) and that lane's idle line hides,
+   * while its full-contrast afterlength keeps the string continuing over
+   * the bridge toward the tailpiece. */
+  setActiveString(idx: number): void {
+    if (idx === this.activeString) return;
+    this.activeString = idx;
+    this.idleStrings.forEach((l, i) => (l.visible = i !== idx));
+    const xBridge = laneX(idx, 1);
+    this.visual.setLane(idx, bridgeBreakY(xBridge));
+    this.afterLength.geometry.setPositions([
+      xBridge, bridgeBreakY(xBridge), -0.005,
+      tailX(idx), TAIL_Y, -0.005,
+    ]);
+    (this.afterLength.material as LineMaterial).linewidth = LANE_LINEWIDTH[idx];
+    this.nodeBase = -1; // re-seat the harmonic markers onto the new lane
+  }
+
+  /** Lateral world-x of the active string at position `s` along it. */
+  activeLaneX(s: number): number {
+    return laneX(this.activeString, s);
   }
 
   /** Violin top plate (upper/lower bouts, deep C-bout with protruding
@@ -167,19 +260,11 @@ export class SceneView {
     plate.position.z = zPlate;
     body.add(plate);
 
-    // subtle lighter centre: the outline offset well inward, suggesting the
-    // arching of the top without any lighting (an inset, not a centroid
-    // scale — scaling pokes outside the waist once the lower bout is
-    // foreshortened)
+    // (the plate is a single flat fill — the earlier lighter-centre "arching
+    // sheen" is gone; the centroid is still needed to offset the purfling)
     const centroid = pts
       .reduce((a, p) => a.add(p), new THREE.Vector2())
       .multiplyScalar(1 / pts.length);
-    const sheen = new THREE.Mesh(
-      new THREE.ShapeGeometry(new THREE.Shape(inset(pts, 0.15, centroid, true))),
-      this.flat(WOOD.plateSheen, { opacity: 0.32 })
-    );
-    sheen.position.z = zPlate + 0.005;
-    body.add(sheen);
 
     body.add(this.outline(pts, zPlate + 0.015, WOOD.edge, 2.4));
     body.add(this.outline(inset(pts, 0.055, centroid), zPlate + 0.01, WOOD.purfling, 1.2));
@@ -231,41 +316,33 @@ export class SceneView {
     return g;
   }
 
-  /** Fingerboard (tapered, rounded end, faint sheen strip) and bone nut. */
+  /** Fingerboard (tapered, rounded end — a single flat ebony fill) and nut.
+   * Widths follow the reference photograph: ≈24 mm across at the nut and
+   * ≈42 mm at the bridge end (1 world unit ≈ 88 mm), so the board reads as
+   * slim as the real one against the body. */
   private buildBoardAndNut(): void {
     const boardTopY = STRING_TOP + 0.08;
     const boardEndY = this.sToY(FINGERBOARD_END);
 
     const bs = new THREE.Shape();
-    bs.moveTo(-0.17, boardTopY);
-    bs.lineTo(0.17, boardTopY);
-    bs.lineTo(0.3, boardEndY + 0.08);
-    bs.quadraticCurveTo(0, boardEndY - 0.12, -0.3, boardEndY + 0.08);
+    bs.moveTo(-0.137, boardTopY);
+    bs.lineTo(0.137, boardTopY);
+    bs.lineTo(0.24, boardEndY + 0.06);
+    bs.quadraticCurveTo(0, boardEndY - 0.1, -0.24, boardEndY + 0.06);
     bs.closePath();
     const board = new THREE.Mesh(new THREE.ShapeGeometry(bs, 10), this.flat(WOOD.board));
     board.position.z = BOARD_SURFACE_Z - 0.01;
     this.instrument.add(board);
 
-    // a slim off-centre highlight, hinting at the board's polish and camber
-    const sheen = new THREE.Shape();
-    sheen.moveTo(0.055, boardTopY - 0.03);
-    sheen.lineTo(0.09, boardTopY - 0.03);
-    sheen.lineTo(0.155, boardEndY + 0.1);
-    sheen.lineTo(0.1, boardEndY + 0.1);
-    sheen.closePath();
-    const sheenMesh = new THREE.Mesh(new THREE.ShapeGeometry(sheen), this.flat(WOOD.boardSheen));
-    sheenMesh.position.z = BOARD_SURFACE_Z - 0.005;
-    this.instrument.add(sheenMesh);
-
     // nut: ebony like the board (as on the real instrument), so it reads as
     // little more than a break line right at the top of the string — a finger
     // can stop all the way up to it (on it, the string is effectively open)
     const nut = new THREE.Mesh(
-      new THREE.ShapeGeometry(roundedRect(0.4, 0.07, 0.02)),
+      new THREE.ShapeGeometry(roundedRect(0.3, 0.07, 0.02)),
       this.flat(WOOD.nut)
     );
     nut.position.set(0, STRING_TOP + 0.042, -0.02);
-    const nutEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.011), this.flat(WOOD.nutEdge));
+    const nutEdge = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.011), this.flat(WOOD.nutEdge));
     nutEdge.position.set(0, STRING_TOP + 0.008, -0.019);
     this.instrument.add(nut, nutEdge);
   }
@@ -354,6 +431,7 @@ export class SceneView {
     for (const d of this.nodeMarkers.children) {
       const p = (d.userData as { p: number }).p;
       const abs = stop + p * (1 - stop);
+      d.position.x = laneX(this.activeString, abs) + 0.14;
       d.position.y = this.sToY(abs);
       d.visible = abs <= FINGERBOARD_END;
     }
@@ -370,6 +448,7 @@ export class SceneView {
   showFingerContact(s: number, strength: number): void {
     const mat = this.fingerContact.material as THREE.MeshBasicMaterial;
     mat.opacity = strength * 0.55;
+    this.fingerContact.position.x = laneX(this.activeString, s);
     this.fingerContact.position.y = this.sToY(s);
   }
 
@@ -489,18 +568,10 @@ function dedupe(pts: THREE.Vector2[]): THREE.Vector2[] {
 
 /** Offset a closed polyline inward by d along per-point normals (toward the
  * centroid — exact enough for the purfling line). At the sharp C-bout corner
- * tips the offset curve self-intersects and pokes outside the outline. Two
- * remedies, by use: for a stroked line (the purfling), *drop* outside points
- * — the resulting chord clips the corner like a purfling bee-sting; for a
- * filled shape (the plate sheen), *clamp* them to `d` inward of the source
- * point along the centroid direction — dropping would leave chords that cut
- * across the concave corner notches and spill the fill outside the plate. */
-function inset(
-  pts: THREE.Vector2[],
-  d: number,
-  centroid: THREE.Vector2,
-  clampOutside = false
-): THREE.Vector2[] {
+ * tips the offset curve self-intersects and pokes outside the outline, so
+ * points that land outside are *dropped* — the resulting chord clips the
+ * corner like a purfling bee-sting. */
+function inset(pts: THREE.Vector2[], d: number, centroid: THREE.Vector2): THREE.Vector2[] {
   const n = pts.length;
   const out: THREE.Vector2[] = [];
   for (let i = 0; i < n; i++) {
@@ -509,11 +580,7 @@ function inset(
     const nrm = new THREE.Vector2(t.y, -t.x);
     if (nrm.dot(centroid.clone().sub(p)) < 0) nrm.negate();
     const q = p.clone().addScaledVector(nrm, d);
-    if (insidePolygon(q, pts)) {
-      out.push(q);
-    } else if (clampOutside) {
-      out.push(p.clone().addScaledVector(centroid.clone().sub(p).normalize(), d));
-    }
+    if (insidePolygon(q, pts)) out.push(q);
   }
   return out;
 }
