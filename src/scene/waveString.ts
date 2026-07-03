@@ -102,6 +102,33 @@ export class WaveString {
     }
   }
 
+  /**
+   * Round the standing shape with a few binomial (1-2-1) smoothing passes,
+   * keeping the terminations fixed as nodes. A freshly plucked triangle has an
+   * infinitely sharp corner whose high modes read, in the slow-motion
+   * caricature, as a jagged travelling "lightning bolt" rather than the smooth
+   * sloshing of a real string. Softening the seed once turns that corner into a
+   * gently curved bend that then travels and reflects rigidly (d'Alembert), so
+   * the whole ring-down looks like a curve, not a kink — closer to the analytic
+   * shapes the bow writes. Both rails are smoothed identically so the wave stays
+   * a zero-velocity displacement (each rail carries half of it).
+   */
+  smooth(passes: number): void {
+    const a = this.nutIndex;
+    const n = this.n;
+    if (n - a < 3) return;
+    for (let p = 0; p < passes; p++) {
+      for (const rail of [this.right, this.left]) {
+        let prev = rail[a];
+        for (let i = a + 1; i < n - 1; i++) {
+          const cur = rail[i];
+          rail[i] = 0.25 * prev + 0.5 * cur + 0.25 * rail[i + 1];
+          prev = cur;
+        }
+      }
+    }
+  }
+
   /** Pluck: a triangle peaking at `pos` (0..1 within the vibrating segment). */
   pluck(pos: number, amp: number): void {
     const a = this.nutIndex;

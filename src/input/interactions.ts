@@ -31,6 +31,10 @@ const FINGER_MIN = -FINGER_RADIUS;
 // the bow's own bridge-side limit (about a bow-width from the bridge).
 const FINGER_DRAG_MAX = BOW_MAX - BOW_CLEARANCE;
 const MAX_BEND = 0.55;
+// A fingertip pizz's soft force pulse, as a fraction of the string period —
+// wide enough to sound mellow (rounder than the plectrum) but not so wide it
+// self-cancels into a whisper. Period-relative so it balances across the range.
+const FINGER_PLUCK_PERIOD_FRAC = 1.5;
 
 // Lateral half-width (world units) of the left-hand catch on the fingerboard: a
 // touch within this of the strings' centre line stops the string, while one
@@ -288,8 +292,11 @@ export class Interactions {
         this.grabbed = null;
         const force = Math.min(1.4, (Math.abs(g.dx) / MAX_BEND) * 1.2);
         if (force > 0.02) {
-          const widthMs = state.tool === "pick" ? 0.7 : 5.0;
-          engine.pluck(g.p, force, widthMs);
+          // a plectrum is a sharp, fixed-width stroke (bright); a fingertip is a
+          // soft pulse keyed to the string period, so its mellow tone and level
+          // stay consistent from the low strings to the high (see StringSim.pluck)
+          if (state.tool === "pick") engine.pluck(g.p, force, 0.7);
+          else engine.pluck(g.p, force, 0, FINGER_PLUCK_PERIOD_FRAC);
           // vibration starts at the fingertip's bridge-side edge (the node)
           const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
           this.view.visual.pluckVisual(g.p, g.dx, stopped);

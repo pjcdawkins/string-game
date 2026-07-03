@@ -29,10 +29,30 @@ import type { SceneTheme } from "./theme";
 
 export const NPTS = 160;
 
-// ring-down character of the freely vibrating string (caricature knobs)
+// ring-down character of the freely vibrating string (caricature knobs). The
+// defaults govern a bow's release ring-down, which already reads naturally; a
+// pluck rings down from a sharp seeded corner instead of the bow's smooth
+// analytic shape, so it gets its own, gentler set (below) — rounder and
+// shorter, so the "lightning bolt" softens into a curve and settles sooner.
 const REFLECT_LOSS = 0.86; // amplitude kept per end reflection (lower = shorter ring)
 const HF_LOSS = 0.12; // extra damping of high modes per reflection (duller decay)
 const NODE_LOSS = 0.45; // energy bled per step at a touched flageolet node
+
+// pluck ring-down: shorter (a pizz note is a brief bloom, not a long sing) and
+// with markedly more HF loss so the travelling corner keeps rounding as it
+// rings rather than staying a stark kink.
+const PLUCK_REFLECT_LOSS = 0.74;
+const PLUCK_HF_LOSS = 0.34;
+// a pizzed harmonic is seeded as its clean standing mode, so it rings down like
+// a bowed flageolet: a moderate, un-node-damped decay that stays long enough to
+// read the curve (node damping is redundant here and would eat the seeded mode).
+const HARMONIC_PLUCK_LOSS = 0.9;
+// binomial smoothing passes applied to the seeded triangle so the ring-down
+// starts as a curved bend instead of an infinitely sharp corner.
+const PLUCK_ROUND_PASSES = 26;
+// amplitude of a pizzed harmonic's seeded standing mode, relative to the pluck
+// displacement — a flageolet speaks softer than a firmly stopped note.
+const HARMONIC_PLUCK_SCALE = 0.6;
 
 // driven bowed-flageolet swing is seeded a touch hotter than the corner regime so
 // the standing mode reads clearly; the glow guard must use the same scale or the
@@ -76,6 +96,17 @@ export class VisualString {
   private glowAmp = 0; // envelope of the actual string motion (drives the glow)
   private helmPhase = 0; // bowed corner travel phase, cycles
   private harmPhase = 0; // bowed-flageolet standing-mode swing phase, cycles
+  // true while a free ring-down is a pluck's (vs a bow release's), so the
+  // ring-down can use the gentler pluck loss/rounding set
+  private plucked = false;
+  // whether the current pluck seeded a harmonic standing mode — latched at
+  // release, since the touching finger may lift while the harmonic still rings
+  // (as a real flageolet does), and the ring-down must keep its long harmonic
+  // decay rather than follow the now-cleared live selection
+  private pluckedHarmonic = false;
+  // harmonic selected by a light touch, cached each frame so a pizz released
+  // between frames can seed the clean standing mode (see pluckVisual)
+  private harmMode = 0;
 
   // theme-dependent glow treatment (see ./theme.ts): additive halo on dark,
   // normal-blended deeper colour on light (additive is invisible there)
@@ -144,17 +175,34 @@ export class VisualString {
     }
   }
 
-  /** Pluck/grab release: seed an initial triangle on the string and let it ring. */
+  /** Pluck/grab release: seed the string and let it ring down as a pluck. */
   pluckVisual(p: number, dx: number, stoppedAt: number): void {
-    // (a held light touch keeps filtering the ring-down via NODE_LOSS in update;
-    // no need to pre-shape the seed — the flageolet emerges on its own)
-    this.wave.setTermination(Math.round(stoppedAt * (NPTS - 1)));
+    this.plucked = true;
+    this.pluckedHarmonic = this.harmMode > 0;
+    const nutI = Math.round(stoppedAt * (NPTS - 1));
+    this.wave.setTermination(nutI);
+    if (this.harmMode > 0) {
+      // pizzed harmonic: seed the clean standing mode directly, so the ring-down
+      // is the same smooth curve a bowed flageolet shows — the harmonic's shape
+      // reads at once, instead of emerging from a jagged, node-filtered triangle
+      // transient (the old "chaotic lightning"). A light touch never firms the
+      // stop, so the mode spans the whole open length.
+      const seg = this.wave.segmentLength;
+      const amp = dx * HARMONIC_PLUCK_SCALE;
+      this.wave.seedProfile((i) =>
+        amp * Math.sin(this.harmMode * Math.PI * ((i - nutI) / seg)),
+      );
+      return;
+    }
     const seg = stoppedAt < 1 ? (p - stoppedAt) / (1 - stoppedAt) : 0.5;
     // seed at the full held displacement (pluck() peaks at exactly `amp`; the
     // half-per-rail split is internal). The held grab re-seeds pluck(seg, dx)
     // each frame, so the ring-down must start at the same dx or the string
     // visibly snaps to half height the instant it is released.
     this.wave.pluck(seg, dx);
+    // round the sharp corner so the ring-down travels as a curved bend, not a
+    // stark kink (the shape then propagates/reflects rigidly, staying rounded)
+    this.wave.smooth(PLUCK_ROUND_PASSES);
   }
 
   update(dt: number, inp: VisualInputs): void {
@@ -187,13 +235,18 @@ export class VisualString {
     // node during free vibration and (when bowing) drive that standing mode
     const harmN = harmonicAt > 0 ? lowestNodeMode(harmonicAt) : 0;
     const nodeIndex = harmonicAt > 0 ? Math.round(node * (NPTS - 1)) : -1;
+    // cache the live harmonic selection so a pizz released between frames can
+    // seed its clean standing mode (see pluckVisual)
+    this.harmMode = harmN;
 
     if (grab) {
       // held aside by hand: a static triangle (re-seeded each frame). On release
       // the input layer calls pluckVisual(), so this same shape starts ringing.
+      this.plucked = false;
       const seg = L0 < 1 ? (grab.p - L0) / (1 - L0) : 0.5;
       this.wave.pluck(seg, grab.dx);
     } else if (sounding) {
+      this.plucked = false;
       // bow drives the string: write its steady shape onto the same waveguide
       this.helmPhase = (this.helmPhase + dt * inp.slowMoHz) % 1;
       this.harmPhase += dt * inp.slowMoHz * Math.max(1, harmN);
@@ -208,12 +261,17 @@ export class VisualString {
       }
     } else {
       // free vibration: the string rings down on its own (a touched node keeps
-      // filtering the ring-down so a plucked/bowed flageolet decays as itself)
+      // filtering the ring-down so a plucked/bowed flageolet decays as itself).
+      // A pluck rings from a sharp seed rather than the bow's smooth shape, so it
+      // uses the gentler pluck set — rounder and shorter — to soften the kink and
+      // keep the note from wobbling on too long.
       const steps = 2 * segLen * inp.slowMoHz * dt;
+      const pluckHarm = this.plucked && this.pluckedHarmonic;
       this.wave.advance(steps, {
-        loss: REFLECT_LOSS,
-        hfLoss: HF_LOSS,
-        nodeIndex,
+        loss: pluckHarm ? HARMONIC_PLUCK_LOSS : this.plucked ? PLUCK_REFLECT_LOSS : REFLECT_LOSS,
+        hfLoss: pluckHarm ? HF_LOSS : this.plucked ? PLUCK_HF_LOSS : HF_LOSS,
+        // a pizzed harmonic is already the clean mode, so skip node filtering
+        nodeIndex: pluckHarm ? -1 : nodeIndex,
         nodeLoss: NODE_LOSS,
       });
     }

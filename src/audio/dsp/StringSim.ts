@@ -193,11 +193,34 @@ export class StringSim {
     return { ...this.spec };
   }
 
-  /** Trigger a pluck at the current bowPosition. */
-  pluck(force: number, widthMs: number): void {
-    this.pluckLen = Math.max(8, Math.round((widthMs / 1000) * this.fs));
+  /**
+   * Trigger a pluck at the current bowPosition. The pulse width sets the
+   * implement's hardness: a sharp plectrum is a fixed absolute `widthMs`, while
+   * a soft fingertip is better expressed as a fraction of the current period
+   * (`periodFrac` > 0 overrides `widthMs`). A soft pulse is spread over a large
+   * fraction of the period, so its raised-cosine force partly cancels itself
+   * against the string's own motion during injection and the note comes out
+   * quieter. Keying the finger's width to the period keeps that self-cancellation
+   * — hence the loudness and the mellow tone — consistent across the range,
+   * instead of a fixed-ms pulse that is ~1 period on the low strings but several
+   * periods (and near-silent) on the high ones.
+   */
+  pluck(force: number, widthMs: number, periodFrac = 0): void {
+    let len = Math.round((widthMs / 1000) * this.fs);
+    if (periodFrac > 0) {
+      const total = this.dA.value + this.dB.value + this.dC.value;
+      const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
+      const vibLen = this.effectiveRf() > 4 ? this.dB.value + this.dC.value : total;
+      const period = 2 * vibLen + comp;
+      len = Math.round(periodFrac * period);
+    }
+    this.pluckLen = Math.max(8, len);
     this.pluckSamplesLeft = this.pluckLen;
-    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force));
+    // a gentle width compensation keeps a mellow (wider) pizz from dropping too
+    // far below a sharp plectrum stroke of the same force
+    const widthMsActual = (this.pluckLen / this.fs) * 1000;
+    const widthComp = 1 + 0.06 * Math.max(0, widthMsActual - 0.8);
+    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force)) * widthComp;
     this.pluckPhase = 0;
   }
 
