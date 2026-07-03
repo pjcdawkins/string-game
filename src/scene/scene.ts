@@ -18,7 +18,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { VisualString } from "./visualString";
-import { makeTools, ToolSet } from "./tools";
+import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
 import { FINGERBOARD_END, state } from "../state";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
@@ -30,6 +30,18 @@ export const STRING_TOP = 2.1;
 export const STRING_BOT = -1.62;
 export const STRING_LEN = STRING_TOP - STRING_BOT;
 export const BOARD_SURFACE_Z = -0.08;
+
+// The bow is drawn at the true proportion of a full-size bow to a full-size
+// violin: a violin's speaking string is ~328 mm and a bow's playing hair
+// ~650 mm, so the hair is very nearly 2× the string length. STRING_LEN is that
+// speaking length in world units, so a full-size bow's hair is BOW_HAIR_RATIO ×
+// STRING_LEN wide (see SceneView.applyBowScale). On a viewport too narrow to
+// fit that, the whole bow scales down to fit — but never below its own base
+// geometry size (BOW_HAIR_SPAN), which already overflows a phone screen and
+// reads well there. The stroke *duration* is held constant across viewports
+// (see interactions.ts); only the bow's visible size and world speed change.
+const BOW_HAIR_RATIO = 2.0;
+const BOW_FIT = 0.94; // fraction of the viewport width a full-size bow may fill
 
 // The body is drawn in true proportions (an earlier below-bridge
 // foreshortening made the violin read as squashed) — the viewport simply
@@ -87,6 +99,11 @@ export class SceneView {
   readonly instrument = new THREE.Group();
   readonly visual: VisualString;
   readonly tools: ToolSet;
+
+  // Uniform scale currently applied to the bow mesh (1 = base geometry size).
+  // Recomputed on resize from the viewport; read by the input/render layers to
+  // convert the normalised bow-travel coordinate into world units.
+  bowMeshScale = 1;
 
   private nodeMarkers = new THREE.Group();
   private fingerContact: THREE.Mesh;
@@ -460,7 +477,20 @@ export class SceneView {
     this.camera.updateProjectionMatrix();
     this.visual.setResolution(w, h);
     for (const m of this.fatLineMats) m.resolution.set(w, h);
+    this.applyBowScale();
     this.updateMapping();
+  }
+
+  /** Size the bow to the true bow:violin ratio when there is room, scaling it
+   * down to fit a narrow viewport (but never below its base geometry, which
+   * already overflows a phone and reads well there). */
+  private applyBowScale(): void {
+    const halfH = Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z;
+    const viewWidth = 2 * halfH * this.camera.aspect; // world units visible at z = 0
+    const hairFull = BOW_HAIR_RATIO * STRING_LEN; // full-size bow hair
+    const hairLen = Math.max(BOW_HAIR_SPAN, Math.min(hairFull, viewWidth * BOW_FIT));
+    this.bowMeshScale = hairLen / BOW_HAIR_SPAN;
+    this.tools.bow.scale.set(this.bowMeshScale, this.bowMeshScale, 1);
   }
 
   /** Recompute the affine screen mapping from projected reference points. */

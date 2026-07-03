@@ -14,11 +14,16 @@ npm run build    # production build (worklet bundles to a self-contained file)
 
 ## What you can do
 
-- **Bow** the string: drag sideways. Stroke speed is fully gestural — the
-  drag velocity *is* the bow speed, with pointer-style acceleration: slow,
-  deliberate strokes map ~1:1 while quick flicks are progressively
-  amplified, in the sound and in the bow's visible travel alike, so the
-  whole bow is playable even on a narrow touchscreen; vertical
+- **Bow** the string: drag sideways. The bow is drawn at the true proportion
+  of a full-size bow to a full-size violin (its hair ≈ 2× the speaking string),
+  scaling down only to fit a narrow viewport. Stroke speed is fully gestural —
+  the drag velocity *is* the bow speed, mapped 1:1 in world space (the contact
+  tracks under the pointer) with pointer-style acceleration on top: quick
+  flicks are progressively amplified, in the sound and in the bow's travel
+  alike. So a full stroke is a big, deliberate gesture on a wide desktop bow
+  and a quick screen-wide flick on a narrow phone, and lands anywhere from a
+  ~0.5 s special-effect flick to a minute-long creep — an unhurried drag being
+  a singing ~5 s. A full sweep now reaches both the tip and the frog. Vertical
   position = contact point, from well over the fingerboard (*sul tasto*:
   round, flutey) down to the bridge (*sul ponticello*: glassy, rich in upper
   partials); bow force from the slider, or pen/touch pressure. Too little
@@ -39,8 +44,10 @@ npm run build    # production build (worklet bundles to a self-contained file)
   length) — the model kills every partial without a node there, just like a
   real flageolet.
 - **Play from the keyboard** (desktop): hands sit like on the instrument.
-  Right hand — `→` is a down bow, `←` an up bow (the stroke dies away when
-  you run out of bow; flip direction to keep it singing), holding `Space`
+  Right hand — `→` is a down bow, `←` an up bow at a fixed singing speed
+  (a full length takes ~3.5 s, the same medium band as an unhurried pointer
+  stroke; the stroke dies away when you run out of bow, so flip direction to
+  keep it singing), holding `Space`
   sustains an automatic détaché (release to stop; the arrows stay manual
   and override it while held), `↑`/`↓` slide the contact point toward the
   nut/bridge, and holding `[`/`]` eases off / leans into the string (bow

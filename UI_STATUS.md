@@ -54,8 +54,9 @@ in the HUD to switch them on — they're candidates for a future settings
 drawer or keyboard shortcuts:
 
 - **Auto-bow speed** (`state.autoBowSpeed` in `src/state.ts`) — auto-bow
-  itself is operable now (hold `Space`), but its stroke speed still has no
-  control.
+  itself is operable now (hold `Space`), and its stroke length now tracks this
+  speed (faster = shorter, visibly quicker strokes), but the speed value still
+  has no on-screen control.
 - **Slow-mo rate** (`state.slowMo`) — the visual vibration's caricature
   speed, consumed by `src/scene/visualString.ts`.
 - **Node markers** (`state.markers`) — the glowing harmonic-node dots drawn
