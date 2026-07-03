@@ -14,7 +14,7 @@
  * mid-stroke. The string is chosen with Page Up/Page Down (one string at a
  * time, no looping) or by its letter name (G/D/A/E); , and . nudge the bow
  * speed down/up (manual and auto alike, even mid-stroke); S sets the firm
- * Press stop, Esc lifts the left hand.
+ * Press stop and H the light Touch (harmonics), Esc lifts the left hand.
  */
 import { engine } from "../audio/engine";
 import { state, notify, STRINGS, FINGER_RADIUS } from "../state";
@@ -104,6 +104,14 @@ export class Keyboard {
         e.preventDefault();
         if (e.repeat) return;
         state.leftMode = "press";
+        notify();
+        return;
+      }
+      // H = the light Touch mode for natural harmonics (as in the HUD)
+      if (letter === "H") {
+        e.preventDefault();
+        if (e.repeat) return;
+        state.leftMode = "touch";
         notify();
         return;
       }
