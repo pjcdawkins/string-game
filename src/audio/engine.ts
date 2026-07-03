@@ -7,6 +7,33 @@ import workletUrl from "./processor.worklet.ts?worker&url";
 import type { StringSpec } from "./dsp/StringSim";
 import type { AudioMeter } from "../state";
 
+/** Reverb tail length in seconds. Short enough to read as "room", not "hall". */
+const REVERB_SECONDS = 1.6;
+/** Wet mix level; kept low so the reverb stays an ambience, not an effect. */
+const REVERB_WET = 0.18;
+
+/**
+ * Synthesize a small-room impulse response: exponentially decaying noise,
+ * decorrelated per channel for stereo width, with a brief fade-in so the
+ * direct sound isn't doubled by the very start of the tail.
+ */
+function makeImpulseResponse(ctx: AudioContext): AudioBuffer {
+  const rate = ctx.sampleRate;
+  const length = Math.max(1, Math.round(REVERB_SECONDS * rate));
+  const buffer = ctx.createBuffer(2, length, rate);
+  const fadeIn = Math.min(length, Math.round(0.01 * rate));
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const data = buffer.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      // ~60 dB down by the end of the buffer.
+      const decay = Math.exp((-6.9 * i) / length);
+      const ramp = i < fadeIn ? i / fadeIn : 1;
+      data[i] = (Math.random() * 2 - 1) * decay * ramp;
+    }
+  }
+  return buffer;
+}
+
 export class Engine {
   private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
@@ -68,8 +95,17 @@ export class Engine {
       limiter.ratio.value = 12;
       limiter.attack.value = 0.002;
       limiter.release.value = 0.1;
+      // Light room reverb, mixed in parallel with the dry signal. The
+      // analyser taps the dry path only so pitch detection is unaffected.
+      const convolver = ctx.createConvolver();
+      convolver.buffer = makeImpulseResponse(ctx);
+      const wetGain = ctx.createGain();
+      wetGain.gain.value = REVERB_WET;
       node.connect(analyser);
       analyser.connect(limiter);
+      analyser.connect(convolver);
+      convolver.connect(wetGain);
+      wetGain.connect(limiter);
       limiter.connect(ctx.destination);
       node.port.onmessage = (e: MessageEvent) => {
         if (e.data?.type === "state") {
