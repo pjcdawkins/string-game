@@ -99,6 +99,11 @@ export class VisualString {
   // true while a free ring-down is a pluck's (vs a bow release's), so the
   // ring-down can use the gentler pluck loss/rounding set
   private plucked = false;
+  // whether the current pluck seeded a harmonic standing mode — latched at
+  // release, since the touching finger may lift while the harmonic still rings
+  // (as a real flageolet does), and the ring-down must keep its long harmonic
+  // decay rather than follow the now-cleared live selection
+  private pluckedHarmonic = false;
   // harmonic selected by a light touch, cached each frame so a pizz released
   // between frames can seed the clean standing mode (see pluckVisual)
   private harmMode = 0;
@@ -173,6 +178,7 @@ export class VisualString {
   /** Pluck/grab release: seed the string and let it ring down as a pluck. */
   pluckVisual(p: number, dx: number, stoppedAt: number): void {
     this.plucked = true;
+    this.pluckedHarmonic = this.harmMode > 0;
     const nutI = Math.round(stoppedAt * (NPTS - 1));
     this.wave.setTermination(nutI);
     if (this.harmMode > 0) {
@@ -260,7 +266,7 @@ export class VisualString {
       // uses the gentler pluck set — rounder and shorter — to soften the kink and
       // keep the note from wobbling on too long.
       const steps = 2 * segLen * inp.slowMoHz * dt;
-      const pluckHarm = this.plucked && this.harmMode > 0;
+      const pluckHarm = this.plucked && this.pluckedHarmonic;
       this.wave.advance(steps, {
         loss: pluckHarm ? HARMONIC_PLUCK_LOSS : this.plucked ? PLUCK_REFLECT_LOSS : REFLECT_LOSS,
         hfLoss: pluckHarm ? HF_LOSS : this.plucked ? PLUCK_HF_LOSS : HF_LOSS,
