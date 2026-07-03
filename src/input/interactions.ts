@@ -19,12 +19,24 @@ const FINGER_MIN = -FINGER_RADIUS;
 const FINGER_MAX = 0.82;
 const MAX_BEND = 0.55;
 
+// How far the bow may travel laterally (in bowX units) before it runs out of
+// hair — shared by keyboard strokes and pointer strokes alike.
+export const BOW_END = 1.2;
+
+// Pointer bowing responds like a mouse with pointer acceleration: a slow,
+// deliberate drag maps ~1:1 (the drag velocity is the bow speed, as before),
+// while faster gestures are progressively amplified, saturating toward
+// ACCEL_MAX×. The gain feeds both the visual bow travel and the audio model's
+// bow velocity, so on a narrow touchscreen a quick flick both sweeps more bow
+// and sounds faster than the same distance covered slowly.
+const ACCEL_MAX = 2.2; // gesture gain at very fast speeds
+const ACCEL_REF = 4.0; // gesture speed (world units/s) giving half the extra gain
+
 // Keyboard bowing (arrow keys, see input/keyboard.ts): model bow speed while
-// a stroke key is held, how far the bow may travel laterally before it runs
-// out of hair, how fast model velocity sweeps that travel, and how fast the
-// up/down arrows slide the contact point along the string.
+// a stroke key is held, how fast model velocity sweeps the bow's lateral
+// travel, and how fast the up/down arrows slide the contact point along the
+// string.
 const KEY_BOW_SPEED = 0.32;
-const KEY_BOW_END = 1.2;
 const KEY_BOW_XRATE = 4.0;
 const KEY_CONTACT_RATE = 0.35;
 // Attack of a keyboard stroke: speed rises from rest over KEY_ATTACK_S while
@@ -51,7 +63,7 @@ export class Interactions {
   bowEngaged = false;
   bowPos = 0.88;
   bowVel = 0; // smoothed, model units
-  bowX = 0; // lateral position of the bow mesh
+  bowX = 0; // lateral bow travel in [-BOW_END, BOW_END], drives the bow mesh
   hover: { s: number; x: number } | null = null;
   fingerPressure = 0; // ramped actual pressure
   // keyboard bowing intents (written by input/keyboard.ts, consumed in update)
@@ -65,7 +77,8 @@ export class Interactions {
   private leftDownTime = 0;
   private leftDownPos = 0;
   private pressureTarget = 0;
-  private lastFrameX = 0; // bow x at the previous frame (for gesture velocity)
+  private pointerRawX = 0; // raw pointer lateral position (pre-acceleration)
+  private gestureDx = 0; // raw pointer movement accumulated since last frame
   private pointerForce = -1; // pen/touch pressure if meaningful
   private autoBowDir = 1;
   private autoBowTimer = 0;
@@ -128,8 +141,9 @@ export class Interactions {
       if (state.tool === "bow") {
         this.bowEngaged = true;
         this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
-        this.bowX = c.x;
-        this.lastFrameX = c.x;
+        this.bowX = clamp(c.x, -BOW_END, BOW_END);
+        this.pointerRawX = c.x;
+        this.gestureDx = 0;
         this.bowVel = 0;
         this.biteTimer = 0;
       } else {
@@ -154,7 +168,8 @@ export class Interactions {
     if (e.pointerId === this.rightPointer) {
       this.pointerForce = e.pointerType !== "mouse" && e.pressure > 0 ? e.pressure : -1;
       if (this.bowEngaged) {
-        this.bowX = c.x;
+        this.gestureDx += c.x - this.pointerRawX;
+        this.pointerRawX = c.x;
         this.bowPos = clamp(c.s, this.implementMin(), BOW_MAX);
       } else if (this.grabbed) {
         this.grabbed.dx = clamp(
@@ -299,11 +314,16 @@ export class Interactions {
     const bite = 1 + 0.4 * Math.max(0, 1 - this.biteTimer / 0.25);
 
     if (this.bowEngaged) {
-      // bow speed follows the gesture: the per-frame derivative of the
-      // pointer's lateral position, lightly smoothed (it naturally falls to
-      // zero when the pointer stops moving)
-      const v = (this.bowX - this.lastFrameX) / Math.max(1e-3, dt);
-      this.lastFrameX = this.bowX;
+      // bow speed follows the gesture: the pointer's lateral movement this
+      // frame, put through the acceleration gain (see ACCEL_MAX above) and
+      // lightly smoothed (it naturally falls to zero when the pointer stops
+      // moving). The amplified motion also drives the bow mesh via bowX,
+      // clamped where the hair runs out.
+      const raw = this.gestureDx / Math.max(1e-3, dt);
+      this.gestureDx = 0;
+      const gain = 1 + (ACCEL_MAX - 1) * (Math.abs(raw) / (Math.abs(raw) + ACCEL_REF));
+      const v = raw * gain;
+      this.bowX = clamp(this.bowX + v * dt, -BOW_END, BOW_END);
       const target = clamp(v * 0.06, -0.75, 0.75);
       this.bowVel += (target - this.bowVel) * Math.min(1, dt * 12);
       engine.setBow(true, this.bowVel, force * bite, this.bowPos);
@@ -316,13 +336,13 @@ export class Interactions {
         // bow (lift and reset to the far end) — so a repeated down bow / up
         // bow speaks instead of starting where the last stroke ran out
         const remaining =
-          this.keyBowDir > 0 ? KEY_BOW_END - this.bowX : this.bowX + KEY_BOW_END;
-        if (remaining < KEY_BOW_END * 0.5) this.bowX = -this.keyBowDir * KEY_BOW_END;
+          this.keyBowDir > 0 ? BOW_END - this.bowX : this.bowX + BOW_END;
+        if (remaining < BOW_END * 0.5) this.bowX = -this.keyBowDir * BOW_END;
       }
       this.keyStrokeTime += dt;
       // the stroke dies away when it runs out of bow at either end; flipping
       // direction (a bow change) is the way to keep the sound going
-      const atEnd = this.keyBowDir > 0 ? this.bowX >= KEY_BOW_END : this.bowX <= -KEY_BOW_END;
+      const atEnd = this.keyBowDir > 0 ? this.bowX >= BOW_END : this.bowX <= -BOW_END;
       if (atEnd) {
         this.bowVel += (0 - this.bowVel) * Math.min(1, dt * 10);
       } else {
@@ -332,8 +352,7 @@ export class Interactions {
         const ramp = Math.min(1, this.keyStrokeTime / KEY_ATTACK_S);
         this.bowVel = this.keyBowDir * KEY_BOW_SPEED * ramp;
       }
-      this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -KEY_BOW_END, KEY_BOW_END);
-      this.lastFrameX = this.bowX;
+      this.bowX = clamp(this.bowX + this.bowVel * KEY_BOW_XRATE * dt, -BOW_END, BOW_END);
       const kbite = 1 + KEY_BITE_AMP * Math.max(0, 1 - this.biteTimer / 0.25);
       engine.setBow(true, this.bowVel, force * kbite, this.bowPos);
     } else if (state.autoBow) {
@@ -351,7 +370,7 @@ export class Interactions {
       const edge = Math.min(this.autoBowTimer, STROKE - this.autoBowTimer);
       const ramp = Math.min(1, edge / 0.09);
       this.bowVel = this.autoBowDir * state.autoBowSpeed * ramp;
-      this.bowX = Math.sin((this.autoBowTimer / STROKE - 0.5) * Math.PI) * -this.autoBowDir * 1.2;
+      this.bowX = Math.sin((this.autoBowTimer / STROKE - 0.5) * Math.PI) * -this.autoBowDir * BOW_END;
       engine.setBow(true, this.bowVel, state.bowForce * bite, this.bowPos);
     }
     // releasing the last stroke key or switching auto-bow off ends the stroke

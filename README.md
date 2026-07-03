@@ -15,7 +15,10 @@ npm run build    # production build (worklet bundles to a self-contained file)
 ## What you can do
 
 - **Bow** the string: drag sideways. Stroke speed is fully gestural — the
-  drag velocity *is* the bow speed; vertical
+  drag velocity *is* the bow speed, with pointer-style acceleration: slow,
+  deliberate strokes map ~1:1 while quick flicks are progressively
+  amplified, in the sound and in the bow's visible travel alike, so the
+  whole bow is playable even on a narrow touchscreen; vertical
   position = contact point, from well over the fingerboard (*sul tasto*:
   round, flutey) down to the bridge (*sul ponticello*: glassy, rich in upper
   partials); bow force from the slider, or pen/touch pressure. Too little
