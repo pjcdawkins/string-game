@@ -102,10 +102,12 @@ export class Hud {
         semitones above the open string (<kbd>1</kbd> = semitone … <kbd>9</kbd>) and held
         digits <i>add</i>: 4+3 stops a fifth, 9+3 an octave. Releasing peels intervals off, and
         letting go of every digit leaves the finger latched there — <kbd>0</kbd> plays the open
-        string and <kbd>Esc</kbd> lifts the hand. Hold <kbd>Shift</kbd> for portamento slides.
+        string and <kbd>Esc</kbd> lifts the hand (and returns the right hand to an ordinary
+        bow). Hold <kbd>Shift</kbd> for portamento slides.
         <kbd>S</kbd> is the firm press (stop), <kbd>H</kbd> the light touch (harmonics).
-        Everything combines mid-stroke: slide the contact point, swell, and change fingers
-        while bowing.</p>
+        <kbd>P</kbd> toggles pizzicato and <kbd>\</kbd> the pick — press either again to return to
+        the bow. Everything combines mid-stroke: slide the contact point, swell, and change
+        fingers while bowing.</p>
         <p class="desktop-only"><b>Strings</b> (desktop): <kbd>Page&nbsp;Up</kbd>/<kbd>Page&nbsp;Down</kbd>
         move up/down one string, or press its letter — <kbd>G</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>E</kbd> —
         to jump straight there. <kbd>,</kbd>/<kbd>.</kbd> slow down / speed up the bow (arrow strokes

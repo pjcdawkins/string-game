@@ -401,6 +401,34 @@ else ok("string button switches to the open string (finger lifted)");
 
 await page.keyboard.press("KeyA"); // back to the A string for the tests below
 
+// 10d. tool shortcuts: P toggles pizz (finger) and back to arco, \ toggles the
+// pick and back, and Esc returns the right hand to an ordinary bow.
+const tool = () => page.evaluate(() => window.__debug.state.tool);
+await page.keyboard.press("Escape"); // start from a known arco/press default
+await page.keyboard.press("p");
+if ((await tool()) !== "finger") fail("P did not switch to pizzicato");
+else ok("P switched to pizzicato");
+await page.keyboard.press("p");
+if ((await tool()) !== "bow") fail("second P did not return to arco");
+else ok("P toggled back to arco");
+await page.keyboard.press("Backslash");
+if ((await tool()) !== "pick") fail("\\ did not switch to the pick");
+else ok("\\ switched to the pick");
+await page.keyboard.press("Backslash");
+if ((await tool()) !== "bow") fail("second \\ did not return to arco");
+else ok("\\ toggled back to arco");
+// Esc resets tool and left-hand mode even from a non-default state
+await page.keyboard.press("p");
+await page.evaluate(() => { window.__debug.state.leftMode = "touch"; });
+await page.keyboard.press("Escape");
+const reset = await page.evaluate(() => ({
+  tool: window.__debug.state.tool,
+  leftMode: window.__debug.state.leftMode,
+}));
+if (reset.tool !== "bow" || reset.leftMode !== "press")
+  fail(`Esc did not reset to arco/press (tool=${reset.tool}, leftMode=${reset.leftMode})`);
+else ok("Esc reset to arco + ordinario press");
+
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the
 // canvas, a second finger taps a string button. Regression check — the HUD
 // used to listen for `click`, which browsers only fire for the *primary*

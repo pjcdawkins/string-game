@@ -14,7 +14,9 @@
  * mid-stroke. The string is chosen with Page Up/Page Down (one string at a
  * time, no looping) or by its letter name (G/D/A/E); , and . nudge the bow
  * speed down/up (manual and auto alike, even mid-stroke); S sets the firm
- * Press stop and H the light Touch (harmonics), Esc lifts the left hand.
+ * Press stop and H the light Touch (harmonics). P toggles pizzicato and \
+ * toggles the pick, each dropping back to the bow when pressed a second time.
+ * Esc lifts the left hand and returns the right to an ordinary arco.
  */
 import { engine } from "../audio/engine";
 import { state, notify, STRINGS, FINGER_RADIUS } from "../state";
@@ -83,6 +85,22 @@ export class Keyboard {
       this.input.liftFinger();
       return;
     }
+    // Esc resets to the default hand: Interactions' own Esc listener lifts the
+    // left hand (open string); here the right hand returns to an ordinary bow.
+    if (e.code === "Escape") {
+      state.tool = "bow";
+      state.leftMode = "press";
+      notify();
+      return;
+    }
+    // \ toggles the pick; pressing it again drops back to the bow (arco).
+    if (e.code === "Backslash") {
+      e.preventDefault();
+      if (e.repeat) return;
+      state.tool = state.tool === "pick" ? "bow" : "pick";
+      notify();
+      return;
+    }
     // string switching: Page Up/Down step one string (no looping past the ends)
     if (e.code === "PageUp" || e.code === "PageDown") {
       e.preventDefault();
@@ -112,6 +130,14 @@ export class Keyboard {
         e.preventDefault();
         if (e.repeat) return;
         state.leftMode = "touch";
+        notify();
+        return;
+      }
+      // P toggles pizzicato (the finger tool); a second press returns to arco.
+      if (letter === "P") {
+        e.preventDefault();
+        if (e.repeat) return;
+        state.tool = state.tool === "finger" ? "bow" : "finger";
         notify();
         return;
       }
