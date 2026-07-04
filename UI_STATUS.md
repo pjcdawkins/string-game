@@ -11,8 +11,12 @@ All four strings are drawn down the centre of the viewport (nut at the top,
 bridge near the bottom), fanning apart slightly toward the bridge as on a
 real setup and back in again below it, running off-screen toward the
 out-of-view tailpiece — G, D, A, E left to right, i.e. IV..I in classical
-numbering (`src/scene/lanes.ts`). Only the *selected* string is playable: it draws at
-full contrast and vibrates over the three faint idle ones. On wide screens
+numbering (`src/scene/lanes.ts`). One string *sounds* at a time — the selected
+string draws at full contrast and vibrates over the three faint idle ones —
+but the left hand moves between strings directly: a touch on the board catches
+the nearest lane (the current string wins near-ties), switching the sounding
+string and bringing the bow with it. The HUD picker and the G/D/A/E keys still
+switch strings too. On wide screens
 the controls sit in the four corners. On
 narrow portrait screens (`max-width: 600px`, see `src/style.css`) they dock
 into the left/right gutters and the strip below the bridge instead, so the
@@ -41,6 +45,11 @@ impossible until the bowing finger lifted.
 - **Bow pressure slider** — the only slider in the bottom-left panel; sets
   `state.bowForce`.
 - **Help (`?`)** — opens the "How to play" overlay.
+- **Left-hand touch gestures** (`src/input/interactions.ts`) — a tap on the
+  board stops the nearest string lane (touching another string moves the
+  finger, and the bow, there); a drag glissandos; a tap on the latched finger
+  leaves it latched, while flicking it sideways off its string lifts it; a tap
+  in the top-left corner of the play area (or above the nut) lifts the hand.
 - **Keyboard shortcuts** (`src/input/keyboard.ts`) — arrows bow (`→` down
   bow, `←` up bow, `↑`/`↓` contact point), `Space` (held) auto-bows,
   `[`/`]` (held) ramp the bow pressure, digits (held) add their semitones

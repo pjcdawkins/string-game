@@ -54,6 +54,17 @@ const PLUCK_ROUND_PASSES = 26;
 // displacement — a flageolet speaks softer than a firmly stopped note.
 const HARMONIC_PLUCK_SCALE = 0.6;
 
+// Drive amplitude while sounding: the visual swing follows the live audio RMS
+// (× VIB_AMP_GAIN), capped at VIB_AMP_MAX. Kept narrow — well inside the
+// string's own lane (the lanes sit only 0.062 apart at the nut, see
+// ./lanes.ts) — so the vibrating string reads as one string among four now
+// that the left hand can move between them by touch. The regime thresholds
+// below (raucous / sounding) are on the same scale and were reduced with it.
+const VIB_AMP_MAX = 0.045;
+const VIB_AMP_GAIN = 0.5;
+const RAUCOUS_MIN_AMP = 0.0033;
+const SOUNDING_MIN_AMP = 0.0009;
+
 // driven bowed-flageolet swing is seeded a touch hotter than the corner regime so
 // the standing mode reads clearly; the glow guard must use the same scale or the
 // bow wash-out fix regresses silently (seeded wave and glow amplitude drift apart)
@@ -124,7 +135,7 @@ export class VisualString {
     });
     this.glowMat = new LineMaterial({
       color: 0x86c5ff,
-      linewidth: 9,
+      linewidth: 6, // narrow halo, matching the narrowed vibration swing
       worldUnits: false,
       transparent: true,
       opacity: 0,
@@ -221,16 +232,16 @@ export class VisualString {
     this.wave.setTermination(nutIndex);
     const segLen = this.wave.segmentLength;
 
-    // drive amplitude follows the live audio level (kept modest — the slow-mo
-    // caricature reads better when the swing stays near the string)
-    const targetAmp = Math.min(0.105, inp.rms * 1.13);
+    // drive amplitude follows the live audio level (kept narrow — see
+    // VIB_AMP_MAX above — so the swing stays within the string's own lane)
+    const targetAmp = Math.min(VIB_AMP_MAX, inp.rms * VIB_AMP_GAIN);
     this.vibAmp += (targetAmp - this.vibAmp) * Math.min(1, dt * 14);
 
     // overpressure = prolonged sticking (slip ratio collapses), not lots of slip
-    const raucous = inp.bowing && inp.slipRatio < 0.04 && this.vibAmp > 0.0075;
+    const raucous = inp.bowing && inp.slipRatio < 0.04 && this.vibAmp > RAUCOUS_MIN_AMP;
 
     const grab = inp.grabbed;
-    const sounding = inp.bowing && inp.slipRatio > 0.005 && this.vibAmp > 0.002;
+    const sounding = inp.bowing && inp.slipRatio > 0.005 && this.vibAmp > SOUNDING_MIN_AMP;
     // a light touch selects the lowest flageolet with a node there; we damp that
     // node during free vibration and (when bowing) drive that standing mode
     const harmN = harmonicAt > 0 ? lowestNodeMode(harmonicAt) : 0;
@@ -312,8 +323,10 @@ export class VisualString {
 
     this.line.geometry.setPositions(Array.from(this.positions));
     this.glow.geometry.setPositions(Array.from(this.positions));
+    // the gain (10) is tuned against VIB_AMP_MAX so a full-drive bow still
+    // reaches the same glow ceiling despite the narrower swing
     this.glowMat.opacity =
-      Math.min(0.55, this.glowAmp * 4.4 + (grab ? 0.12 : 0)) * this.glowOpacityScale;
+      Math.min(0.55, this.glowAmp * 10 + (grab ? 0.12 : 0)) * this.glowOpacityScale;
     // skip the (full-length, 9px-wide) glow line entirely while inaudible —
     // a real saving on weak GPUs and software renderers
     this.glow.visible = this.glowMat.opacity > 0.01;

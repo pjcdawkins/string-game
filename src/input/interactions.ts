@@ -1,18 +1,23 @@
 /**
  * Pointer interaction layer. The fingerboard, directly over and just beside the
- * strings, belongs to the left hand: a tap there stops the string, a drag
- * glissandos, and the drag may carry the finger past the board's end toward the
- * bridge. Everything else is the right hand — below the board, or reaching in
- * from the flanks to either side, where a lone touch can bow or pizz sul tasto
- * without a stop. A tap above the nut lifts the finger; a quick tap on a placed
- * finger lifts it too. Multi-touch works: one finger holds a stop while another
- * bows, and a second touch on the board clearly to the bridge side of a held
- * stop is the right hand playing over the board (sul tasto / pizz).
+ * strings, belongs to the left hand: a tap there stops whichever string lane
+ * the touch is nearest — touching a different string moves the finger (and the
+ * bow, which always plays the finger's string) over to it — a drag glissandos,
+ * and the drag may carry the finger past the board's end toward the bridge.
+ * Everything else is the right hand — below the board, or reaching in from the
+ * flanks to either side, where a lone touch can bow or pizz sul tasto without a
+ * stop. Tapping a latched finger leaves it latched; it lifts when flicked
+ * sideways off its string, and a tap above the nut or in the top-left corner of
+ * the play area lifts the hand too. Multi-touch works: one finger holds a stop
+ * while another bows, and a second touch on the board clearly to the bridge
+ * side of a held stop is the right hand playing over the board (sul tasto /
+ * pizz).
  */
-import { SceneView } from "../scene/scene";
+import { SceneView, STRING_LEN } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
+import { laneX, N_LANES } from "../scene/lanes";
 import { engine } from "../audio/engine";
-import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop } from "../state";
+import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop, STRINGS } from "../state";
 import type { GrabState } from "../scene/visualString";
 
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
@@ -43,6 +48,25 @@ const FINGER_PLUCK_PERIOD_FRAC = 1.5;
 // board, no stop needed. The strings span ~±0.19 and the board ~±0.24, so this
 // stays comfortably wider than the board while leaving the flanks to the bow.
 export const LEFT_CATCH_X = 0.45;
+// A left-hand touch catches the string lane laterally nearest to it, with the
+// current string winning near-ties (within this world-unit margin) so a touch
+// dead between two lanes doesn't hop strings.
+const LANE_STICKY = 0.02;
+// A latched finger no longer lifts on a tap (the tap just leaves it latched —
+// friendlier under touch, where taps land imprecisely). Instead it lifts when
+// flicked sideways off its string: at least this far laterally (world units),
+// and clearly more lateral than along the string.
+const LIFT_SWIPE_X = 0.12;
+// The same touch turns into a glissando drag instead once it travels this far
+// (world units) predominantly *along* the string — the world-unit twin of the
+// 0.012-of-string-length threshold used for an ordinary placing drag.
+const DRAG_ALONG = 0.045;
+// Tapping the top-left corner of the play area — nut-ward of this fraction of
+// the string, out beyond the board's left flank — lifts the hand (all
+// fingers): a big, easy "clear" target for touch play, well away from every
+// other tap target (main.ts keeps the tool ghosts out of it too). The right
+// flank stays a bow/pizz reach-in zone at every height.
+export const LIFT_ZONE_S = 0.3;
 // While a finger already holds a stop, a second touch over the strings counts
 // as the right hand (sul tasto / pizz over the board) only this far or more
 // toward the bridge from the stop; nearer than that it is ambiguous and ignored
@@ -120,8 +144,11 @@ export class Interactions {
   private leftPointer = -1;
   private rightPointer = -1;
   private leftMoved = false;
-  private leftDownTime = 0;
   private leftDownPos = 0;
+  private leftDownX = 0;
+  // the left touch landed on the already-latched finger: it waits — a
+  // sideways flick lifts, a drag along the string glissandos, a tap leaves it
+  private leftOnFinger = false;
   private pressureTarget = 0;
   private pointerRawX = 0; // raw pointer lateral position (pre-acceleration)
   private gestureDx = 0; // raw pointer movement accumulated since last frame
@@ -183,11 +210,19 @@ export class Interactions {
     void engine.ensureStarted();
     const c = this.view.screenToString(e.clientX, e.clientY);
 
+    // A tap in the top-left corner of the play area lifts the hand (all
+    // fingers) — like the tap above the nut below, but a far bigger target.
+    if (c.s < LIFT_ZONE_S && c.x < -LEFT_CATCH_X) {
+      this.liftFinger();
+      return;
+    }
+
     const onBoard = c.s < this.zoneBoundary();
     const nearStrings = Math.abs(c.x) < LEFT_CATCH_X;
 
     // The first touch over (or just beside) the strings on the board is the
-    // left hand: it stops the string.
+    // left hand: it stops the nearest string lane — so touching a different
+    // string moves the finger (and with it the bow) onto that string.
     if (onBoard && nearStrings && this.leftPointer === -1) {
       // A tap above the nut (s < 0, off the top of the board) lifts the finger
       // — the "clear the hand" gesture; it doesn't begin a drag.
@@ -197,9 +232,15 @@ export class Interactions {
       }
       this.leftPointer = e.pointerId;
       this.leftMoved = false;
-      this.leftDownTime = performance.now();
       this.leftDownPos = c.s;
-      this.placeFinger(c.s);
+      this.leftDownX = c.x;
+      const lane = this.catchLane(c);
+      this.leftOnFinger =
+        state.fingerOn && lane === state.stringIdx && Math.abs(c.s - state.fingerPos) < 0.035;
+      if (!this.leftOnFinger) {
+        if (lane !== state.stringIdx) this.selectString(lane);
+        this.placeFingerAt(c.s);
+      }
       return;
     }
 
@@ -249,7 +290,23 @@ export class Interactions {
   private onMove(e: PointerEvent): void {
     const c = this.view.screenToString(e.clientX, e.clientY);
     if (e.pointerId === this.leftPointer) {
-      if (Math.abs(c.s - this.leftDownPos) > 0.012) this.leftMoved = true;
+      if (this.leftOnFinger && !this.leftMoved) {
+        // undecided touch on the latched finger: a sideways flick lifts it, a
+        // pull along the string becomes a glissando drag, anything less waits
+        const dx = c.x - this.leftDownX;
+        const along = (c.s - this.leftDownPos) * STRING_LEN;
+        if (Math.abs(dx) > LIFT_SWIPE_X && Math.abs(dx) > 1.5 * Math.abs(along)) {
+          this.leftPointer = -1;
+          this.leftOnFinger = false;
+          this.liftFinger();
+          return;
+        }
+        if (Math.abs(along) > DRAG_ALONG && Math.abs(along) >= Math.abs(dx)) {
+          this.leftMoved = true;
+        }
+      } else if (Math.abs(c.s - this.leftDownPos) > 0.012) {
+        this.leftMoved = true;
+      }
       if (this.leftMoved) this.moveFinger(c.s);
       return;
     }
@@ -273,11 +330,10 @@ export class Interactions {
 
   private onUp(e: PointerEvent): void {
     if (e.pointerId === this.leftPointer) {
+      // the finger always stays latched — a tap on it no longer lifts it
+      // (lifting is the sideways flick in onMove, or the lift tap targets)
       this.leftPointer = -1;
-      const quickTap = performance.now() - this.leftDownTime < 220 && !this.leftMoved;
-      // a quick tap on an already-latched finger lifts it; otherwise it stays
-      if (quickTap && this.tappedExistingFinger) this.liftFinger();
-      this.tappedExistingFinger = false;
+      this.leftOnFinger = false;
       return;
     }
     if (e.pointerId === this.rightPointer) {
@@ -305,14 +361,32 @@ export class Interactions {
     }
   }
 
-  private tappedExistingFinger = false;
-
-  private placeFinger(s: number): void {
-    const p = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
-    if (state.fingerOn && Math.abs(p - state.fingerPos) < 0.035) {
-      this.tappedExistingFinger = true;
+  /** Which string a left-hand touch at `c` catches: the lane laterally
+   * nearest to it, with the current string winning near-ties so a touch dead
+   * between two lanes doesn't hop strings. Also drives the hover preview
+   * (main.ts), so the ghost finger shows which string a touch would land on. */
+  catchLane(c: { s: number; x: number }): number {
+    const s = clamp(c.s, 0, 1);
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < N_LANES; i++) {
+      const d = Math.abs(c.x - laneX(i, s));
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
     }
-    this.placeFingerAt(p);
+    const current = Math.abs(c.x - laneX(state.stringIdx, s));
+    return current - bestD <= LANE_STICKY ? state.stringIdx : best;
+  }
+
+  /** Switch the sounding string — the bow always plays the string the finger
+   * is on, so it comes along — pushing the new preset into the engine just as
+   * the HUD picker and the keyboard letters do. */
+  private selectString(idx: number): void {
+    state.stringIdx = idx;
+    void engine.ensureStarted().then(() => engine.setString(STRINGS[idx].spec));
+    notify();
   }
 
   /** Latch or move the finger directly (used by the keyboard shortcuts).
@@ -333,7 +407,6 @@ export class Interactions {
   }
 
   private moveFinger(s: number): void {
-    this.tappedExistingFinger = false;
     state.fingerPos = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
     this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();

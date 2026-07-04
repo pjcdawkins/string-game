@@ -297,6 +297,85 @@ if (res.freq > 0 && Math.abs(res.freq - 440) > 440 * 0.04)
 else ok(`plucked open A at ${res.freq.toFixed(1)} Hz`);
 await page.screenshot({ path: "e2e/pluck.png" });
 
+// 10b. multi-string left hand: a touch on another string's lane moves the
+// finger (and the sounding string, and so the bow) there; tapping the latched
+// finger leaves it latched; flicking it sideways lifts it; a tap in the
+// top-left corner lifts too.
+const laneXAt = (idx, s) => (idx - 1.5) * (0.062 + (0.128 - 0.062) * s); // scene/lanes.ts
+const stringPt = (idx, s, dx = 0) =>
+  page.evaluate(([ss, xx]) => window.__debug.view.stringToScreen(ss, xx), [s, laneXAt(idx, s) + dx]);
+const tapString = async (idx, s) => {
+  const q = await stringPt(idx, s);
+  await page.mouse.click(q.clientX, q.clientY);
+};
+await tapString(2, 0.3); // stop the (selected) A string
+let ms = await page.evaluate(() => ({
+  idx: window.__debug.state.stringIdx,
+  on: window.__debug.state.fingerOn,
+}));
+if (!ms.on || ms.idx !== 2) fail(`stop on the A lane failed (fingerOn=${ms.on} stringIdx=${ms.idx})`);
+else ok("finger stopped the A string");
+
+await tapString(1, 0.45); // touch the D lane: the finger (and string) move there
+ms = await page.evaluate(() => ({
+  idx: window.__debug.state.stringIdx,
+  on: window.__debug.state.fingerOn,
+  pos: window.__debug.state.fingerPos,
+}));
+if (ms.idx !== 1 || !ms.on) fail(`touching the D lane did not move the finger there (stringIdx=${ms.idx})`);
+else ok("touching the D lane moved the finger and the sounding string there");
+if (Math.abs(ms.pos - 0.45) > 0.03) fail(`finger position off after the lane switch: ${ms.pos.toFixed(3)}`);
+// the engine tracks the switch: once the finger pressure lands, its delay
+// lines imply the stop's pitch on the *D* string
+const stoppedD = 293.66 / (1 - (0.45 + fingerRadius));
+await page
+  .waitForFunction((t) => Math.abs(window.__debug.engine.meter.freq - t) < t * 0.05, stoppedD, {
+    timeout: 3000,
+  })
+  .catch(() => {});
+const ef = await page.evaluate(() => window.__debug.engine.meter.freq);
+if (Math.abs(ef - stoppedD) > stoppedD * 0.05)
+  fail(`engine pitch not updated by the lane switch (${ef.toFixed(1)} Hz, expected ~${stoppedD.toFixed(1)})`);
+else ok(`engine follows the lane switch (${ef.toFixed(1)} Hz)`);
+
+await tapString(1, ms.pos); // tap the latched finger again: it stays latched
+ms = await page.evaluate(() => ({ on: window.__debug.state.fingerOn, pos: window.__debug.state.fingerPos }));
+if (!ms.on) fail("tapping the latched finger lifted it (it should stay latched)");
+else ok("tapping the latched finger leaves it latched");
+
+// flick the finger sideways off its string: that lifts it
+let q0 = await stringPt(1, ms.pos);
+let q1 = await stringPt(1, ms.pos, -0.5);
+await page.mouse.move(q0.clientX, q0.clientY);
+await page.mouse.down();
+await page.mouse.move(q1.clientX, q1.clientY, { steps: 6 });
+await page.mouse.up();
+ms = await page.evaluate(() => ({ on: window.__debug.state.fingerOn }));
+if (ms.on) fail("sideways flick did not lift the finger");
+else ok("sideways flick lifted the finger");
+
+// a tap in the top-left corner of the play area lifts a latched finger (scan
+// for a corner point that is actually on the canvas, clear of the HUD panels)
+await tapString(1, 0.3);
+const liftPt = await page.evaluate(() => {
+  for (const s of [0.28, 0.2, 0.12]) {
+    for (const x of [-0.6, -0.9, -1.4]) {
+      const q = window.__debug.view.stringToScreen(s, x);
+      const el = document.elementFromPoint(q.clientX, q.clientY);
+      if (el && el.tagName === "CANVAS") return q;
+    }
+  }
+  return null;
+});
+if (!liftPt) fail("no canvas point found in the top-left lift zone (HUD covers it?)");
+else {
+  await page.mouse.click(liftPt.clientX, liftPt.clientY);
+  ms = await page.evaluate(() => ({ on: window.__debug.state.fingerOn }));
+  if (ms.on) fail("top-left corner tap did not lift the finger");
+  else ok("top-left corner tap lifted the finger");
+}
+await page.keyboard.press("KeyA"); // back to the A string for the tests below
+
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the
 // canvas, a second finger taps a string button. Regression check — the HUD
 // used to listen for `click`, which browsers only fire for the *primary*

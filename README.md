@@ -40,8 +40,13 @@ npm run build    # production build (worklet bundles to a self-contained file)
 - **Stop** the string anywhere on the fingerboard: a tap on the board latches
   a finger, a drag glissandos — and the drag can carry the finger on past the
   end of the board toward the bridge, higher in pitch than the board itself
-  reaches (as far as a bow-width from the bridge). Quick-tap a placed finger,
-  or tap above the nut, to lift it; `Esc` clears it too. The board, right over
+  reaches (as far as a bow-width from the bridge). The tap catches whichever
+  string lane it is nearest, so touching a different string moves the finger —
+  and with it the bow, which always plays the finger's string — over to it:
+  all four strings are playable by touch alone, though only one sounds at a
+  time. Tapping a latched finger leaves it latched; to lift it, flick it
+  sideways off its string, tap the top-left corner of the play area (or above
+  the nut), or press `Esc`. The board, right over
   the strings, is the left hand's; the bow and plucks live below it or reach in
   from either flank. Multi-touch: hold a stop with one finger and bow or pluck
   with another — a second touch on the board, bridge-side of the stop, plays
@@ -176,7 +181,8 @@ string that visibly depresses onto the fingerboard under the finger.
 - Dev mode serves the worklet as an ES module with imports, which Chromium
   supports; the production build emits a self-contained worklet file that
   works in all worklet-capable browsers.
-- One string at a time (the picker swaps presets). No torsional waves, no
+- One string *sounds* at a time (the picker, the G/D/A/E keys, or a left-hand
+  touch on another string's lane swap presets). No torsional waves, no
   finite-width bow-hair ribbon, no two-point finger model yet — see ideas
   below.
 - Ideas next: four strings + sympathetic coupling, recorded-impulse body
