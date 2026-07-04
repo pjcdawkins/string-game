@@ -35,7 +35,7 @@ import {
   OnePoleLP,
   Smoother,
 } from "./filters";
-import { FINGER_RADIUS } from "../../state";
+import { FINGER_RADIUS, MAX_STOP_NODE } from "../../state";
 
 export interface StringSpec {
   /** Open-string fundamental in Hz. */
@@ -270,8 +270,11 @@ export class StringSim {
   private clampedPositions(): [number, number] {
     // the fleshy fingertip terminates the string at the bridge-side edge of its
     // contact, a radius past the finger centre; slid up onto the nut (centre
-    // <= -FINGER_RADIUS) the node reaches 0 and the string speaks open
-    const pf = Math.min(0.85, Math.max(0, this.fingerPosition + FINGER_RADIUS));
+    // <= -FINGER_RADIUS) the node reaches 0 and the string speaks open. The node
+    // may run well past the fingerboard's end toward the bridge — the pitch (and,
+    // for a light touch, the selected flageolet) keeps rising into the very high
+    // register up to MAX_STOP_NODE, where the bow can only just still fit.
+    const pf = Math.min(MAX_STOP_NODE, Math.max(0, this.fingerPosition + FINGER_RADIUS));
     const pb = Math.min(0.99, Math.max(pf + 0.05, this.bowPosition));
     return [pf, pb];
   }
