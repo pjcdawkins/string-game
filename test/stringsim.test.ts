@@ -140,6 +140,36 @@ describe("StringSim", () => {
     expect(f).toBeLessThan(220 * 1.01);
   });
 
+  it("a stop dragged past the fingerboard end keeps raising the pitch", () => {
+    // regression: the terminating node used to be clamped at 0.85 (~the board's
+    // end), so dragging a firm stop on toward the bridge froze the pitch. A real
+    // string keeps climbing up here. The pitch is well above the autocorrelation
+    // estimator's ceiling, so assert on the fundamental implied by the speaking
+    // length (getState().freq = f0 / (1 - node) for a firm stop) — the quantity
+    // the old clamp pinned — while still checking the string genuinely sounds.
+    const soundAtNode = (node: number): { freq: number; rms: number } => {
+      const sim = new StringSim(FS);
+      sim.setString({ f0: 196, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0 });
+      sim.fingerOn = true;
+      sim.fingerPosition = node - FINGER_RADIUS;
+      sim.fingerPressure = 1;
+      sim.bowOn = true;
+      sim.bowVelocity = 0.2;
+      sim.bowForce = 0.55;
+      sim.bowPosition = 0.96;
+      const out = render(sim, 0.8);
+      expectNoNaN(out);
+      return { freq: sim.getState().freq, rms: rms(out, 0.4, 0.75) };
+    };
+    const atCap = soundAtNode(0.85); // the old ceiling
+    const beyond = soundAtNode(0.92); // well past the board's end
+    // f0/(1-node): 196/0.15 ≈ 1307 Hz at the cap, 196/0.08 ≈ 2450 Hz past it
+    expect(atCap.freq).toBeGreaterThan((196 / 0.15) * 0.95);
+    expect(atCap.freq).toBeLessThan((196 / 0.15) * 1.05);
+    expect(beyond.freq).toBeGreaterThan(atCap.freq * 1.3); // pitch really climbs
+    expect(beyond.rms).toBeGreaterThan(0.01); // and still sounds up there
+  });
+
   it("light touch at the midpoint produces the octave harmonic", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.25, loss: 0.3, stiffness: 0.05, nonlinearity: 0 });

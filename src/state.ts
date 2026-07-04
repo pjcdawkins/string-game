@@ -24,6 +24,17 @@ export const STRINGS: ViolinString[] = [
  * The whole board is playable with the left hand, as on a real violin. */
 export const FINGERBOARD_END = 0.84;
 
+/** Highest terminating node the string supports (fraction from the nut). Past
+ * the fingerboard's end the string can still be stopped — pressed against
+ * nothing but its own tension, or touched as a very high flageolet — and the
+ * pitch keeps climbing, as it does on a real violin dragging a finger toward
+ * the bridge (less stable up here, but it sounds). The ceiling is set by the
+ * bow: it always sits a small clearance on the bridge side of the node and
+ * can reach almost to the bridge, so the node can come to within that
+ * clearance of the bow's own limit. This matches how far the finger can
+ * actually be dragged (see FINGER_DRAG_MAX in input/interactions.ts). */
+export const MAX_STOP_NODE = 0.94;
+
 /** Half-width of the fingertip's contact patch, as a fraction of the string
  * length. A pressed finger is fleshy: it clamps the string to the board over
  * a patch and the note speaks from the *bridge-side edge* of that patch, not

@@ -23,7 +23,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import * as THREE from "three";
 import { WaveString } from "./waveString";
-import { FINGER_RADIUS } from "../state";
+import { FINGER_RADIUS, MAX_STOP_NODE } from "../state";
 import { laneX, LANE_LINEWIDTH } from "./lanes";
 import type { SceneTheme } from "./theme";
 
@@ -210,7 +210,7 @@ export class VisualString {
     // the string is terminated / node-damped at the bridge-side edge of the
     // fleshy fingertip, a radius past its centre (fingerPos); the finger itself
     // (its depression well, below) still sits at the centre
-    const node = Math.min(0.85, Math.max(0, inp.fingerPos + FINGER_RADIUS));
+    const node = Math.min(MAX_STOP_NODE, Math.max(0, inp.fingerPos + FINGER_RADIUS));
     const L0 = firmStop ? node : 0;
     const harmonicAt =
       inp.fingerOn && inp.fingerPressure > 0.02 && inp.fingerPressure <= 0.55
