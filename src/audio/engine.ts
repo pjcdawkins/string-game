@@ -39,6 +39,7 @@ export class Engine {
   private node: AudioWorkletNode | null = null;
   analyser: AnalyserNode | null = null;
   private starting: Promise<void> | null = null;
+  private unlockHandlersInstalled = false;
 
   meter: AudioMeter = { rms: 0, slipRatio: 0, freq: 440, bowing: false };
 
@@ -50,7 +51,12 @@ export class Engine {
       this.resumeNow();
       return;
     }
-    if (this.starting) return this.starting;
+    if (this.starting) {
+      // Still building (worklet module loading): retry the unlock with this
+      // gesture too, in case the one that kicked off start() didn't take.
+      this.resumeNow();
+      return this.starting;
+    }
     this.starting = this.start();
     return this.starting;
   }
@@ -67,7 +73,38 @@ export class Engine {
     if (ctx && ctx.state !== "running") void ctx.resume().catch(() => {});
   }
 
+  /** iOS mutes Web Audio entirely while the device is in Silent Mode, because
+   * an AudioContext defaults to the "ambient" audio-session category. Media
+   * playback ignores the silent switch, so opt into that category where the
+   * Audio Session API exists (Safari 17+). */
+  private static requestPlaybackSession(): void {
+    const session = (navigator as unknown as { audioSession?: { type: string } }).audioSession;
+    if (session) {
+      try {
+        session.type = "playback";
+      } catch {
+        // older WebKit builds expose the object but reject assignment
+      }
+    }
+  }
+
+  /** iOS WebKit grants the audio-unlock user activation reliably on the
+   * *release* half of a gesture (pointerup / touchend / click); a
+   * touch-derived pointerdown — where the app starts the engine — often does
+   * not count. Keep permanent capture-phase listeners that retry resume();
+   * they are no-ops once the context is running, and double as recovery when
+   * iOS suspends the context after backgrounding the tab. */
+  private installUnlockHandlers(): void {
+    if (this.unlockHandlersInstalled) return; // start() may be retried after a failure
+    this.unlockHandlersInstalled = true;
+    const unlock = (): void => this.resumeNow();
+    window.addEventListener("pointerup", unlock, true);
+    window.addEventListener("touchend", unlock, true);
+    window.addEventListener("click", unlock, true);
+  }
+
   private async start(): Promise<void> {
+    Engine.requestPlaybackSession();
     // Older iPads only expose the webkit-prefixed constructor.
     const Ctor =
       window.AudioContext ??
@@ -75,6 +112,7 @@ export class Engine {
     if (!Ctor) throw new Error("Web Audio API is not supported in this environment");
     const ctx = new Ctor({ latencyHint: "interactive" });
     this.ctx = ctx;
+    this.installUnlockHandlers();
     try {
       // Kick the resume off *before* the async addModule below: on iOS Safari
       // the context starts suspended and can only be unlocked while the user
