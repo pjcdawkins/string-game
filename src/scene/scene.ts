@@ -11,7 +11,12 @@
  * The instrument is drawn as a flat "vector illustration": layered
  * ShapeGeometry fills with crisp Line2 outlines, no lights and no lit
  * materials — deterministic on every GPU, cheap to render, and it reads
- * cleanly on both the light and dark themes (see ./theme.ts).
+ * cleanly on both the light and dark themes (see ./theme.ts). The only
+ * texture is a small canvas-generated varnish gradient baked onto the top
+ * plate (radial shading, fine grain, a whisper of flame), still fully
+ * deterministic. The artwork is fitted to the Le Brun Stradivarius of 1712
+ * in the design harness `e2e/body-harness.mjs` — iterate shapes there, then
+ * port; keep the geometry constants in the two files in sync.
  */
 import * as THREE from "three";
 import { Line2 } from "three/examples/jsm/lines/Line2.js";
@@ -22,6 +27,7 @@ import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
 import { FINGERBOARD_END, state } from "../state";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
+import { FHOLE_OUTLINE } from "./fholeOutline";
 
 export const STRING_TOP = 2.1;
 // the bottom end leaves room below for the bridge (and a glimpse of the
@@ -49,10 +55,24 @@ const BOW_FIT = 0.94; // fraction of the viewport width a full-size bow may fill
 // top edge showing, as if seen from slightly above. A real camera tilt
 // would make the screen<->string mapping non-affine and cost pointer
 // accuracy on the fingerboard.
-const BRIDGE_SQUASH = 0.62;
+// The bridge stands perpendicular to the belly, so face-on it would be seen
+// almost edge-on. We rake it — draw it as if looked down on from above — so
+// its carving reads. A strong rake (small squash) matches the reference: the
+// bridge is a shallow maple band, its front face (and the heart) mostly
+// foreshortened away, seen nearly from the top.
+const BRIDGE_SQUASH = 0.15;
+// The bridge's natural break point sits at STRING_BOT (s = 1), which lands its
+// base below the f-hole lower eyes. Lift the whole bridge (and its break line)
+// so the base rises to the lower-eye height. Purely visual: STRING_BOT and the
+// s<->y mapping are untouched (fingering and pitch are unaffected); the string
+// breaks over the lifted crown and the afterlength runs on to the tail. The
+// bow's bridge-side limit is derived from this rise (see BOW_MAX) so the hair
+// stops at the lifted crown, not down at STRING_BOT.
+export const BRIDGE_RISE = 0.082;
 const BODY_LEN = 3.9; // outline design length (see OUTLINE_HALF)
 const BRIDGE_AT = 0.54; // bridge at 54% of the body, as measured on the photo
 const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin
+const PURFLING_INSET = 0.048; // purfling inset from the outline, design units
 
 /** World y where a string at lateral offset `x` breaks over the bridge: the
  * crest of the bridge's raked top edge at that x. The crown falls away toward
@@ -61,7 +81,7 @@ const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin
 function bridgeBreakY(x: number): number {
   const t = (x / 0.235 + 1) / 2; // parameter along the top-edge quadratic
   const local = -0.038 + 2 * t * (1 - t) * 0.113;
-  return STRING_BOT + (local - 0.02) * BRIDGE_SQUASH;
+  return STRING_BOT + BRIDGE_RISE + (local - 0.02) * BRIDGE_SQUASH;
 }
 
 // Afterlength: below the bridge the strings fan in again toward the
@@ -77,20 +97,29 @@ function tailX(idx: number): number {
   return (idx - 1.5) * TAIL_GAP;
 }
 
-// instrument palette: wood tones shared by both themes. Flat fills only —
-// no sheens or shading; the vector look carries the form by outline alone.
+// instrument palette: wood tones shared by both themes, matched to the
+// golden-amber varnish of the Le Brun Strad reference.
 const WOOD = {
-  plate: 0x8e4d26, // varnished spruce top
-  edge: 0x1f1209, // dark outline around the top plate
-  purfling: 0x2b1a0c,
-  fhole: 0x140c06,
+  edge: 0x241206, // dark outline around the top plate
+  rim: 0xcf9a52, // the rounded edge overhang catching the light
+  purfling: 0x2b190a,
+  fhole: 0x120a04,
   board: 0x16120f, // ebony fingerboard
   nut: 0x2a221b, // ebony like the board, only just distinguishable
   nutEdge: 0x554738, // faint warm line where the string breaks over it
-  bridge: 0xddba8a, // maple
-  bridgeTop: 0xecd9ae, // its top edge, caught by the raked view
+  bridgeTop: 0xecd9ae, // the bridge's top edge, caught by the raked view
   bridgeLine: 0x6b4826,
+  bridgeHi: 0xe8caa0, // maple, crown of the bridge…
+  bridgeLo: 0xd0a878, // …shading down to its feet
 };
+
+// varnish gradient (baked into the plate texture): centre out to the edges
+const VARNISH_STOPS: [number, string][] = [
+  [0, "#c47829"],
+  [0.5, "#a85c22"],
+  [0.85, "#86451a"],
+  [1, "#6e3714"],
+];
 
 export class SceneView {
   readonly renderer: THREE.WebGLRenderer;
@@ -176,13 +205,18 @@ export class SceneView {
   }
 
   /** A crisp screen-space outline through `pts` (closed), at depth `z`. */
-  private outline(pts: THREE.Vector2[], z: number, color: number, px: number): Line2 {
+  private outline(pts: THREE.Vector2[], z: number, color: number, px: number, opacity = 1): Line2 {
     const pos: number[] = [];
     for (const p of pts) pos.push(p.x, p.y, z);
     pos.push(pts[0].x, pts[0].y, z);
     const geo = new LineGeometry();
     geo.setPositions(pos);
     const mat = new LineMaterial({ color, linewidth: px, worldUnits: false });
+    if (opacity < 1) {
+      mat.transparent = true;
+      mat.opacity = opacity;
+      mat.depthWrite = false;
+    }
     this.fatLineMats.push(mat);
     return new Line2(geo, mat);
   }
@@ -257,9 +291,10 @@ export class SceneView {
   }
 
   /** Violin top plate (upper/lower bouts, deep C-bout with protruding
-   * corners, purfling inset from a dark edge) in true proportions, fitted
-   * to the reference photograph. The fingerboard overhangs the top edge;
-   * the lower bout runs off the bottom of the view. */
+   * corners, purfling inset from a dark edge, varnish gradient baked into a
+   * canvas texture) in true proportions, fitted to the Le Brun Strad. The
+   * fingerboard overhangs the top edge; the lower bout runs off the bottom
+   * of the view. */
   private buildBody(): void {
     const zPlate = -0.3;
 
@@ -274,18 +309,30 @@ export class SceneView {
       (p) => new THREE.Vector2(p.x, p.y * yScale)
     );
 
-    const plate = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(pts)), this.flat(WOOD.plate));
+    const plateGeo = new THREE.ShapeGeometry(new THREE.Shape(pts));
+    // map the varnish texture over the plate's bounding box
+    plateGeo.computeBoundingBox();
+    const bb = plateGeo.boundingBox!;
+    const uv = plateGeo.attributes.uv as THREE.BufferAttribute;
+    const posA = plateGeo.attributes.position as THREE.BufferAttribute;
+    for (let i = 0; i < uv.count; i++) {
+      uv.setXY(
+        i,
+        (posA.getX(i) - bb.min.x) / (bb.max.x - bb.min.x),
+        (posA.getY(i) - bb.min.y) / (bb.max.y - bb.min.y)
+      );
+    }
+    const plate = new THREE.Mesh(
+      plateGeo,
+      new THREE.MeshBasicMaterial({ map: varnishTexture(), side: THREE.DoubleSide })
+    );
     plate.position.z = zPlate;
     body.add(plate);
 
-    // (the plate is a single flat fill — the earlier lighter-centre "arching
-    // sheen" is gone; the centroid is still needed to offset the purfling)
-    const centroid = pts
-      .reduce((a, p) => a.add(p), new THREE.Vector2())
-      .multiplyScalar(1 / pts.length);
-
     body.add(this.outline(pts, zPlate + 0.015, WOOD.edge, 2.4));
-    body.add(this.outline(inset(pts, 0.055, centroid), zPlate + 0.01, WOOD.purfling, 1.2));
+    // the rounded edge overhang catches the light between edge and purfling
+    body.add(this.outline(offsetLoop(0.022, yScale), zPlate + 0.01, WOOD.rim, 1.3, 0.5));
+    body.add(this.outline(offsetLoop(PURFLING_INSET, yScale), zPlate + 0.012, WOOD.purfling, 1.4));
 
     // f-holes flanking the bridge, nicks level with its line
     for (const side of [-1, 1] as const) {
@@ -299,38 +346,14 @@ export class SceneView {
     this.instrument.add(body);
   }
 
-  /** One f-hole (right-hand variant; mirror with scale.x = -1), after the
-   * Stradivari pattern: a small round upper eye, a larger lower eye, a slim
-   * S-curved stem flaring into wings at both ends, and the middle nicks. */
+  /** One f-hole (right-hand variant; mirror with scale.x = -1): the real
+   * openclipart "Violin f hole" vector, fitted to the Le Brun Strad. It is a
+   * single filled path (the eyes are the solid rounded ends of the slot), so
+   * it draws as one shape — see FHOLE_OUTLINE / scripts/fit-svg-fhole.mjs. */
   private makeFHole(): THREE.Group {
-    const mat = this.flat(WOOD.fhole);
     const g = new THREE.Group();
-
-    const stem = new THREE.Shape();
-    stem.moveTo(-0.108, 0.275); // upper wing, left of the top eye
-    stem.bezierCurveTo(-0.09, 0.1, -0.01, -0.02, 0.048, -0.285);
-    stem.lineTo(0.112, -0.27); // lower wing, above the bottom eye
-    stem.bezierCurveTo(0.02, -0.02, -0.06, 0.08, -0.052, 0.283);
-    stem.closePath();
-    g.add(new THREE.Mesh(new THREE.ShapeGeometry(stem, 14), mat));
-
-    const eyeT = new THREE.Mesh(new THREE.CircleGeometry(0.034, 20), mat);
-    eyeT.position.set(-0.09, 0.295, 0);
-    const eyeB = new THREE.Mesh(new THREE.CircleGeometry(0.052, 20), mat);
-    eyeB.position.set(0.095, -0.3, 0);
-    g.add(eyeT, eyeB);
-
-    for (const [x0, dir] of [
-      [-0.075, 1],
-      [0.028, -1],
-    ] as const) {
-      const nick = new THREE.Shape();
-      nick.moveTo(x0, 0.008);
-      nick.lineTo(x0 + dir * 0.032, -0.01);
-      nick.lineTo(x0, -0.028);
-      nick.closePath();
-      g.add(new THREE.Mesh(new THREE.ShapeGeometry(nick), mat));
-    }
+    const shape = new THREE.Shape(FHOLE_OUTLINE.map(([x, y]) => new THREE.Vector2(x, y)));
+    g.add(new THREE.Mesh(new THREE.ShapeGeometry(shape), this.flat(WOOD.fhole)));
     return g;
   }
 
@@ -345,8 +368,11 @@ export class SceneView {
     const bs = new THREE.Shape();
     bs.moveTo(-0.137, boardTopY);
     bs.lineTo(0.137, boardTopY);
-    bs.lineTo(0.24, boardEndY + 0.06);
-    bs.quadraticCurveTo(0, boardEndY - 0.1, -0.24, boardEndY + 0.06);
+    // the end is a nearly straight horizontal edge (a real board's end is
+    // squared off, not the strongly convex arc it had before) with only the
+    // faintest sag in the middle
+    bs.lineTo(0.24, boardEndY);
+    bs.quadraticCurveTo(0, boardEndY - 0.015, -0.24, boardEndY);
     bs.closePath();
     const board = new THREE.Mesh(new THREE.ShapeGeometry(bs, 10), this.flat(WOOD.board));
     board.position.z = BOARD_SURFACE_Z - 0.01;
@@ -365,41 +391,55 @@ export class SceneView {
     this.instrument.add(nut, nutEdge);
   }
 
-  /** Maple bridge (feet, kidneys and heart) carrying the string's end. No
-   * tailpiece — the picture stops at the playable string, and below the
-   * bridge only a glimpse of the belly remains. */
+  /** Maple bridge carrying the string's end, with its traditional carving:
+   * curled ears, deep waist notches, splayed legs around a high arch, a
+   * heart (lobes up, apex down) and slim comma kidneys tilted toward the
+   * ears — all cut through as holes. No tailpiece — the picture stops at
+   * the playable string, and below the bridge only a glimpse of the belly
+   * remains. The crown quadratic is load-bearing: bridgeBreakY() mirrors it. */
   private buildBridge(): void {
     const b = new THREE.Shape();
     b.moveTo(-0.235, -0.07);
     b.quadraticCurveTo(0, 0.04, 0.235, -0.07); // crown
-    b.quadraticCurveTo(0.27, -0.09, 0.252, -0.125); // ear
-    b.quadraticCurveTo(0.205, -0.145, 0.2, -0.185); // waist notch
-    b.quadraticCurveTo(0.198, -0.225, 0.252, -0.25); // out to the leg
-    b.lineTo(0.288, -0.305);
-    b.quadraticCurveTo(0.3, -0.325, 0.28, -0.335); // foot
-    b.lineTo(0.125, -0.335);
-    b.quadraticCurveTo(0, -0.21, -0.125, -0.335); // arch between the feet
+    b.quadraticCurveTo(0.272, -0.085, 0.258, -0.12); // ear, curling under
+    b.quadraticCurveTo(0.21, -0.148, 0.208, -0.19); // waist notch, a deep half-round
+    b.quadraticCurveTo(0.207, -0.23, 0.256, -0.255); // flaring back out to the leg
+    b.lineTo(0.29, -0.307);
+    b.quadraticCurveTo(0.3, -0.327, 0.28, -0.335); // foot
+    b.lineTo(0.13, -0.335);
+    b.quadraticCurveTo(0.1, -0.335, 0.095, -0.28); // inside of the leg
+    b.quadraticCurveTo(0, -0.09, -0.095, -0.28); // arch between the feet
+    b.quadraticCurveTo(-0.1, -0.335, -0.13, -0.335);
     b.lineTo(-0.28, -0.335);
-    b.quadraticCurveTo(-0.3, -0.325, -0.288, -0.305);
-    b.lineTo(-0.252, -0.25);
-    b.quadraticCurveTo(-0.198, -0.225, -0.2, -0.185);
-    b.quadraticCurveTo(-0.205, -0.145, -0.252, -0.125);
-    b.quadraticCurveTo(-0.27, -0.09, -0.235, -0.07);
+    b.quadraticCurveTo(-0.3, -0.327, -0.29, -0.307);
+    b.lineTo(-0.256, -0.255);
+    b.quadraticCurveTo(-0.207, -0.23, -0.208, -0.19);
+    b.quadraticCurveTo(-0.21, -0.148, -0.258, -0.12);
+    b.quadraticCurveTo(-0.272, -0.085, -0.235, -0.07);
     b.closePath();
-    const heart = new THREE.Path();
-    heart.absarc(0, -0.105, 0.022, 0, Math.PI * 2, true);
-    b.holes.push(heart);
-    for (const side of [-1, 1]) {
-      const kidney = new THREE.Path();
-      kidney.absellipse(side * 0.115, -0.17, 0.034, 0.022, 0, Math.PI * 2, true, side * 0.45);
-      b.holes.push(kidney);
+    b.holes.push(bridgeHeart(), bridgeKidney(1), bridgeKidney(-1));
+
+    const geo = new THREE.ShapeGeometry(b, 10);
+    // vertical maple gradient, baked as vertex colours (crown light, feet deep)
+    const pos = geo.attributes.position as THREE.BufferAttribute;
+    const colors = new Float32Array(pos.count * 3);
+    const hi = new THREE.Color(WOOD.bridgeHi);
+    const lo = new THREE.Color(WOOD.bridgeLo);
+    const c = new THREE.Color();
+    for (let i = 0; i < pos.count; i++) {
+      const t = (0.04 - pos.getY(i)) / 0.375; // 0 at the crown peak, 1 at the feet
+      c.lerpColors(hi, lo, Math.min(1, Math.max(0, t)));
+      colors.set([c.r, c.g, c.b], i * 3);
     }
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
 
     const bridge = new THREE.Group();
     // squashed for the raked view, crown peak carrying the string's end
     bridge.scale.y = BRIDGE_SQUASH;
-    bridge.position.set(0, STRING_BOT - 0.02 * BRIDGE_SQUASH, -0.02);
-    bridge.add(new THREE.Mesh(new THREE.ShapeGeometry(b, 10), this.flat(WOOD.bridge)));
+    bridge.position.set(0, STRING_BOT + BRIDGE_RISE - 0.02 * BRIDGE_SQUASH, -0.02);
+    bridge.add(
+      new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }))
+    );
     // the top edge of the bridge, visible from the raked viewpoint
     const top = new THREE.Shape();
     top.moveTo(-0.235, -0.07);
@@ -539,25 +579,195 @@ export class SceneView {
 
 /** Right half of the violin outline (top centre at the origin, y downward),
  * as cubic segments [c1x, c1y, c2x, c2y, x, y], with L = 3.9. Fitted in the
- * SVG harness (e2e/outline-harness.mjs) to an edge-scanned width profile of
- * the reference photograph: upper bout widest 0.94 at 0.16 L, upper corner
- * tips 0.87 at 0.33 L, waist 0.62 around 0.41 L, lower corner tips 1.02 at
- * 0.58 L, lower bout widest 1.19 at 0.79 L, and a broad bottom. The bout
- * flanks run full into the corner tips; the deep concavity and the curls
- * under the tips are on the C-side, so the cornices overhang and read as
- * points. */
+ * SVG harness (e2e/body-harness.mjs) to an edge-scanned width profile of the
+ * Le Brun Stradivarius of 1712: full square-ish shoulders that stay
+ * tangent-continuous, upper bout widest 0.933 at 0.17 L, upper corner tips
+ * 0.868 at 0.34 L, waist 0.616 around 0.42 L, lower corner tips 1.03 at
+ * 0.58 L, lower bout widest 1.178 at 0.79 L, and a broad bottom. The bout
+ * flanks dip slightly before running into the corner tips; the deep
+ * concavity and the curls under the tips are on the C-side, so the cornices
+ * overhang and read as points. */
 const OUTLINE_HALF: number[][] = [
-  [0.2, -0.01, 0.4, -0.02, 0.56, -0.04], // top edge, gently bowed
-  [0.74, -0.1, 0.92, -0.36, 0.94, -0.64], // shoulder rounding into the widest
-  [0.93, -0.92, 0.9, -1.1, 0.87, -1.285], // flank, full, ending at the corner tip
-  [0.75, -1.315, 0.71, -1.345, 0.665, -1.37], // concave curl under the corner
-  [0.607, -1.55, 0.607, -1.8, 0.66, -1.95], // C-bout upper half through the waist
-  [0.7, -2.08, 0.8, -2.25, 1.02, -2.27], // C-bout lower half flaring to the tip
-  [0.99, -2.32, 0.975, -2.38, 1.005, -2.43], // concave curl under the lower corner
-  [1.06, -2.6, 1.187, -2.82, 1.187, -3.06], // lower bout out to the widest
-  [1.185, -3.35, 1.06, -3.58, 0.95, -3.7], // lower bout, broad
-  [0.85, -3.84, 0.55, -3.9, 0, -3.9], // bottom
+  [0.15, -0.001, 0.3, -0.006, 0.44, -0.018], // top edge, nearly flat past the neck
+  [0.72, -0.03, 0.933, -0.28, 0.933, -0.68], // full square-ish shoulder, smoothly rounded
+  [0.92, -0.9, 0.81, -1.1, 0.868, -1.34], // flank with a slight dip, out to the corner tip
+  [0.77, -1.348, 0.71, -1.36, 0.655, -1.425], // concave curl under the corner
+  [0.617, -1.5, 0.613, -1.72, 0.638, -1.88], // C-bout through the waist
+  [0.66, -2.0, 0.75, -2.22, 1.03, -2.26], // C-bout flaring to the lower corner tip
+  [0.995, -2.3, 0.99, -2.37, 1.0, -2.44], // concave curl under the lower corner
+  [1.02, -2.56, 1.178, -2.85, 1.178, -3.09], // lower bout out to the widest
+  [1.178, -3.32, 1.06, -3.56, 0.95, -3.68], // lower bout, broad
+  [0.88, -3.79, 0.63, -3.9, 0, -3.9], // bottom
 ];
+
+type P2 = [number, number];
+
+function cubicAt(p0: P2, c1: P2, c2: P2, p3: P2, t: number): P2 {
+  const u = 1 - t;
+  const a = u * u * u,
+    b = 3 * u * u * t,
+    c = 3 * u * t * t,
+    d = t * t * t;
+  return [
+    a * p0[0] + b * c1[0] + c * c2[0] + d * p3[0],
+    a * p0[1] + b * c1[1] + c * c2[1] + d * p3[1],
+  ];
+}
+
+function cubicTanAt(p0: P2, c1: P2, c2: P2, p3: P2, t: number): P2 {
+  const u = 1 - t;
+  return [
+    3 * u * u * (c1[0] - p0[0]) + 6 * u * t * (c2[0] - c1[0]) + 3 * t * t * (p3[0] - c2[0]),
+    3 * u * u * (c1[1] - p0[1]) + 6 * u * t * (c2[1] - c1[1]) + 3 * t * t * (p3[1] - c2[1]),
+  ];
+}
+
+/** Sample the full closed outline (right half + mirrored left half),
+ * y-scaled by `yScale`, returning points and unit tangents in path order. */
+function sampleOutline(yScale: number, perSeg = 28): { pts: P2[]; tans: P2[] } {
+  const segs: [P2, P2, P2, P2][] = [];
+  let prev: P2 = [0, 0];
+  for (const [c1x, c1y, c2x, c2y, x, y] of OUTLINE_HALF) {
+    segs.push([prev, [c1x, c1y], [c2x, c2y], [x, y]]);
+    prev = [x, y];
+  }
+  for (let i = OUTLINE_HALF.length - 1; i >= 0; i--) {
+    const [c1x, c1y, c2x, c2y] = OUTLINE_HALF[i];
+    const [ex, ey] = i === 0 ? [0, 0] : [OUTLINE_HALF[i - 1][4], OUTLINE_HALF[i - 1][5]];
+    segs.push([prev, [-c2x, c2y], [-c1x, c1y], [-ex, ey]]);
+    prev = [-ex, ey];
+  }
+  const pts: P2[] = [],
+    tans: P2[] = [];
+  for (const [p0, c1, c2, p3] of segs) {
+    for (let i = 0; i < perSeg; i++) {
+      const t = i / perSeg;
+      const p = cubicAt(p0, c1, c2, p3, t);
+      const tn = cubicTanAt(p0, c1, c2, p3, t);
+      const ty = tn[1] * yScale;
+      const n = Math.hypot(tn[0], ty) || 1;
+      pts.push([p[0], p[1] * yScale]);
+      tans.push([tn[0] / n, ty / n]);
+    }
+  }
+  return { pts, tans };
+}
+
+function segIntersect(a: P2, b: P2, c: P2, d: P2): P2 | null {
+  const rx = b[0] - a[0],
+    ry = b[1] - a[1];
+  const sx = d[0] - c[0],
+    sy = d[1] - c[1];
+  const denom = rx * sy - ry * sx;
+  if (Math.abs(denom) < 1e-12) return null;
+  const t = ((c[0] - a[0]) * sy - (c[1] - a[1]) * sx) / denom;
+  const u = ((c[0] - a[0]) * ry - (c[1] - a[1]) * rx) / denom;
+  if (t <= 0 || t >= 1 || u <= 0 || u >= 1) return null;
+  return [a[0] + t * rx, a[1] + t * ry];
+}
+
+/** Inward offset of the closed outline by `d` (in the y-scaled body frame),
+ * with the self-intersection loops that appear at the sharp corner tips
+ * clipped out, so the purfling mitres to a clean point toward each corner
+ * and otherwise simply follows the curve. */
+function offsetLoop(d: number, yScale: number): THREE.Vector2[] {
+  const { pts, tans } = sampleOutline(yScale);
+  // the path runs clockwise (y-up frame), so inward is the right-hand normal
+  let off: P2[] = pts.map((p, i) => [p[0] + tans[i][1] * d, p[1] - tans[i][0] * d]);
+  const maxLoop = Math.floor(off.length / 6);
+  let cut = true;
+  while (cut) {
+    cut = false;
+    outer: for (let i = 0; i < off.length; i++) {
+      for (let k = 2; k <= maxLoop; k++) {
+        const j = (i + k) % off.length;
+        const x = segIntersect(off[i], off[(i + 1) % off.length], off[j], off[(j + 1) % off.length]);
+        if (x) {
+          if (j > i) off = [...off.slice(0, i + 1), x, ...off.slice(j + 1)];
+          else off = [...off.slice(j + 1, i + 1), x];
+          cut = true;
+          break outer;
+        }
+      }
+    }
+  }
+  return off.map((p) => new THREE.Vector2(p[0], p[1]));
+}
+
+// --------------------------------------------------------------------------
+// Bridge cutouts (fitted in e2e/body-harness.mjs — keep in sync).
+
+/** Heart cutout, lobes up, apex down, centred on (0, cy). */
+function bridgeHeart(cy = -0.155, w = 0.058, h = 0.082): THREE.Path {
+  const x = w / 2,
+    top = cy + h * 0.42,
+    apex = cy - h * 0.58;
+  const p = new THREE.Path();
+  p.moveTo(0, cy + h * 0.1);
+  p.bezierCurveTo(0.004, top + 0.012, x * 0.55, top + 0.01, x * 0.8, top);
+  p.bezierCurveTo(x * 1.15, top - 0.016, x, cy - h * 0.1, 0, apex);
+  p.bezierCurveTo(-x, cy - h * 0.1, -x * 1.15, top - 0.016, -x * 0.8, top);
+  p.bezierCurveTo(-x * 0.55, top + 0.01, -0.004, top + 0.012, 0, cy + h * 0.1);
+  p.closePath();
+  return p;
+}
+
+/** Kidney cutout (a slim comma, outer end raised toward the ear), side = ±1. */
+function bridgeKidney(side: number, cx = 0.132, cy = -0.142, tilt = 0.55, size = 1.18): THREE.Path {
+  const cos = Math.cos(tilt) * size,
+    sin = Math.sin(tilt) * size;
+  // local coords: long axis x (outward), rounded fat outer end, tapered inner
+  const m = (x: number, y: number): [number, number] => [
+    side * (cx + x * cos - y * sin),
+    cy + x * sin + y * cos,
+  ];
+  const p = new THREE.Path();
+  p.moveTo(...m(-0.038, 0.002));
+  p.bezierCurveTo(...m(-0.032, 0.016), ...m(-0.005, 0.02), ...m(0.016, 0.016));
+  p.bezierCurveTo(...m(0.037, 0.011), ...m(0.038, -0.013), ...m(0.02, -0.018));
+  p.bezierCurveTo(...m(0.0, -0.023), ...m(-0.026, -0.016), ...m(-0.036, -0.007));
+  p.bezierCurveTo(...m(-0.041, -0.003), ...m(-0.041, -0.001), ...m(-0.038, 0.002));
+  p.closePath();
+  return p;
+}
+
+// --------------------------------------------------------------------------
+// Varnish: the top plate's fill, baked once into a small canvas texture —
+// a radial golden-amber gradient (lighter around the bridge, darker toward
+// the edges), fine vertical spruce grain, and a whisper of horizontal flame.
+// Deterministic (no randomness, no image assets) and cheap: 256×512 px.
+function varnishTexture(): THREE.CanvasTexture {
+  const W = 512,
+    H = 1024;
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const ctx = cv.getContext("2d")!;
+
+  const rad = ctx.createRadialGradient(W / 2, H * 0.4, 0, W / 2, H * 0.4, 0.8 * Math.hypot(W, H) / Math.SQRT2);
+  for (const [o, c] of VARNISH_STOPS) rad.addColorStop(o, c);
+  ctx.fillStyle = rad;
+  ctx.fillRect(0, 0, W, H);
+
+  // flame: soft horizontal bands, a triangle wave of faint light and dark
+  const flame = ctx.createLinearGradient(0, 0, 0, H);
+  const period = 32 / H; // ≈ 0.13 design units
+  for (let o = 0; o <= 1.0001; o += period) {
+    const mid = Math.min(1, o + period / 2);
+    flame.addColorStop(Math.min(1, o), "rgba(255,255,255,0.02)");
+    flame.addColorStop(mid, "rgba(0,0,0,0.015)");
+  }
+  ctx.fillStyle = flame;
+  ctx.fillRect(0, 0, W, H);
+
+  // grain: fine vertical lines
+  ctx.fillStyle = "rgba(0,0,0,0.035)";
+  for (let x = 4; x < W; x += 8) ctx.fillRect(x, 0, 1, H);
+
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
 
 function violinOutline(): THREE.Shape {
   const sh = new THREE.Shape();
@@ -596,37 +806,6 @@ function dedupe(pts: THREE.Vector2[]): THREE.Vector2[] {
   }
   if (out.length > 1 && out[0].distanceTo(out[out.length - 1]) < 1e-5) out.pop();
   return out;
-}
-
-/** Offset a closed polyline inward by d along per-point normals (toward the
- * centroid — exact enough for the purfling line). At the sharp C-bout corner
- * tips the offset curve self-intersects and pokes outside the outline, so
- * points that land outside are *dropped* — the resulting chord clips the
- * corner like a purfling bee-sting. */
-function inset(pts: THREE.Vector2[], d: number, centroid: THREE.Vector2): THREE.Vector2[] {
-  const n = pts.length;
-  const out: THREE.Vector2[] = [];
-  for (let i = 0; i < n; i++) {
-    const p = pts[i];
-    const t = pts[(i + 1) % n].clone().sub(pts[(i - 1 + n) % n]).normalize();
-    const nrm = new THREE.Vector2(t.y, -t.x);
-    if (nrm.dot(centroid.clone().sub(p)) < 0) nrm.negate();
-    const q = p.clone().addScaledVector(nrm, d);
-    if (insidePolygon(q, pts)) out.push(q);
-  }
-  return out;
-}
-
-function insidePolygon(p: THREE.Vector2, poly: THREE.Vector2[]): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const a = poly[i];
-    const b = poly[j];
-    if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) {
-      inside = !inside;
-    }
-  }
-  return inside;
 }
 
 function gcd(a: number, b: number): number {
