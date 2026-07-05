@@ -83,16 +83,26 @@ function frame(now: number): void {
   hud.updateMeters();
 }
 
-// World-x for the bow group so that the string's contact point sits at the
-// given fraction of the way along the hair: bowX = -BOW_END puts it at the frog
-// end, +BOW_END at the tip end, so a full stroke sweeps the whole playable hair
-// (and, near the ends, actually reaches them). Everything scales with the bow's
-// current on-screen size (view.bowMeshScale); the small lateral lane offset
-// keeps the contact on the selected string.
+// World-x for the bow group so that the contact point sits at the given
+// fraction of the way along the hair: bowX = -BOW_END puts it at the frog
+// end, +BOW_END at the tip end, so a full stroke sweeps the whole playable
+// hair (and, near the ends, actually reaches them). Everything scales with
+// the bow's current on-screen size (view.bowMeshScale).
+//
+// The bow anchors to the lane fan's centreline (x = 0), not the active lane:
+// crossing strings must not translate the bow along its length — as on a real
+// bow, the new string simply meets the hair a few millimetres further along.
+// Only at the extreme stroke ends does the anchor give, just enough to keep
+// the outermost lanes on hair rather than stick.
 function bowGroupX(view: SceneView, bowX: number, s: number): number {
   const t = (bowX + BOW_END) / (2 * BOW_END); // 0 at the frog, 1 at the tip
   const contact = BOW_HAIR_FROG + t * (BOW_HAIR_TIP - BOW_HAIR_FROG);
-  return view.activeLaneX(s) - contact * view.bowMeshScale;
+  const lane = view.activeLaneX(s);
+  const x = -contact * view.bowMeshScale;
+  return Math.min(
+    Math.max(x, lane - BOW_HAIR_FROG * view.bowMeshScale),
+    lane - BOW_HAIR_TIP * view.bowMeshScale
+  );
 }
 
 function updateTools(): void {
