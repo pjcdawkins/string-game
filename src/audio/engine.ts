@@ -6,6 +6,7 @@
 import workletUrl from "./processor.worklet.ts?worker&url";
 import type { StringSpec } from "./dsp/StringSim";
 import type { AudioMeter } from "../state";
+import type { StringBackend } from "./backend";
 
 /** Reverb tail length in seconds. Short enough to read as "room", not "hall". */
 const REVERB_SECONDS = 1.6;
@@ -34,7 +35,7 @@ function makeImpulseResponse(ctx: AudioContext): AudioBuffer {
   return buffer;
 }
 
-export class Engine {
+export class Engine implements StringBackend {
   private ctx: AudioContext | null = null;
   private node: AudioWorkletNode | null = null;
   analyser: AnalyserNode | null = null;
