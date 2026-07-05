@@ -101,10 +101,49 @@ body {
   left: 12px;
 }
 
-.top-right {
+/* ☰ menu: meta controls (help, display toggles) under one small button in
+   the conventional corner, above the tuner in the stacking order */
+.menu-btn {
+  position: fixed;
   top: 12px;
   right: 12px;
-  text-align: right;
+  z-index: 6;
+  padding: 7px 12px;
+  font-size: 15px;
+  line-height: 1.2;
+  backdrop-filter: blur(8px);
+}
+
+.panel.menu {
+  top: 54px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  min-width: 180px;
+}
+
+.panel.menu.hidden {
+  display: none;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+}
+
+.menu-item .tick {
+  opacity: 0;
+}
+
+.menu-item.on .tick {
+  opacity: 1;
 }
 
 .title {
@@ -181,9 +220,9 @@ body {
 }
 
 .tuner {
-  /* below the string picker so the top centre stays clear: the nut and the
-     top of the string must remain visible */
-  top: 110px;
+  /* below the ☰ button, hugging the right edge so the top centre stays
+     clear: the nut and the top of the string must remain visible */
+  top: 56px;
   right: 12px;
   text-align: center;
   min-width: 170px;
@@ -237,27 +276,30 @@ body {
   color: var(--bad);
 }
 
-.bottom-left {
+/* right-hand station: implement picker + bow pressure, by the bridge */
+.bottom-right {
   bottom: 12px;
-  left: 12px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
+  right: 12px;
+  text-align: right;
   max-width: 96vw;
 }
 
-.bottom-left label {
+.bottom-right .row:first-child {
+  margin-top: 0;
+}
+
+.bottom-right label {
   font-size: 11px;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   opacity: 0.9;
   white-space: nowrap;
 }
 
-.bottom-left input[type="range"] {
-  width: 90px;
+.bottom-right input[type="range"] {
+  width: 110px;
   accent-color: var(--range-accent);
 }
 
@@ -390,7 +432,7 @@ body {
     font-size: 13px;
   }
 
-  /* left gutter: tool picker + left-hand technique, stacked */
+  /* left gutter: string picker + left-hand technique, stacked */
   .top-left {
     top: 8px;
     left: 6px;
@@ -412,15 +454,14 @@ body {
     margin-top: 0;
   }
 
-  /* right gutter: string picker, stacked */
-  .top-right {
+  /* ☰ menu: top-right gutter, the only thing living up there */
+  .menu-btn {
     top: 8px;
     right: 6px;
   }
-  .top-right .row.seg-group {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 5px;
+  .panel.menu {
+    top: 50px;
+    right: 6px;
   }
   .pos-note {
     font-size: 10px;
@@ -430,8 +471,8 @@ body {
   .tuner {
     top: auto;
     bottom: 8px;
-    right: 8px;
-    left: auto;
+    left: 8px;
+    right: auto;
     min-width: 148px;
     padding: 6px 10px;
   }
@@ -439,14 +480,23 @@ body {
     font-size: 20px;
   }
 
-  /* pressure + help: bottom-left, also below the bridge */
-  .bottom-left {
+  /* right-hand station: bottom-right gutter, tools stacked over pressure */
+  .bottom-right {
     bottom: 8px;
-    left: 8px;
-    max-width: 42vw;
+    right: 6px;
   }
-  .bottom-left input[type="range"] {
-    width: 72px;
+  .bottom-right .row.seg-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+  .bottom-right label {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .bottom-right input[type="range"] {
+    width: 84px;
   }
 
   /* the "(harm.)" hint doesn't fit on the narrow Touch button */
