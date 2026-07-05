@@ -374,6 +374,31 @@ else {
   if (ms.on) fail("top-left corner tap did not lift the finger");
   else ok("top-left corner tap lifted the finger");
 }
+
+// 10c. open-string switches: a tap at the nut selects the tapped lane's open
+// string (lifting any latched finger), and the HUD string picker likewise
+// switches to the open string.
+await tapString(1, 0.3); // latch a finger on the D string
+const nutPt = await stringPt(2, -0.02); // the A lane, just above the nut
+await page.mouse.click(nutPt.clientX, nutPt.clientY);
+ms = await page.evaluate(() => ({
+  idx: window.__debug.state.stringIdx,
+  on: window.__debug.state.fingerOn,
+}));
+if (ms.idx !== 2 || ms.on)
+  fail(`nut tap did not select the open A string (stringIdx=${ms.idx}, fingerOn=${ms.on})`);
+else ok("nut tap selected the tapped lane's open string");
+
+await tapString(2, 0.3); // latch a finger on the A string
+await page.click('[data-str="1"]'); // the D button in the picker
+ms = await page.evaluate(() => ({
+  idx: window.__debug.state.stringIdx,
+  on: window.__debug.state.fingerOn,
+}));
+if (ms.idx !== 1 || ms.on)
+  fail(`string button did not switch to the open string (stringIdx=${ms.idx}, fingerOn=${ms.on})`);
+else ok("string button switches to the open string (finger lifted)");
+
 await page.keyboard.press("KeyA"); // back to the A string for the tests below
 
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the

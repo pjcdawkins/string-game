@@ -225,8 +225,14 @@ export class Interactions {
     // string moves the finger (and with it the bow) onto that string.
     if (onBoard && nearStrings && this.leftPointer === -1) {
       // A tap above the nut (s < 0, off the top of the board) lifts the finger
-      // — the "clear the hand" gesture; it doesn't begin a drag.
+      // — the "clear the hand" gesture; it doesn't begin a drag. The nut is
+      // where every string is open, so the tap also selects the lane it lands
+      // on: tapping another string at the nut switches to that string, open.
+      // (The lanes sit closest together up here — catchLane's stickiness
+      // absorbs a tap dead between two of them.)
       if (c.s < 0) {
+        const lane = this.catchLane(c);
+        if (lane !== state.stringIdx) this.selectString(lane);
         this.liftFinger();
         return;
       }

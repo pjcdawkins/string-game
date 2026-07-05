@@ -46,12 +46,12 @@ export class Hud {
     </div>
     <div class="panel top-right">
       <div class="row seg-group">${stringBtns}</div>
-      <div class="row pos-note" id="posnote">&nbsp;</div>
     </div>
     <div class="panel tuner">
       <div class="note" id="note">—</div>
       <div class="cents-bar"><div class="needle" id="needle"></div></div>
       <div class="tuner-row"><span id="cents">±0¢</span><span id="freq"></span><span id="slip" class="slip"></span></div>
+      <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
     <div class="panel bottom-left">
       <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
@@ -74,7 +74,8 @@ export class Hud {
         release — so you can pluck an open string sul tasto, anywhere up its length.</p>
         <p><b>Left hand</b>: tap anywhere on the fingerboard to place a finger — it stays
         (latches) so you can bow with the mouse. Tap a different string to move the finger
-        there; the bow follows it. Drag for glissando; the drag can even
+        there; the bow follows it. Tapping a string at the nut, or its letter in the
+        picker, plays it open. Drag for glissando; the drag can even
         carry the finger on past the end of the board, higher than the board itself
         reaches. To lift, flick the finger sideways off its string, tap the top-left
         corner (or above the nut), or press <kbd>Esc</kbd> / <b>Lift</b>. In <b>Touch</b>
@@ -133,6 +134,10 @@ export class Hud {
     this.root.querySelectorAll<HTMLButtonElement>(".str").forEach((b) =>
       tap(b, () => {
         state.stringIdx = Number(b.dataset.str);
+        // the picker names the *open* strings, so it plays one: any latched
+        // finger lifts (a left-hand touch on another lane keeps the stop
+        // instead — that's the way to change string with the finger down)
+        state.fingerOn = false;
         void engine.ensureStarted().then(() => engine.setString(STRINGS[state.stringIdx].spec));
         notify();
       })
