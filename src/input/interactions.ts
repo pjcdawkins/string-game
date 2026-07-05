@@ -131,6 +131,9 @@ const KEY_CONTACT_RATE = 0.35;
 const KEY_ATTACK_S = 0.15;
 const KEY_BITE_AMP = 0.8;
 
+// How long the implement's flick lingers after a keyboard pluck (seconds).
+const KEY_PLUCK_ANIM_S = 0.13;
+
 // [ / ] ramp the bow pressure while held, over the HUD slider's range.
 const KEY_FORCE_RATE = 0.35;
 const FORCE_MIN = 0.05;
@@ -149,6 +152,10 @@ export class Interactions {
   bowX = 0; // lateral bow travel in [-BOW_END, BOW_END], drives the bow mesh
   hover: { s: number; x: number } | null = null;
   fingerPressure = 0; // ramped actual pressure
+  // a keyboard pluck has no held gesture to show the implement, so it leaves a
+  // brief flick (read by main.ts): `life` runs 1 -> 0 as the implement retracts
+  // from its bent offset `dx` at contact point `p` back to rest.
+  pluckAnim: { p: number; dx: number; life: number } | null = null;
   // keyboard bowing intents (written by input/keyboard.ts, consumed in update)
   keyBowDir: -1 | 0 | 1 = 0;
   keyContactDir: -1 | 0 | 1 = 0;
@@ -459,6 +466,9 @@ export class Interactions {
     const dx = dir * MAX_BEND * Math.min(1, force / 1.2);
     const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
     this.view.visual.pluckVisual(p, dx, stopped);
+    // show the plectrum/fingertip flicking off the string (mouse plucks show it
+    // via `grabbed`; a key pluck is instantaneous, so animate the retract)
+    this.pluckAnim = { p, dx, life: 1 };
   }
 
   /** A finger landing or lifting under a live stroke re-triggers the bow
@@ -470,6 +480,11 @@ export class Interactions {
 
   /** Per-frame: ramps, auto-bow, and pushing state into the audio engine. */
   update(dt: number): void {
+    // decay the keyboard-pluck flick (see keyPluck / main.ts)
+    if (this.pluckAnim) {
+      this.pluckAnim.life -= dt / KEY_PLUCK_ANIM_S;
+      if (this.pluckAnim.life <= 0) this.pluckAnim = null;
+    }
     // portamento: the finger slides toward its target position
     if (this.fingerGlideTarget !== null && state.fingerOn) {
       const d = this.fingerGlideTarget - state.fingerPos;

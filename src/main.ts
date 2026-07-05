@@ -148,6 +148,13 @@ function updateTools(): void {
         0.06
       );
       setToolOpacity(mesh, 1);
+    } else if (input.pluckAnim) {
+      // a keyboard pluck: the implement flicks off the string, retracting from
+      // its bent offset back to the lane as the flick decays (life 1 -> 0)
+      const a = input.pluckAnim;
+      mesh.visible = true;
+      mesh.position.set(view.activeLaneX(a.p) + a.dx * a.life, view.sToY(a.p), 0.06);
+      setToolOpacity(mesh, 0.5 + 0.5 * a.life);
     } else if (hoverRight) {
       mesh.visible = true;
       const s = Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s));

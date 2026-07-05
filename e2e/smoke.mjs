@@ -448,6 +448,23 @@ const peakRmsAfter = async () => {
 await page.keyboard.press("p"); // -> pizzicato (finger)
 await page.waitForTimeout(300); // let any earlier ring-down decay
 await page.keyboard.press("Space");
+// the implement (here the right-hand fingertip) must flick into view on a key
+// pluck, just as `grabbed` shows it during a mouse pluck — poll a few frames
+const flicked = await page.evaluate(
+  () =>
+    new Promise((res) => {
+      const t0 = performance.now();
+      const tick = () => {
+        if (window.__debug.view.tools.rightFinger.visible || window.__debug.input.pluckAnim)
+          return res(true);
+        if (performance.now() - t0 > 300) return res(false);
+        requestAnimationFrame(tick);
+      };
+      tick();
+    })
+);
+if (!flicked) fail("Space pluck did not show the implement");
+else ok("Space pluck showed the implement");
 let pk = await peakRmsAfter();
 if (pk < 0.002) fail(`Space did not pluck in pizz mode (rms=${pk})`);
 else ok(`Space plucked in pizz, rms=${pk.toFixed(4)}`);
