@@ -72,6 +72,17 @@ const MU_D = 0.3; // dynamic friction coefficient
 const NUT_OPEN = 0.015;
 const NUT_FADE = 0.03;
 
+// Pluck loudness compensation. A low pizzicato carries as much signal energy as
+// a high one, but the ear's low-frequency roll-off (equal-loudness) makes it
+// read far quieter — an open G thuds where the E rings. Tilt the pluck
+// amplitude up toward the low end so the strings sound balanced, anchored at
+// PLUCK_LF_REF_HZ (~the top string) with a gentle exponent, never attenuating
+// (min gain 1) so the bright top strings are untouched, and capped so a very
+// low string can't overdrive the model.
+const PLUCK_LF_REF_HZ = 660;
+const PLUCK_LF_TILT = 0.5;
+const PLUCK_LF_MAX = 2.0;
+
 export class StringSim {
   readonly fs: number;
 
@@ -206,21 +217,25 @@ export class StringSim {
    * periods (and near-silent) on the high ones.
    */
   pluck(force: number, widthMs: number, periodFrac = 0): void {
+    // the sounding fundamental (round-trip length), needed for a period-keyed
+    // width and for the low-frequency loudness tilt below
+    const total = this.dA.value + this.dB.value + this.dC.value;
+    const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
+    const vibLen = this.effectiveRf() > 4 ? this.dB.value + this.dC.value : total;
+    const period = 2 * vibLen + comp;
     let len = Math.round((widthMs / 1000) * this.fs);
-    if (periodFrac > 0) {
-      const total = this.dA.value + this.dB.value + this.dC.value;
-      const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
-      const vibLen = this.effectiveRf() > 4 ? this.dB.value + this.dC.value : total;
-      const period = 2 * vibLen + comp;
-      len = Math.round(periodFrac * period);
-    }
+    if (periodFrac > 0) len = Math.round(periodFrac * period);
     this.pluckLen = Math.max(8, len);
     this.pluckSamplesLeft = this.pluckLen;
     // a gentle width compensation keeps a mellow (wider) pizz from dropping too
     // far below a sharp plectrum stroke of the same force
     const widthMsActual = (this.pluckLen / this.fs) * 1000;
     const widthComp = 1 + 0.06 * Math.max(0, widthMsActual - 0.8);
-    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force)) * widthComp;
+    // boost the low strings so they read as present as the highs (see the
+    // PLUCK_LF_* notes) — a √-frequency tilt anchored at the top string
+    const freq = this.fs / Math.max(1, period);
+    const lfGain = Math.min(PLUCK_LF_MAX, Math.max(1, Math.pow(PLUCK_LF_REF_HZ / freq, PLUCK_LF_TILT)));
+    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force)) * widthComp * lfGain;
     this.pluckPhase = 0;
   }
 
