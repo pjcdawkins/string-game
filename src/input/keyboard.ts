@@ -10,7 +10,9 @@
  * bow, ← an up bow, ↑/↓ slide the contact point toward the nut/bridge, and
  * holding [ / ] eases off / leans into the string (bow pressure). Holding
  * Space sustains an automatic détaché instead (release to stop); the arrows
- * stay fully manual, and override it while held. All of it combines
+ * stay fully manual, and override it while held. In the pick/pizz tools the
+ * right hand plucks instead: → and ← each pluck (as does Space), ↑/↓ still
+ * place where the pluck lands, and [ / ] set how hard. All of it combines
  * mid-stroke. The string is chosen with Page Up/Page Down (one string at a
  * time, no looping) or by its letter name (G/D/A/E); , and . nudge the bow
  * speed down/up (manual and auto alike, even mid-stroke); S sets the firm
@@ -160,8 +162,12 @@ export class Keyboard {
     if (e.code === "Space") {
       e.preventDefault();
       if (e.repeat) return;
+      // in a pluck tool Space plucks the active string instead of auto-bowing
+      if (state.tool !== "bow") {
+        this.input.keyPluck();
+        return;
+      }
       void engine.ensureStarted();
-      if (state.tool !== "bow") state.tool = "bow";
       state.autoBow = true;
       notify();
       return;
@@ -170,6 +176,12 @@ export class Keyboard {
       e.preventDefault();
       if (e.repeat) return;
       void engine.ensureStarted();
+      // in a pluck tool, ← / → each pluck the string (up-/down-stroke) rather
+      // than bowing; ↑ / ↓ still slide the contact point where the pluck lands
+      if (state.tool !== "bow" && (e.code === "ArrowLeft" || e.code === "ArrowRight")) {
+        this.input.keyPluck(e.code === "ArrowRight" ? 1 : -1);
+        return;
+      }
       // bowing from the keyboard implies the bow tool
       if ((e.code === "ArrowLeft" || e.code === "ArrowRight") && state.tool !== "bow") {
         state.tool = "bow";

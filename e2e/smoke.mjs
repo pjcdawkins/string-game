@@ -435,6 +435,31 @@ if (reset.tool !== "bow" || reset.leftMode !== "press")
   fail(`Esc did not reset to arco/press (tool=${reset.tool}, leftMode=${reset.leftMode})`);
 else ok("Esc reset to arco + ordinario press");
 
+// 10e. pluck shortcuts: in the pizz tool, Space and ←/→ pluck the open string
+// (the only keyboard path to a pizzicato); they must not revert to the bow.
+const peakRmsAfter = async () => {
+  let rms = 0;
+  for (let i = 0; i < 6; i++) {
+    rms = Math.max(rms, await page.evaluate(() => window.__debug.state.meter.rms));
+    await page.waitForTimeout(80);
+  }
+  return rms;
+};
+await page.keyboard.press("p"); // -> pizzicato (finger)
+await page.waitForTimeout(300); // let any earlier ring-down decay
+await page.keyboard.press("Space");
+let pk = await peakRmsAfter();
+if (pk < 0.002) fail(`Space did not pluck in pizz mode (rms=${pk})`);
+else ok(`Space plucked in pizz, rms=${pk.toFixed(4)}`);
+await page.waitForTimeout(400);
+await page.keyboard.press("ArrowRight");
+pk = await peakRmsAfter();
+if (pk < 0.002) fail(`ArrowRight did not pluck in pizz mode (rms=${pk})`);
+else ok(`→ plucked in pizz, rms=${pk.toFixed(4)}`);
+if ((await tool()) !== "finger") fail(`a pluck key reverted the tool to ${await tool()}`);
+else ok("pluck keys kept the pizz tool (no revert to bow)");
+await page.keyboard.press("Escape"); // back to the arco default for later tests
+
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the
 // canvas, a second finger taps a string button. Regression check — the HUD
 // used to listen for `click`, which browsers only fire for the *primary*

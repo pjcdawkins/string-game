@@ -168,6 +168,7 @@ export class Interactions {
   private pointerForce = -1; // pen/touch pressure if meaningful
   private autoBowDir = 1;
   private autoBowTimer = 0;
+  private keyPluckDir: -1 | 1 = 1; // alternates the snap of successive key plucks
   // every stroke starts with a little extra bow weight (the "bite") which
   // reliably pulls the string into the fundamental Helmholtz regime instead
   // of the double-slip octave
@@ -437,6 +438,27 @@ export class Interactions {
     this.fingerGlideTarget = null;
     this.rearticulate();
     notify();
+  }
+
+  /** Pluck the active string from the keyboard (Space / arrow keys in the
+   * pick or pizz tool). The contact point is the current bow position — moved
+   * by the up/down arrows — and the strength follows the bow-pressure keys
+   * ([ / ]), the same control that sets bow weight. `dir` bends the string
+   * that way for the snap animation; omit it to alternate, so a run of plucks
+   * flicks side to side like repeated strokes. */
+  keyPluck(dir?: -1 | 1): void {
+    void engine.ensureStarted();
+    const p = clamp(this.bowPos, this.implementMin(), BOW_MAX);
+    // map the shared bow-pressure setting onto a firm-but-bounded pluck force
+    const force = clamp(0.35 + state.bowForce, 0.1, 1.4);
+    // a plectrum is a sharp, bright stroke; a fingertip is a soft period-keyed
+    // pulse (see StringSim.pluck) — matching the pointer pluck in onUp
+    if (state.tool === "pick") engine.pluck(p, force, 0.7);
+    else engine.pluck(p, force, 0, FINGER_PLUCK_PERIOD_FRAC);
+    if (dir === undefined) dir = this.keyPluckDir = (-this.keyPluckDir as -1 | 1);
+    const dx = dir * MAX_BEND * Math.min(1, force / 1.2);
+    const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
+    this.view.visual.pluckVisual(p, dx, stopped);
   }
 
   /** A finger landing or lifting under a live stroke re-triggers the bow

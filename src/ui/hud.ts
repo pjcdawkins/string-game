@@ -98,7 +98,9 @@ export class Hud {
         <p class="desktop-only"><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
         (flip direction when you run out of bow), hold <kbd>Space</kbd> for auto-bowing,
         <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
-        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. Left hand — digits are
+        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. In <b>Pick</b>/<b>Pizz</b>
+        the right hand plucks instead: <kbd>→</kbd>/<kbd>←</kbd> (and <kbd>Space</kbd>) each pluck,
+        <kbd>↑</kbd>/<kbd>↓</kbd> set where, and <kbd>[</kbd>/<kbd>]</kbd> how hard. Left hand — digits are
         semitones above the open string (<kbd>1</kbd> = semitone … <kbd>9</kbd>) and held
         digits <i>add</i>: 4+3 stops a fifth, 9+3 an octave. Releasing peels intervals off, and
         letting go of every digit leaves the finger latched there — <kbd>0</kbd> plays the open
