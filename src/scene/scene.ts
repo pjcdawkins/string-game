@@ -57,17 +57,18 @@ const BOW_FIT = 0.94; // fraction of the viewport width a full-size bow may fill
 // accuracy on the fingerboard.
 // The bridge stands perpendicular to the belly, so face-on it would be seen
 // almost edge-on. We rake it — draw it as if looked down on from above — so
-// its carving reads; a steep rake (small squash) matches the reference, where
-// the bridge is a shallow maple band sitting on the f-hole notch line with
-// its front face (and the heart) mostly foreshortened away.
-const BRIDGE_SQUASH = 0.3;
-// The bridge's break point sits at STRING_BOT (s = 1), which lands its base a
-// little low — below the f-hole lower eyes. Lift the whole bridge (and its
-// break line) so the base rises to the lower-eye height, ~1.1× the bridge's
-// own raked height above the break. Purely visual: STRING_BOT and the s<->y
-// mapping are untouched, so fingering and pitch are unaffected; the string
-// simply breaks over the lifted crown and the afterlength runs on to the tail.
-const BRIDGE_RISE = 0.135;
+// its carving reads. A strong rake (small squash) matches the reference: the
+// bridge is a shallow maple band, its front face (and the heart) mostly
+// foreshortened away, seen nearly from the top.
+const BRIDGE_SQUASH = 0.15;
+// The bridge's natural break point sits at STRING_BOT (s = 1), which lands its
+// base below the f-hole lower eyes. Lift the whole bridge (and its break line)
+// so the base rises to the lower-eye height. Purely visual: STRING_BOT and the
+// s<->y mapping are untouched (fingering and pitch are unaffected); the string
+// breaks over the lifted crown and the afterlength runs on to the tail. The
+// bow's bridge-side limit is derived from this rise (see BOW_MAX) so the hair
+// stops at the lifted crown, not down at STRING_BOT.
+export const BRIDGE_RISE = 0.082;
 const BODY_LEN = 3.9; // outline design length (see OUTLINE_HALF)
 const BRIDGE_AT = 0.54; // bridge at 54% of the body, as measured on the photo
 const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin

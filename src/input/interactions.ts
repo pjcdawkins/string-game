@@ -13,7 +13,7 @@
  * side of a held stop is the right hand playing over the board (sul tasto /
  * pizz).
  */
-import { SceneView, STRING_LEN } from "../scene/scene";
+import { SceneView, STRING_LEN, BRIDGE_RISE } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
 import { laneX, N_LANES } from "../scene/lanes";
 import { engine } from "../audio/engine";
@@ -22,7 +22,12 @@ import type { GrabState } from "../scene/visualString";
 
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
 export const BOW_MIN = 0.48;
-export const BOW_MAX = 0.985;
+// The bridge is drawn lifted by BRIDGE_RISE (its base at the f-hole lower-eye
+// line), so its crown — where the string breaks and the hair should stop — is
+// at sToY(1) + BRIDGE_RISE, i.e. the string coordinate 1 - BRIDGE_RISE/STRING_LEN.
+// Stop the bow just there so the hair meets the top of the bridge rather than
+// running down toward STRING_BOT (which is below the lifted bridge).
+export const BOW_MAX = 1 - BRIDGE_RISE / STRING_LEN;
 // Minimum gap kept between a stopped finger and the bow contact: the bow always
 // sits on the bridge side of the finger, with at least this much string between
 // them (see implementMin) — roughly the width the bow itself needs.
