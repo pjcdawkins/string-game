@@ -687,88 +687,56 @@ function offsetLoop(d: number, yScale: number): THREE.Vector2[] {
 }
 
 // --------------------------------------------------------------------------
-// F-hole: parametric right-hand f-hole in local coordinates (y up, origin at
-// its middle; the nicks land at local y = -0.02, the bridge line). The stem
-// is a polybezier spine offset to both sides; wings are piecewise-linear
-// blade flares; the nicks are small triangular notches cut into both edges.
-// Fitted to the Le Brun Strad in e2e/body-harness.mjs — keep in sync.
+// F-hole (right-hand variant): the throat is one closed ribbon traced through
+// on-curve NODES (Catmull-Rom, corners at the wing tips), and the two eyes are
+// round circles stamped over its ends. Fitted to the Le Brun photo — the eyes
+// pixel-measured (upper 6mm, lower 9mm per the Sacconi/Stradivari method), the
+// whole f leaning ~23° so the lower eye sits well outboard of the upper. The
+// nicks (the little notches at the bridge line) are left out at this drawing
+// scale — they read as noise. Keep in sync with e2e/body-harness.mjs.
 const FHOLE = {
-  eyeTop: { c: [-0.098, 0.32] as P2, r: 0.038 },
-  eyeBot: { c: [0.115, -0.34] as P2, r: 0.056 },
-  // (A) out of the top eye's right side, hooking up and over it (a crescent
-  // of wood stays between eye and hook), then (B) the long lean down, ending
-  // in a slim tail at the bottom eye's lower right, wrapping under it
-  spine: [
-    [[-0.076, 0.313], [-0.048, 0.325], [-0.01, 0.312], [0.012, 0.268]],
-    [[0.012, 0.268], [0.029, 0.218], [0.02, -0.22], [0.156, -0.372]],
-  ] as [P2, P2, P2, P2][],
-  spineWeights: [0.16, 0.84], // sampling share of each spine segment
-  waist: 0.022, // half-width of the slot at the nicks
-  // wings: straight-edged blades on the inner (left) edge, ending in points —
-  // "hat" profiles [rise, peak, fall, endValue] with an eased fall
-  wingTop: 0.05,
-  wingTopHat: [0.06, 0.22, 0.5, 0] as const,
-  wingBot: 0.055,
-  wingBotHat: [0.56, 0.85, 1.0, 0.3] as const, // stays wide into the under-eye tail
-  nickT: 0.585, // where the nicks sit along the spine (the bridge line)
-  nickDepth: 0.012,
-  nickSpan: 0.022, // half-extent of the nick along the stem, in t
+  eyeTop: { c: [-0.078, 0.332] as P2, r: 0.033 },
+  eyeBot: { c: [0.145, -0.335] as P2, r: 0.048 },
+  // ribbon nodes, clockwise from the top wing tip: down the outer (right)
+  // edge, around the lower eye, out to the bottom wing tip, up the inner
+  // (left) edge, around the upper eye, back to the tip. `c` marks a corner.
+  nodes: [
+    { p: [0.02, 0.398] as P2, c: true }, // top wing tip
+    { p: [0.078, 0.24] as P2 }, // outer upper
+    { p: [0.09, 0.02] as P2 }, // outer throat (near-vertical)
+    { p: [0.108, -0.18] as P2 }, // outer lower
+    { p: [0.188, -0.3] as P2 }, // outer shoulder of the lower eye
+    { p: [0.168, -0.388] as P2 }, // under the lower eye
+    { p: [0.088, -0.392] as P2 }, // inner-bottom of the lower eye
+    { p: [0.035, -0.398] as P2, c: true }, // bottom wing tip
+    { p: [0.085, -0.28] as P2 }, // lower inner
+    { p: [0.072, -0.06] as P2 }, // inner mid-lower (slim throat)
+    { p: [0.06, 0.07] as P2 }, // inner throat (narrowest)
+    { p: [0.025, 0.235] as P2 }, // upper inner
+    { p: [-0.113, 0.31] as P2 }, // outer flank of the upper eye
+  ] as { p: P2; c?: boolean }[],
 };
 
-function hat(t: number, [a, peak, b, endVal]: readonly [number, number, number, number]): number {
-  if (t <= a || t >= b) return t >= b && endVal > 0 && t <= 1 ? endVal : 0;
-  if (t <= peak) return (t - a) / (peak - a);
-  // eased fall, so the blade melts into the stem instead of kinking
-  const s = (t - peak) / (b - peak);
-  return 1 - (1 - endVal) * s * (2 - s);
-}
-
-/** Point + unit tangent on the multi-segment spine at overall t in 0..1. */
-function spineAt(t: number): { p: P2; tan: P2 } {
-  const { spine, spineWeights } = FHOLE;
-  let acc = 0;
-  for (let i = 0; ; i++) {
-    const w = spineWeights[i];
-    if (t <= acc + w || i === spine.length - 1) {
-      const lt = Math.min(1, Math.max(0, (t - acc) / w));
-      const [p0, c1, c2, p3] = spine[i];
-      const p = cubicAt(p0, c1, c2, p3, lt);
-      const tn = cubicTanAt(p0, c1, c2, p3, lt);
-      const m = Math.hypot(tn[0], tn[1]) || 1;
-      return { p, tan: [tn[0] / m, tn[1] / m] };
-    }
-    acc += w;
+/** Closed Catmull-Rom polygon through FHOLE.nodes (corners kept sharp). */
+function fHoleStemPoints(perSeg = 16): P2[] {
+  const nd = FHOLE.nodes;
+  const n = nd.length;
+  const pts: P2[] = [];
+  for (let i = 0; i < n; i++) {
+    const p0 = nd[(i - 1 + n) % n].p,
+      p1 = nd[i].p,
+      p2 = nd[(i + 1) % n].p,
+      p3 = nd[(i + 2) % n].p;
+    const c1 = nd[i].c,
+      c2 = nd[(i + 1) % n].c;
+    // tangents; a corner endpoint pulls its handle onto the chord (straight)
+    const t1: P2 = c1 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p2[0] - p0[0]) / 2, (p2[1] - p0[1]) / 2];
+    const t2: P2 = c2 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p3[0] - p1[0]) / 2, (p3[1] - p1[1]) / 2];
+    const b1: P2 = [p1[0] + t1[0] / 3, p1[1] + t1[1] / 3];
+    const b2: P2 = [p2[0] - t2[0] / 3, p2[1] - t2[1] / 3];
+    for (let k = 0; k < perSeg; k++) pts.push(cubicAt(p1, b1, b2, p2, k / perSeg));
   }
-}
-
-/** Closed polygon for the f-hole stem (nicks included); eyes drawn over it. */
-function fHoleStemPoints(n = 72): P2[] {
-  const { waist, wingTop, wingTopHat, wingBot, wingBotHat, nickT, nickDepth, nickSpan } = FHOLE;
-  const right: P2[] = [],
-    left: P2[] = [];
-  // sample t including exact nick/blade vertices for crisp points
-  const ts: number[] = [];
-  for (let i = 0; i <= n; i++) ts.push(i / n);
-  ts.push(nickT - nickSpan, nickT, nickT + nickSpan,
-    wingTopHat[0], wingTopHat[1], wingTopHat[2], wingBotHat[0], wingBotHat[1]);
-  ts.sort((a, b) => a - b);
-  for (const t of ts) {
-    const { p, tan } = spineAt(t);
-    const nx = tan[1],
-      ny = -tan[0]; // right-hand normal (the spine runs downward)
-    let wR = waist;
-    let wL = waist + wingTop * hat(t, wingTopHat) + wingBot * hat(t, wingBotHat);
-    // nick: a small triangular widening of the slot at the bridge line
-    const dn = Math.abs(t - nickT);
-    if (dn < nickSpan) {
-      const bump = nickDepth * (1 - dn / nickSpan);
-      wR += bump;
-      wL += bump;
-    }
-    right.push([p[0] + nx * wR, p[1] + ny * wR]);
-    left.push([p[0] - nx * wL, p[1] - ny * wL]);
-  }
-  return [...right, ...left.reverse()];
+  return pts;
 }
 
 // --------------------------------------------------------------------------

@@ -144,87 +144,52 @@ function purflingPoints(d, perSeg = 28) {
 }
 
 // --------------------------------------------------------------------------
-// F-hole: parametric right-hand f-hole in local coordinates (y up, origin at
-// its middle, nicks at y≈0). The stem is a cubic spine offset to both sides
-// with wing flares, and the nicks are cut into both edges as small triangular
-// notches — one connected hole, unioned visually with the two eye circles.
+// F-hole (right-hand variant): the throat is one closed ribbon traced through
+// on-curve NODES (Catmull-Rom, with corners at the wing tips and nicks), and
+// the two eyes are round circles stamped over its ends. Fitted to the Le Brun
+// photo — eyes pixel-measured (upper 6mm, lower 9mm per the Sacconi/Stradivari
+// method), the whole f leaning ~23° so the lower eye sits well outboard of the
+// upper. Keep in sync with scene.ts.
 const FHOLE = {
-  eyeTop: { c: [-0.098, 0.32], r: 0.038 },
-  eyeBot: { c: [0.115, -0.34], r: 0.056 },
-  // spine as a polybezier: (A) out of the top eye's right side, hooking up
-  // and over it (a crescent of wood stays between eye and hook), then (B)
-  // the long lean down, ending in a slim tail at the bottom eye's lower
-  // right, so the slot wraps under it — per the Le Brun photo
-  spine: [
-    [[-0.076, 0.313], [-0.048, 0.325], [-0.01, 0.312], [0.012, 0.268]],
-    [[0.012, 0.268], [0.029, 0.218], [0.02, -0.22], [0.156, -0.372]],
+  eyeTop: { c: [-0.078, 0.332], r: 0.033 },
+  eyeBot: { c: [0.145, -0.335], r: 0.048 },
+  // ribbon nodes, clockwise from the top wing tip: down the outer (right)
+  // edge, around the lower eye, out to the bottom wing tip, up the inner
+  // (left) edge, around the upper eye, back to the tip. { p:[x,y], c:true }
+  // marks a sharp corner (the wing tips).
+  nodes: [
+    { p: [0.02, 0.398], c: true }, // top wing tip
+    { p: [0.078, 0.24] }, // outer upper
+    { p: [0.09, 0.02] }, // outer throat (near-vertical)
+    { p: [0.108, -0.18] }, // outer lower
+    { p: [0.188, -0.3] }, // outer shoulder of the lower eye
+    { p: [0.168, -0.388] }, // under the lower eye
+    { p: [0.088, -0.392] }, // inner-bottom of the lower eye
+    { p: [0.035, -0.398], c: true }, // bottom wing tip
+    { p: [0.085, -0.28] }, // lower inner
+    { p: [0.072, -0.06] }, // inner mid-lower (slim throat)
+    { p: [0.06, 0.07] }, // inner throat (narrowest)
+    { p: [0.025, 0.235] }, // upper inner
+    { p: [-0.113, 0.31] }, // outer flank of the upper eye
   ],
-  spineWeights: [0.16, 0.84], // sampling share of each spine segment
-  waist: 0.022, // half-width of the slot at the nicks
-  // wings: straight-edged blades on the inner (left) edge, ending in points —
-  // piecewise-linear "hat" profiles [rise, peak, fall, endValue]
-  wingTop: 0.05,
-  wingTopHat: [0.06, 0.22, 0.5, 0],
-  wingBot: 0.055,
-  wingBotHat: [0.56, 0.85, 1.0, 0.3], // stays wide into the under-eye tail
-  nickT: 0.585, // where the nicks sit along the spine (the bridge line)
-  nickDepth: 0.012,
-  nickSpan: 0.022, // half-extent of the nick along the stem, in t
 };
 
-function hat(t, [a, peak, b, endVal]) {
-  if (t <= a || t >= b) return t >= b && endVal > 0 && t <= 1 ? endVal : 0;
-  if (t <= peak) return (t - a) / (peak - a);
-  // eased fall, so the blade melts into the stem instead of kinking
-  const s = (t - peak) / (b - peak);
-  return 1 - (1 - endVal) * s * (2 - s);
-}
-
-/** Point + unit tangent on the multi-segment spine at overall t in 0..1. */
-function spineAt(t) {
-  const { spine, spineWeights } = FHOLE;
-  let acc = 0;
-  for (let i = 0; i < spine.length; i++) {
-    const w = spineWeights[i];
-    if (t <= acc + w || i === spine.length - 1) {
-      const lt = Math.min(1, Math.max(0, (t - acc) / w));
-      const [p0, c1, c2, p3] = spine[i];
-      const p = cubicAt(p0, c1, c2, p3, lt);
-      const tn = cubicTanAt(p0, c1, c2, p3, lt);
-      const m = Math.hypot(tn[0], tn[1]) || 1;
-      return { p, tan: [tn[0] / m, tn[1] / m] };
-    }
-    acc += w;
+/** Closed Catmull-Rom polygon through FHOLE.nodes (corners kept sharp). */
+function fHoleStemPoints(perSeg = 16) {
+  const nd = FHOLE.nodes;
+  const n = nd.length;
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    const p0 = nd[(i - 1 + n) % n].p, p1 = nd[i].p, p2 = nd[(i + 1) % n].p, p3 = nd[(i + 2) % n].p;
+    const c1 = nd[i].c, c2 = nd[(i + 1) % n].c;
+    // tangents; a corner endpoint pulls its handle onto the chord (straight)
+    const t1 = c1 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p2[0] - p0[0]) / 2, (p2[1] - p0[1]) / 2];
+    const t2 = c2 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p3[0] - p1[0]) / 2, (p3[1] - p1[1]) / 2];
+    const b1 = [p1[0] + t1[0] / 3, p1[1] + t1[1] / 3];
+    const b2 = [p2[0] - t2[0] / 3, p2[1] - t2[1] / 3];
+    for (let k = 0; k < perSeg; k++) pts.push(cubicAt(p1, b1, b2, p2, k / perSeg));
   }
-}
-
-/** Closed polygon for the f-hole stem (nicks included); eyes drawn over it. */
-function fHoleStemPoints(n = 72) {
-  const { waist, wingTop, wingTopHat, wingBot, wingBotHat, nickT, nickDepth, nickSpan } = FHOLE;
-  const right = [], left = [];
-  // sample t including exact nick/blade vertices for crisp points
-  const ts = [];
-  for (let i = 0; i <= n; i++) ts.push(i / n);
-  for (const t of [nickT - nickSpan, nickT, nickT + nickSpan,
-    wingTopHat[0], wingTopHat[1], wingTopHat[2], wingBotHat[0], wingBotHat[1]])
-    ts.push(t);
-  ts.sort((a, b) => a - b);
-  for (const t of ts) {
-    const { p, tan } = spineAt(t);
-    const nx = tan[1], ny = -tan[0]; // right-hand normal (spine runs downward)
-    let wR = waist;
-    let wL = waist + wingTop * hat(t, wingTopHat) + wingBot * hat(t, wingBotHat);
-    // nick: a small triangular widening of the slot at the bridge line
-    const dn = Math.abs(t - nickT);
-    if (dn < nickSpan) {
-      const bump = nickDepth * (1 - dn / nickSpan);
-      wR += bump;
-      wL += bump;
-    }
-    right.push([p[0] + nx * wR, p[1] + ny * wR]);
-    left.push([p[0] - nx * wL, p[1] - ny * wL]);
-  }
-  return [...right, ...left.reverse()];
+  return pts;
 }
 
 // --------------------------------------------------------------------------
@@ -440,30 +405,33 @@ const Tfz = panel(1495, 330, FZ_S);
 let fzoom = `<rect x="1330" y="40" width="330" height="560" fill="#d9cbb2"/>` + fHoleGroup(Tfz);
 fzoom += `<text x="1335" y="56" font-size="14" fill="#555">f-hole ×${(FZ_S / BODY_S).toFixed(1)}</text>`;
 
-// photo f-hole (viewer-right, centred near design (0.415, -2.086)), with the
-// drawn f-hole overlaid in cyan at the same station for direct fitting
-{
-  const crop = photoCrop(640, 1200, 170, 250, 1670, 40, 2.4, "photo f-hole");
+// photo f-hole (viewer-right, centred near design (0.415, -2.086)): once
+// plain, and once with the drawn f-hole overlaid as a translucent fill at
+// the same station, so any mismatch shows as coloured or black fringes
+for (const [dx, withOverlay] of [[1670, false], [2100, true]]) {
+  const mag = 2.8;
+  const crop = photoCrop(645, 1205, 150, 240, dx, 40, mag, withOverlay ? "overlay fill" : "photo f-hole");
   fzoom += crop.svg;
+  if (!withOverlay) continue;
   const Tof = crop.designPanel(FH_ROT, 1, FH_X, FH_Y);
-  fzoom += `<path d="${polyD(Tof, fHoleStemPoints())}" fill="none" stroke="#00d8ff" stroke-width="1.4" opacity="0.9"/>`;
+  fzoom += `<path d="${polyD(Tof, fHoleStemPoints())}" fill="#00d8ff" opacity="0.55"/>`;
   for (const e of [FHOLE.eyeTop, FHOLE.eyeBot]) {
     const [ex, ey] = Tof(e.c).split(",");
-    fzoom += `<circle cx="${ex}" cy="${ey}" r="${(e.r * (1028 / L) * 2.4).toFixed(1)}" fill="none" stroke="#00d8ff" stroke-width="1.4" opacity="0.9"/>`;
+    fzoom += `<circle cx="${ex}" cy="${ey}" r="${(e.r * (1028 / L) * mag).toFixed(1)}" fill="#00d8ff" opacity="0.55"/>`;
   }
 }
 
 const BZ_S = 900;
-const Tbz = panel(2400, 130, BZ_S);
-let bzoom = `<rect x="2110" y="40" width="580" height="400" fill="#d9cbb2"/>` + bridgeGroup(Tbz);
-bzoom += `<text x="2115" y="56" font-size="14" fill="#555">bridge (unsquashed)</text>`;
-const Tbz2 = panel(1620, 690, BZ_S);
+const Tbz = panel(2830, 130, BZ_S);
+let bzoom = `<rect x="2540" y="40" width="580" height="400" fill="#d9cbb2"/>` + bridgeGroup(Tbz);
+bzoom += `<text x="2545" y="56" font-size="14" fill="#555">bridge (unsquashed)</text>`;
+const Tbz2 = panel(1620, 760, BZ_S);
 const Tbsq = (p) => Tbz2([p[0], p[1] * BRIDGE_SQUASH]);
-bzoom += `<rect x="1330" y="660" width="580" height="270" fill="#d9cbb2"/>` + bridgeGroup(Tbsq);
-bzoom += `<text x="1335" y="676" font-size="14" fill="#555">bridge (squashed ×${BRIDGE_SQUASH})</text>`;
+bzoom += `<rect x="1330" y="720" width="580" height="270" fill="#d9cbb2"/>` + bridgeGroup(Tbsq);
+bzoom += `<text x="1335" y="736" font-size="14" fill="#555">bridge (squashed ×${BRIDGE_SQUASH})</text>`;
 // photo bridge for comparison
 {
-  const crop = photoCrop(530, 1255, 170, 140, 2110, 470, 3, "photo bridge");
+  const crop = photoCrop(530, 1255, 170, 140, 2540, 470, 3, "photo bridge");
   bzoom += crop.svg;
 }
 
@@ -494,7 +462,7 @@ const defs = `
   </linearGradient>
 </defs>`;
 
-const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="2740" height="940" style="background:#efe9dd">
+const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="3160" height="1000" style="background:#efe9dd">
 ${defs}
 ${ref}
 ${guides}
@@ -506,7 +474,7 @@ ${bzoom}
 const svgPath = path.join(os.tmpdir(), "body-view.svg");
 fs.writeFileSync(svgPath, svg);
 const b = await chromium.launch();
-const p = await b.newPage({ viewport: { width: 2740, height: 940 }, deviceScaleFactor: 2 });
+const p = await b.newPage({ viewport: { width: 3160, height: 1000 }, deviceScaleFactor: 2 });
 await p.goto(`file://${svgPath}`);
 await p.screenshot({ path: outPng });
 await b.close();
