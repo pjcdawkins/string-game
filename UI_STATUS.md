@@ -51,9 +51,9 @@ impossible until the bowing finger lifted.
   board instead).
 - **Finger mode** — Press / Touch (harmonic) / Lift (top-left).
 - **Tool picker** — Bow / Pick / Pizz (bottom-right, with the right-hand
-  controls).
-- **Bow pressure slider** — bottom-right, under the tool picker; sets
-  `state.bowForce`.
+  controls); the three buttons share one fixed width.
+- **Bow pressure slider** — bottom-right, in its own panel under the tool
+  picker; sets `state.bowForce`.
 - **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
   readout, and the note-under-the-finger / hover-note guide (top-right, below
   the ☰ button; the guide lives here rather than in a picker panel so no

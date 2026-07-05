@@ -297,19 +297,35 @@ body {
   color: var(--bad);
 }
 
-/* right-hand station: implement picker + bow pressure, by the bridge */
-.bottom-right {
+/* right-hand station, by the bridge: the implement picker and the
+   bow-pressure slider are separate panels stacked in the corner, so the
+   picker's buttons share one width among themselves and the slider's
+   width is its own affair */
+.right-station {
+  position: fixed;
   bottom: 12px;
   right: 12px;
-  text-align: right;
-  max-width: 96vw;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
 }
 
-.bottom-right .row:first-child {
+.right-station .panel {
+  position: static;
+}
+
+.tools-panel .row {
   margin-top: 0;
 }
 
-.bottom-right label {
+/* one width for Bow/Pick/Pizz, sized to the widest label */
+.tools-panel .seg.tool {
+  width: 76px;
+}
+
+.pressure-panel label {
   font-size: 11px;
   display: flex;
   align-items: center;
@@ -319,7 +335,7 @@ body {
   white-space: nowrap;
 }
 
-.bottom-right input[type="range"] {
+.pressure-panel input[type="range"] {
   width: 110px;
   accent-color: var(--range-accent);
 }
@@ -501,29 +517,30 @@ body {
     font-size: 20px;
   }
 
-  /* right-hand station: bottom-right gutter, tools stacked over pressure.
-     The tool buttons hug their labels (narrow, right-aligned) so the wide
-     part of the panel is the pressure slider, which wants the width for
-     granularity — together with the fixed-width tuner both fit the strip */
-  .bottom-right {
+  /* right-hand station: bottom-right gutter, the tool column stacked over
+     the pressure panel. The tools share one modest width while the slider
+     panel stays wider for granularity — together with the fixed-width
+     tuner both fit the strip */
+  .right-station {
     bottom: 8px;
     right: 6px;
+    gap: 6px;
   }
-  .bottom-right .row.seg-group {
+  .tools-panel .row.seg-group {
     flex-direction: column;
     align-items: flex-end;
     gap: 5px;
   }
-  .bottom-right .seg.tool {
+  .tools-panel .seg.tool {
     padding: 7px 8px;
     font-size: 12px;
   }
-  .bottom-right label {
+  .pressure-panel label {
     flex-direction: column;
     align-items: stretch;
     gap: 4px;
   }
-  .bottom-right input[type="range"] {
+  .pressure-panel input[type="range"] {
     width: 118px;
   }
 

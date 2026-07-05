@@ -56,13 +56,15 @@ export class Hud {
       <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
     <div class="sound-hint off" id="soundHint"></div>
-    <div class="panel bottom-right">
-      <div class="row seg-group" id="tools">
-        <button class="seg tool" data-tool="bow">🎻 Bow</button>
-        <button class="seg tool" data-tool="pick">▷ Pick</button>
-        <button class="seg tool" data-tool="finger">☝ Pizz</button>
+    <div class="right-station">
+      <div class="panel tools-panel">
+        <div class="row seg-group" id="tools">
+          <button class="seg tool" data-tool="bow">🎻 Bow</button>
+          <button class="seg tool" data-tool="pick">▷ Pick</button>
+          <button class="seg tool" data-tool="finger">☝ Pizz</button>
+        </div>
       </div>
-      <div class="row">
+      <div class="panel pressure-panel">
         <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
       </div>
     </div>
