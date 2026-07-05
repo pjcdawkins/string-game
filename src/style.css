@@ -225,7 +225,9 @@ body {
   top: 56px;
   right: 12px;
   text-align: center;
-  min-width: 170px;
+  /* fixed, sized for the worst-case readout ("-50¢ 1318.5 Hz stick–slip"):
+     the panel must not breathe as digits come and go or sound stops */
+  width: 188px;
 }
 
 .tuner .note {
@@ -264,6 +266,25 @@ body {
   font-size: 11px;
   opacity: 0.85;
   font-variant-numeric: tabular-nums;
+  /* hold one line of height while the readouts are empty (no sound):
+     otherwise the row collapses and the whole panel jumps vertically */
+  min-height: 15px;
+  white-space: nowrap;
+}
+
+/* each readout gets a fixed station (cents left, Hz centre, bowing-regime
+   verdict right) so a change in one doesn't shove the others sideways */
+.tuner-row .cents {
+  min-width: 32px;
+  text-align: left;
+}
+.tuner-row .freq {
+  flex: 1;
+  text-align: center;
+}
+.tuner-row .slip {
+  min-width: 54px;
+  text-align: right;
 }
 
 .slip.good {
@@ -473,22 +494,29 @@ body {
     bottom: 8px;
     left: 8px;
     right: auto;
-    min-width: 148px;
+    width: 184px;
     padding: 6px 10px;
   }
   .tuner .note {
     font-size: 20px;
   }
 
-  /* right-hand station: bottom-right gutter, tools stacked over pressure */
+  /* right-hand station: bottom-right gutter, tools stacked over pressure.
+     The tool buttons hug their labels (narrow, right-aligned) so the wide
+     part of the panel is the pressure slider, which wants the width for
+     granularity — together with the fixed-width tuner both fit the strip */
   .bottom-right {
     bottom: 8px;
     right: 6px;
   }
   .bottom-right .row.seg-group {
     flex-direction: column;
-    align-items: stretch;
+    align-items: flex-end;
     gap: 5px;
+  }
+  .bottom-right .seg.tool {
+    padding: 7px 8px;
+    font-size: 12px;
   }
   .bottom-right label {
     flex-direction: column;
@@ -496,7 +524,7 @@ body {
     gap: 4px;
   }
   .bottom-right input[type="range"] {
-    width: 84px;
+    width: 118px;
   }
 
   /* the "(harm.)" hint doesn't fit on the narrow Touch button */

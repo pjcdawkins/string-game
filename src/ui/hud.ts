@@ -52,7 +52,7 @@ export class Hud {
     <div class="panel tuner">
       <div class="note" id="note">—</div>
       <div class="cents-bar"><div class="needle" id="needle"></div></div>
-      <div class="tuner-row"><span id="cents">±0¢</span><span id="freq"></span><span id="slip" class="slip"></span></div>
+      <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
       <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
     <div class="sound-hint off" id="soundHint"></div>
