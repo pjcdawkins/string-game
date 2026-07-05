@@ -73,10 +73,12 @@ export class Hud {
         fingerboard, or reach in from either side of the board, bend it sideways and
         release — so you can pluck an open string sul tasto, anywhere up its length.</p>
         <p><b>Left hand</b>: tap anywhere on the fingerboard to place a finger — it stays
-        (latches) so you can bow with the mouse. Drag for glissando; the drag can even
+        (latches) so you can bow with the mouse. Tap a different string to move the finger
+        there; the bow follows it. Drag for glissando; the drag can even
         carry the finger on past the end of the board, higher than the board itself
-        reaches. Quick-tap the finger, tap above the nut, or press <kbd>Esc</kbd> /
-        <b>Lift</b> to lift it. In <b>Touch</b> mode the finger only brushes the string:
+        reaches. To lift, flick the finger sideways off its string, tap the top-left
+        corner (or above the nut), or press <kbd>Esc</kbd> / <b>Lift</b>. In <b>Touch</b>
+        mode the finger only brushes the string:
         touch a glowing node to sound a natural harmonic.</p>
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing or plucking with
         another — a second touch on the board, bridge-side of the stop, plays over the
@@ -189,11 +191,15 @@ export class Hud {
     if (!seen) help.classList.remove("hidden");
   }
 
-  /** Position (0..1 from the nut) the cursor is hovering over, or null. */
+  /** Position (0..1 from the nut) the cursor is hovering over, or null, and
+   * the string lane a touch there would catch (it may differ from the
+   * selected string — touching another lane moves the finger to it). */
   private hoverS: number | null = null;
+  private hoverLane = state.stringIdx;
 
-  setHoverPosition(s: number | null): void {
+  setHoverPosition(s: number | null, lane = state.stringIdx): void {
     this.hoverS = s;
+    this.hoverLane = lane;
   }
 
   /** Reflect state into the controls. */
@@ -245,7 +251,9 @@ export class Hud {
       const n = freqToNote(f0 / (1 - fingerStop(state.fingerPos)));
       if (n) this.posNoteEl.textContent = `stop: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else if (this.hoverS !== null && this.hoverS > 0.01) {
-      const n = freqToNote(f0 / (1 - fingerStop(this.hoverS)));
+      // guide on the *hovered* lane: a touch there would catch that string
+      const hf0 = STRINGS[this.hoverLane].spec.f0;
+      const n = freqToNote(hf0 / (1 - fingerStop(this.hoverS)));
       if (n) this.posNoteEl.textContent = `here: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else {
       this.posNoteEl.innerHTML = "&nbsp;";

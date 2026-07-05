@@ -138,7 +138,8 @@ export class SceneView {
     this.tools = makeTools(this.instrument);
 
     this.fingerContact = new THREE.Mesh(
-      new THREE.CircleGeometry(0.09, 24),
+      // sized with the finger circle in tools.ts: within one string lane
+      new THREE.CircleGeometry(0.05, 24),
       new THREE.MeshBasicMaterial({
         color: 0xffd27f,
         transparent: true,

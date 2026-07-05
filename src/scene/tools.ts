@@ -142,11 +142,14 @@ export function makePlectrum(): THREE.Group {
 }
 
 /** A finger is shown as a simple flat circle in a neutral yellow (used for
- * both hands), with a thin darker rim for contrast against the string. */
+ * both hands), with a thin darker rim for contrast against the string. Kept
+ * small — about a fingertip at the drawn instrument's scale — so it covers
+ * only its own string lane (the lanes sit just 0.062 apart at the nut, see
+ * ./lanes.ts) and the touch can read which string it is stopping. */
 export function makeFinger(): THREE.Group {
   const g = new THREE.Group();
-  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.14, 32), flat(0xe3c284));
-  const rim = new THREE.Mesh(new THREE.RingGeometry(0.14, 0.165, 32), flat(0x93794a));
+  const pad = new THREE.Mesh(new THREE.CircleGeometry(0.055, 32), flat(0xe3c284));
+  const rim = new THREE.Mesh(new THREE.RingGeometry(0.055, 0.068, 32), flat(0x93794a));
   rim.position.z = 0.001;
   g.add(pad, rim);
   return g;

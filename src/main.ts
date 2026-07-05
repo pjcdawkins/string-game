@@ -1,6 +1,7 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity, BOW_HAIR_TIP, BOW_HAIR_FROG } from "./scene/tools";
-import { Interactions, BOW_MAX, BOW_END, LEFT_CATCH_X } from "./input/interactions";
+import { Interactions, BOW_MAX, BOW_END, LEFT_CATCH_X, LIFT_ZONE_S } from "./input/interactions";
+import { laneX } from "./scene/lanes";
 import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
@@ -98,10 +99,14 @@ function updateTools(): void {
   // The implement previews below the board and out in the flanks — where a
   // touch reaches in to bow / pizz sul tasto (matching onDown's routing).
   const hoverLeft = hover && hover.s >= 0 && hover.s < boundary && Math.abs(hover.x) < LEFT_CATCH_X;
-  const hoverRight = hover && !hoverLeft && hover.s >= 0 && hover.s <= 1.05;
+  // the top-left corner is the lift-the-hand tap target — no tool ghost there
+  const hoverLift = hover && hover.s < LIFT_ZONE_S && hover.x < -LEFT_CATCH_X;
+  const hoverRight = hover && !hoverLeft && !hoverLift && hover.s >= 0 && hover.s <= 1.05;
+  // the string lane a left-hand touch here would catch (nearest, sticky)
+  const hoverLane = hoverLeft ? input.catchLane(hover!) : state.stringIdx;
 
   // note guide: show what the cursor position would sound under the finger
-  hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null);
+  hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null, hoverLane);
 
   if (state.tool === "bow") {
     // the bow never disappears: solid while stroking, a ghost resting at its
@@ -143,7 +148,8 @@ function updateTools(): void {
   } else if (hoverLeft) {
     lf.visible = true;
     const s = Math.max(0.02, hover!.s);
-    lf.position.set(view.activeLaneX(s), view.sToY(s), 0.16);
+    // preview on the lane the touch would catch, not just the active string
+    lf.position.set(laneX(hoverLane, s), view.sToY(s), 0.16);
     setToolOpacity(lf, 0.45);
     view.showFingerContact(0, 0);
   } else {
