@@ -433,7 +433,7 @@ export class SceneView {
         new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85 })
       );
       dot.userData.p = p;
-      dot.position.set(0.16, this.sToY(p), 0.02);
+      dot.position.set(0, this.sToY(p), 0.02);
       this.nodeMarkers.add(dot);
     }
     this.instrument.add(this.nodeMarkers);
@@ -449,7 +449,8 @@ export class SceneView {
     for (const d of this.nodeMarkers.children) {
       const p = (d.userData as { p: number }).p;
       const abs = stop + p * (1 - stop);
-      d.position.x = laneX(this.activeString, abs) + 0.14;
+      // beads sitting on the string itself: touch the dot, get the harmonic
+      d.position.x = laneX(this.activeString, abs);
       d.position.y = this.sToY(abs);
       d.visible = abs <= FINGERBOARD_END;
     }
