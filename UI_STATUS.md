@@ -16,11 +16,19 @@ string draws at full contrast and vibrates over the three faint idle ones —
 but the left hand moves between strings directly: a touch on the board catches
 the nearest lane (the current string wins near-ties), switching the sounding
 string and bringing the bow with it. The HUD picker and the G/D/A/E keys still
-switch strings too. On wide screens
-the controls sit in the four corners. On
-narrow portrait screens (`max-width: 600px`, see `src/style.css`) they dock
-into the left/right gutters and the strip below the bridge instead, so the
-whole vertical string stays reachable for fingering and bowing.
+switch strings too.
+
+The controls are stationed by hand, mirroring the instrument (nut at the
+top, bridge at the bottom): the **left hand's** controls — string picker and
+Press/Touch/Lift — sit **top-left**, beside where the left hand plays, and
+the **right hand's** — Bow/Pick/Pizz and bow pressure — sit **bottom-right**,
+by the bridge. The tuner (feedback, not a control) and the ☰ menu (meta:
+help and display toggles) take the top-right. On narrow portrait screens
+(`max-width: 600px`, see `src/style.css`) the same stations dock into the
+gutters — the left-hand column down the left edge, the right-hand column
+rising from the bottom-right, the tuner in the strip below the bridge
+(bottom-left), the ☰ button staying top-right — so the whole vertical string
+stays reachable for fingering and bowing.
 
 The HUD and the WebGL scene both follow the system colour scheme
 (`prefers-color-scheme`, applied live — there is no in-app toggle): the CSS
@@ -37,18 +45,23 @@ tapped mid-stroke while the first holds a bow gesture on the canvas. Browsers
 only fire `click` for the primary pointer, which used to make string switching
 impossible until the bowing finger lifted.
 
-- **Tool picker** — Bow / Pick / Pizz (top-left).
-- **Left hand** — Press / Touch (harmonic) / Lift (top-left).
-- **String picker** — G / D / A / E (top-right); switches to the *open*
-  string, lifting any latched finger (moving the finger between strings with
-  the stop kept is the left-hand touch on the board instead).
-- **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
-  readout, and the note-under-the-finger / hover-note guide (top-right; the
-  guide lives here rather than in the picker panel so the picker's width
-  doesn't track the text).
-- **Bow pressure slider** — the only slider in the bottom-left panel; sets
+- **String picker** — G / D / A / E (top-left, with the left-hand controls);
+  switches to the *open* string, lifting any latched finger (moving the
+  finger between strings with the stop kept is the left-hand touch on the
+  board instead).
+- **Finger mode** — Press / Touch (harmonic) / Lift (top-left).
+- **Tool picker** — Bow / Pick / Pizz (bottom-right, with the right-hand
+  controls).
+- **Bow pressure slider** — bottom-right, under the tool picker; sets
   `state.bowForce`.
-- **Help (`?`)** — opens the "How to play" overlay.
+- **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
+  readout, and the note-under-the-finger / hover-note guide (top-right, below
+  the ☰ button; the guide lives here rather than in a picker panel so no
+  picker's width tracks the text).
+- **☰ menu** (top-right) — *How to play…* opens the help overlay (also
+  auto-opens on first visit, and `?` reopens it), and *Node markers* toggles
+  `state.markers`, the harmonic-node dots drawn by `src/scene/scene.ts`.
+  A future About entry belongs here too.
 - **Left-hand touch gestures** (`src/input/interactions.ts`) — a tap on the
   board stops the nearest string lane (touching another string moves the
   finger, and the bow, there); a drag glissandos; a tap on the latched finger
@@ -64,8 +77,8 @@ impossible until the bowing finger lifted.
 ## Implemented but hidden (no HUD control right now)
 
 These work end-to-end in the audio/visual model but currently have nothing
-in the HUD to switch them on — they're candidates for a future settings
-drawer or keyboard shortcuts:
+in the HUD to switch them on — they're candidates for the ☰ menu or
+keyboard shortcuts:
 
 - **Auto-bow speed** (`state.autoBowSpeed` in `src/state.ts`) — auto-bow
   itself is operable now (hold `Space`), and its stroke length now tracks this
@@ -73,10 +86,6 @@ drawer or keyboard shortcuts:
   has no on-screen control.
 - **Slow-mo rate** (`state.slowMo`) — the visual vibration's caricature
   speed, consumed by `src/scene/visualString.ts`.
-- **Node markers** (`state.markers`) — the glowing harmonic-node dots drawn
-  by `src/scene/scene.ts`; the physics and rendering are intact, they're just
-  hidden by default (`state.markers` defaults to `false` with no toggle to
-  flip it).
 
 ## Removed entirely (did not work)
 

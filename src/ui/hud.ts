@@ -34,20 +34,20 @@ export class Hud {
     return `
     <div class="panel top-left">
       <div class="title">Bowed String <span class="sub">physical model</span></div>
-      <div class="row seg-group" id="tools">
-        <button class="seg tool" data-tool="bow">🎻 Bow</button>
-        <button class="seg tool" data-tool="pick">▷ Pick</button>
-        <button class="seg tool" data-tool="finger">☝ Pizz</button>
+      <div class="row seg-group" id="strings">
+        <span class="lbl">String</span>${stringBtns}
       </div>
       <div class="row seg-group" id="leftmode">
-        <span class="lbl">Left hand</span>
+        <span class="lbl">Finger</span>
         <button class="seg lm" data-lm="press">Press</button>
         <button class="seg lm" data-lm="touch">Touch<span class="hide-narrow">&nbsp;(harm.)</span></button>
         <button class="seg" id="lift">Lift ⌫</button>
       </div>
     </div>
-    <div class="panel top-right">
-      <div class="row seg-group">${stringBtns}</div>
+    <button class="seg menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰</button>
+    <div class="panel menu hidden" id="menu">
+      <button class="seg menu-item" id="menuHelp">How to play…</button>
+      <button class="seg menu-item" id="menuNodes" role="menuitemcheckbox" aria-checked="false">Node markers<span class="tick">✓</span></button>
     </div>
     <div class="panel tuner">
       <div class="note" id="note">—</div>
@@ -56,9 +56,15 @@ export class Hud {
       <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
     <div class="sound-hint off" id="soundHint"></div>
-    <div class="panel bottom-left">
-      <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
-      <button id="helpBtn" class="seg">?</button>
+    <div class="panel bottom-right">
+      <div class="row seg-group" id="tools">
+        <button class="seg tool" data-tool="bow">🎻 Bow</button>
+        <button class="seg tool" data-tool="pick">▷ Pick</button>
+        <button class="seg tool" data-tool="finger">☝ Pizz</button>
+      </div>
+      <div class="row">
+        <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
+      </div>
     </div>
     <div class="overlay hidden" id="help">
       <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
@@ -82,8 +88,8 @@ export class Hud {
         carry the finger on past the end of the board, higher than the board itself
         reaches. To lift, flick the finger sideways off its string, tap the top-left
         corner (or above the nut), or press <kbd>Esc</kbd> / <b>Lift</b>. In <b>Touch</b>
-        mode the finger only brushes the string:
-        touch a glowing node to sound a natural harmonic.</p>
+        mode the finger only brushes the string: touch a node to sound a natural
+        harmonic (<i>Node markers</i> in the ☰ menu shows where they are).</p>
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing or plucking with
         another — a second touch on the board, bridge-side of the stop, plays over the
         board (sul tasto).</p>
@@ -164,7 +170,37 @@ export class Hud {
         /* storage unavailable (private mode etc.) — just don't persist */
       }
     };
-    tap($("#helpBtn"), () => help.classList.remove("hidden"));
+    // ☰ menu: meta controls (help, display toggles) live behind one button so
+    // they never compete with the play controls for corner space
+    const menu = $("#menu");
+    const menuBtn = $("#menuBtn");
+    const menuOpen = () => !menu.classList.contains("hidden");
+    const setMenu = (open: boolean) => {
+      menu.classList.toggle("hidden", !open);
+      menuBtn.setAttribute("aria-expanded", String(open));
+    };
+    tap(menuBtn, () => setMenu(!menuOpen()));
+    tap($("#menuHelp"), () => {
+      setMenu(false);
+      help.classList.remove("hidden");
+    });
+    // a toggle keeps the menu open so the tick is seen flipping
+    tap($("#menuNodes"), () => {
+      state.markers = !state.markers;
+      notify();
+    });
+    // pressing anywhere outside dismisses the menu (capture phase runs before
+    // the target's own tap() handler, and the button itself is excluded so
+    // its toggle still sees the menu open)
+    window.addEventListener(
+      "pointerdown",
+      (e) => {
+        const t = e.target as Node;
+        if (menuOpen() && !menu.contains(t) && !menuBtn.contains(t)) setMenu(false);
+      },
+      true
+    );
+
     tap($("#closeHelp"), closeHelp);
     tap($("#closeHelpX"), closeHelp);
     // tapping the dimmed backdrop (not the card) also dismisses
@@ -180,6 +216,10 @@ export class Hud {
       (e) => {
         if ((e.key === "Escape" || e.key === "Enter") && helpOpen()) {
           closeHelp();
+          e.stopPropagation();
+          e.preventDefault();
+        } else if (e.key === "Escape" && menuOpen()) {
+          setMenu(false);
           e.stopPropagation();
           e.preventDefault();
         }
@@ -223,6 +263,9 @@ export class Hud {
       b.classList.toggle("on", Number(b.dataset.str) === state.stringIdx)
     );
     (this.root.querySelector("#force") as HTMLInputElement).value = String(state.bowForce);
+    const nodes = this.root.querySelector("#menuNodes") as HTMLButtonElement;
+    nodes.classList.toggle("on", state.markers);
+    nodes.setAttribute("aria-checked", String(state.markers));
   }
 
   /** Per-frame tuner + position readout update. */
