@@ -134,6 +134,13 @@ const KEY_BITE_AMP = 0.8;
 // How long the implement's flick lingers after a keyboard pluck (seconds).
 const KEY_PLUCK_ANIM_S = 0.13;
 
+// Pluck strength scales with the shared Pressure control (state.bowForce),
+// normalised about PRESSURE_DEFAULT so that setting reproduces the original
+// bend-only feel. KEY_PLUCK_BEND is the nominal pull a keyboard pluck stands
+// in for (a mouse pluck measures the real bend); MAX_BEND maps to 1.
+const PRESSURE_DEFAULT = 0.45; // mirrors state's initial bowForce
+const KEY_PLUCK_BEND = 0.8;
+
 // [ / ] ramp the bow pressure while held, over the HUD slider's range.
 const KEY_FORCE_RATE = 0.35;
 const FORCE_MIN = 0.05;
@@ -373,17 +380,8 @@ export class Interactions {
       if (this.grabbed) {
         const g = this.grabbed;
         this.grabbed = null;
-        const force = Math.min(1.4, (Math.abs(g.dx) / MAX_BEND) * 1.2);
-        if (force > 0.02) {
-          // a plectrum is a sharp, fixed-width stroke (bright); a fingertip is a
-          // soft pulse keyed to the string period, so its mellow tone and level
-          // stay consistent from the low strings to the high (see StringSim.pluck)
-          if (state.tool === "pick") engine.pluck(g.p, force, 0.7);
-          else engine.pluck(g.p, force, 0, FINGER_PLUCK_PERIOD_FRAC);
-          // vibration starts at the fingertip's bridge-side edge (the node)
-          const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
-          this.view.visual.pluckVisual(g.p, g.dx, stopped);
-        }
+        const bend = Math.abs(g.dx) / MAX_BEND;
+        if (bend > 0.015) this.doPluck(g.p, this.pluckForce(bend), g.dx);
       }
     }
   }
@@ -456,19 +454,34 @@ export class Interactions {
   keyPluck(dir?: -1 | 1): void {
     void engine.ensureStarted();
     const p = clamp(this.bowPos, this.implementMin(), BOW_MAX);
-    // map the shared bow-pressure setting onto a firm-but-bounded pluck force
-    const force = clamp(0.35 + state.bowForce, 0.1, 1.4);
-    // a plectrum is a sharp, bright stroke; a fingertip is a soft period-keyed
-    // pulse (see StringSim.pluck) — matching the pointer pluck in onUp
-    if (state.tool === "pick") engine.pluck(p, force, 0.7);
-    else engine.pluck(p, force, 0, FINGER_PLUCK_PERIOD_FRAC);
     if (dir === undefined) dir = this.keyPluckDir = (-this.keyPluckDir as -1 | 1);
+    // no real bend to measure, so stand in a nominal pull; Pressure scales it
+    const force = this.pluckForce(KEY_PLUCK_BEND);
     const dx = dir * MAX_BEND * Math.min(1, force / 1.2);
-    const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
-    this.view.visual.pluckVisual(p, dx, stopped);
+    this.doPluck(p, force, dx);
     // show the plectrum/fingertip flicking off the string (mouse plucks show it
     // via `grabbed`; a key pluck is instantaneous, so animate the retract)
     this.pluckAnim = { p, dx, life: 1 };
+  }
+
+  /** Pluck force for a string pulled to `bend01` of the maximum, scaled by the
+   * shared Pressure control so the slider/[ ] keys drive pluck strength as well
+   * as bow weight (default Pressure reproduces the old bend-only force). */
+  private pluckForce(bend01: number): number {
+    return clamp(bend01 * 1.2 * (state.bowForce / PRESSURE_DEFAULT), 0.02, 1.4);
+  }
+
+  /** Excite the active string and seed its ring-down, shared by the pointer and
+   * keyboard plucks. `dx` is the bend for the visual snap. */
+  private doPluck(p: number, force: number, dx: number): void {
+    // a plectrum is a sharp, fixed-width stroke (bright); a fingertip is a soft
+    // pulse keyed to the string period, so its mellow tone and level stay
+    // consistent from the low strings to the high (see StringSim.pluck)
+    if (state.tool === "pick") engine.pluck(p, force, 0.7);
+    else engine.pluck(p, force, 0, FINGER_PLUCK_PERIOD_FRAC);
+    // vibration starts at the fingertip's bridge-side edge (the node)
+    const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
+    this.view.visual.pluckVisual(p, dx, stopped);
   }
 
   /** A finger landing or lifting under a live stroke re-triggers the bow

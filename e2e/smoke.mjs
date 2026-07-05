@@ -475,6 +475,26 @@ if (pk < 0.002) fail(`ArrowRight did not pluck in pizz mode (rms=${pk})`);
 else ok(`→ plucked in pizz, rms=${pk.toFixed(4)}`);
 if ((await tool()) !== "finger") fail(`a pluck key reverted the tool to ${await tool()}`);
 else ok("pluck keys kept the pizz tool (no revert to bow)");
+
+// the Pressure control scales pluck strength (not just bow weight): a soft
+// setting plucks quieter than a firm one
+const pluckPeakAt = async (pressure) => {
+  // set the slider without focusing it — a focused input would swallow the
+  // Space keydown (the keyboard handler ignores editable targets)
+  await page.evaluate((v) => {
+    const el = document.getElementById("force");
+    el.value = String(v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, pressure);
+  await page.waitForTimeout(500); // let the previous ring-down decay
+  await page.keyboard.press("Space");
+  return peakRmsAfter();
+};
+const softPluck = await pluckPeakAt(0.1);
+const firmPluck = await pluckPeakAt(1.1);
+if (firmPluck < softPluck * 1.5)
+  fail(`Pressure did not scale pluck force (soft=${softPluck.toFixed(4)}, firm=${firmPluck.toFixed(4)})`);
+else ok(`Pressure scales pluck force (soft=${softPluck.toFixed(4)} -> firm=${firmPluck.toFixed(4)})`);
 await page.keyboard.press("Escape"); // back to the arco default for later tests
 
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the
