@@ -261,6 +261,32 @@ body {
   accent-color: var(--range-accent);
 }
 
+/* audio-status pill: floats over the bowing area (between fingerboard and
+   bridge, clear of the corner panels) until sound is actually running. It is
+   purely informational and must never eat the tap that unlocks the audio. */
+.sound-hint {
+  position: fixed;
+  left: 50%;
+  /* between the resting bow's line and the bridge — over the play area, but
+     covering neither the bow ghost nor the corner panels */
+  bottom: 17%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  background: var(--panel-bg);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: opacity 0.35s;
+  z-index: 5;
+}
+
+.sound-hint.off {
+  opacity: 0;
+}
+
 .overlay {
   position: fixed;
   inset: 0;

@@ -65,6 +65,27 @@ export class Engine {
     return this.node !== null;
   }
 
+  /** True once the graph exists and the context is actually rendering audio —
+   * i.e. sound would be heard right now. Polled by the HUD's sound hint. */
+  get running(): boolean {
+    return this.node !== null && this.ctx?.state === "running";
+  }
+
+  /** Build the whole audio graph ahead of the first gesture. Fetching and
+   * compiling the worklet module is the slow part — a network round trip plus
+   * compile, easily over a second on a phone's cache-cold first visit — and
+   * deferring it to the first pointerdown used to spend the opening stroke(s)
+   * in silence. Creating the context without user activation is fine: it just
+   * starts suspended, and the first gesture merely resume()s it (near-instant)
+   * via ensureStarted() / the unlock handlers. A prewarm failure is swallowed:
+   * start()'s catch has already torn down and cleared `starting`, so the first
+   * gesture retries from scratch exactly as it did before prewarming. */
+  prewarm(): void {
+    if (this.node || this.starting) return;
+    this.starting = this.start();
+    this.starting.catch(() => {});
+  }
+
   /** Resume the context synchronously from within a user gesture. iOS only
    * honours resume() while the gesture's activation is still live, so this
    * must be invoked directly from the event handler, never after an await. */
@@ -93,12 +114,17 @@ export class Engine {
    * touch-derived pointerdown — where the app starts the engine — often does
    * not count. Keep permanent capture-phase listeners that retry resume();
    * they are no-ops once the context is running, and double as recovery when
-   * iOS suspends the context after backgrounding the tab. */
+   * iOS suspends the context after backgrounding the tab. The press-half
+   * events matter too now that the graph is prewarmed before any gesture:
+   * where the browser does grant activation on press (desktop, Android), they
+   * unlock the very first touch anywhere on the page, not just the canvas. */
   private installUnlockHandlers(): void {
     if (this.unlockHandlersInstalled) return; // start() may be retried after a failure
     this.unlockHandlersInstalled = true;
     const unlock = (): void => this.resumeNow();
+    window.addEventListener("pointerdown", unlock, true);
     window.addEventListener("pointerup", unlock, true);
+    window.addEventListener("touchstart", unlock, true);
     window.addEventListener("touchend", unlock, true);
     window.addEventListener("click", unlock, true);
   }
@@ -117,7 +143,10 @@ export class Engine {
       // Kick the resume off *before* the async addModule below: on iOS Safari
       // the context starts suspended and can only be unlocked while the user
       // gesture that called start() is still active. Awaiting addModule first
-      // would drop that activation and leave the context muted.
+      // would drop that activation and leave the context muted. On a
+      // pre-gesture prewarm this resume is premature — some browsers hold the
+      // promise pending until activation arrives, others reject — which is
+      // why it is never awaited on the main path below.
       const unlocked = ctx.resume().catch(() => {});
       await ctx.audioWorklet.addModule(workletUrl);
       const node = new AudioWorkletNode(ctx, "bowed-string", {
@@ -157,11 +186,12 @@ export class Engine {
       };
       this.node = node;
       this.analyser = analyser;
-      await unlocked;
-      // If the gesture had already expired by the time addModule resolved, the
-      // resume above is a no-op on iOS; the next pointer gesture retries it via
-      // ensureStarted() -> resumeNow().
-      this.resumeNow();
+      // Retry the resume once the early attempt settles, in case the gesture
+      // had expired by the time addModule resolved. Deliberately not awaited:
+      // on a pre-gesture prewarm that promise can stay pending until the
+      // first real gesture, and start() must still resolve so the graph is
+      // usable the moment the unlock handlers get the context running.
+      void unlocked.then(() => this.resumeNow());
     } catch (err) {
       // Worklet load failed (network, parse, CORS) or the context could not be
       // built. Tear down so the leaked context is released and a later gesture
