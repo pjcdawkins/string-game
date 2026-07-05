@@ -27,6 +27,7 @@ import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
 import { FINGERBOARD_END, state } from "../state";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
+import { FHOLE_OUTLINE } from "./fholeOutline";
 
 export const STRING_TOP = 2.1;
 // the bottom end leaves room below for the bridge (and a glimpse of the
@@ -54,7 +55,19 @@ const BOW_FIT = 0.94; // fraction of the viewport width a full-size bow may fill
 // top edge showing, as if seen from slightly above. A real camera tilt
 // would make the screen<->string mapping non-affine and cost pointer
 // accuracy on the fingerboard.
-const BRIDGE_SQUASH = 0.62;
+// The bridge stands perpendicular to the belly, so face-on it would be seen
+// almost edge-on. We rake it — draw it as if looked down on from above — so
+// its carving reads; a steep rake (small squash) matches the reference, where
+// the bridge is a shallow maple band sitting on the f-hole notch line with
+// its front face (and the heart) mostly foreshortened away.
+const BRIDGE_SQUASH = 0.3;
+// The bridge's break point sits at STRING_BOT (s = 1), which lands its base a
+// little low — below the f-hole lower eyes. Lift the whole bridge (and its
+// break line) so the base rises to the lower-eye height, ~1.1× the bridge's
+// own raked height above the break. Purely visual: STRING_BOT and the s<->y
+// mapping are untouched, so fingering and pitch are unaffected; the string
+// simply breaks over the lifted crown and the afterlength runs on to the tail.
+const BRIDGE_RISE = 0.135;
 const BODY_LEN = 3.9; // outline design length (see OUTLINE_HALF)
 const BRIDGE_AT = 0.54; // bridge at 54% of the body, as measured on the photo
 const BODY_TOP_S = 0.4; // body top edge at 40% of the string, as on a violin
@@ -67,7 +80,7 @@ const PURFLING_INSET = 0.048; // purfling inset from the outline, design units
 function bridgeBreakY(x: number): number {
   const t = (x / 0.235 + 1) / 2; // parameter along the top-edge quadratic
   const local = -0.038 + 2 * t * (1 - t) * 0.113;
-  return STRING_BOT + (local - 0.02) * BRIDGE_SQUASH;
+  return STRING_BOT + BRIDGE_RISE + (local - 0.02) * BRIDGE_SQUASH;
 }
 
 // Afterlength: below the bridge the strings fan in again toward the
@@ -332,23 +345,14 @@ export class SceneView {
     this.instrument.add(body);
   }
 
-  /** One f-hole (right-hand variant; mirror with scale.x = -1), after the
-   * Le Brun Strad: one connected slot whose spine hooks over the small
-   * upper eye, leans down through the nicks (cut into both edges at the
-   * bridge line), flares into straight-edged wing blades on the inner edge,
-   * and wraps under the larger lower eye in a slim tail. */
+  /** One f-hole (right-hand variant; mirror with scale.x = -1): the real
+   * openclipart "Violin f hole" vector, fitted to the Le Brun Strad. It is a
+   * single filled path (the eyes are the solid rounded ends of the slot), so
+   * it draws as one shape — see FHOLE_OUTLINE / scripts/fit-svg-fhole.mjs. */
   private makeFHole(): THREE.Group {
-    const mat = this.flat(WOOD.fhole);
     const g = new THREE.Group();
-
-    const stem = new THREE.Shape(fHoleStemPoints().map((p) => new THREE.Vector2(p[0], p[1])));
-    g.add(new THREE.Mesh(new THREE.ShapeGeometry(stem), mat));
-
-    for (const eye of [FHOLE.eyeTop, FHOLE.eyeBot]) {
-      const m = new THREE.Mesh(new THREE.CircleGeometry(eye.r, 24), mat);
-      m.position.set(eye.c[0], eye.c[1], 0);
-      g.add(m);
-    }
+    const shape = new THREE.Shape(FHOLE_OUTLINE.map(([x, y]) => new THREE.Vector2(x, y)));
+    g.add(new THREE.Mesh(new THREE.ShapeGeometry(shape), this.flat(WOOD.fhole)));
     return g;
   }
 
@@ -363,8 +367,11 @@ export class SceneView {
     const bs = new THREE.Shape();
     bs.moveTo(-0.137, boardTopY);
     bs.lineTo(0.137, boardTopY);
-    bs.lineTo(0.24, boardEndY + 0.06);
-    bs.quadraticCurveTo(0, boardEndY - 0.1, -0.24, boardEndY + 0.06);
+    // the end is a nearly straight horizontal edge (a real board's end is
+    // squared off, not the strongly convex arc it had before) with only the
+    // faintest sag in the middle
+    bs.lineTo(0.24, boardEndY);
+    bs.quadraticCurveTo(0, boardEndY - 0.015, -0.24, boardEndY);
     bs.closePath();
     const board = new THREE.Mesh(new THREE.ShapeGeometry(bs, 10), this.flat(WOOD.board));
     board.position.z = BOARD_SURFACE_Z - 0.01;
@@ -428,7 +435,7 @@ export class SceneView {
     const bridge = new THREE.Group();
     // squashed for the raked view, crown peak carrying the string's end
     bridge.scale.y = BRIDGE_SQUASH;
-    bridge.position.set(0, STRING_BOT - 0.02 * BRIDGE_SQUASH, -0.02);
+    bridge.position.set(0, STRING_BOT + BRIDGE_RISE - 0.02 * BRIDGE_SQUASH, -0.02);
     bridge.add(
       new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }))
     );
@@ -684,59 +691,6 @@ function offsetLoop(d: number, yScale: number): THREE.Vector2[] {
     }
   }
   return off.map((p) => new THREE.Vector2(p[0], p[1]));
-}
-
-// --------------------------------------------------------------------------
-// F-hole (right-hand variant): the throat is one closed ribbon traced through
-// on-curve NODES (Catmull-Rom, corners at the wing tips), and the two eyes are
-// round circles stamped over its ends. Fitted to the Le Brun photo — the eyes
-// pixel-measured (upper 6mm, lower 9mm per the Sacconi/Stradivari method), the
-// whole f leaning ~23° so the lower eye sits well outboard of the upper. The
-// nicks (the little notches at the bridge line) are left out at this drawing
-// scale — they read as noise. Keep in sync with e2e/body-harness.mjs.
-const FHOLE = {
-  eyeTop: { c: [-0.078, 0.332] as P2, r: 0.033 },
-  eyeBot: { c: [0.145, -0.335] as P2, r: 0.048 },
-  // ribbon nodes, clockwise from the top wing tip: down the outer (right)
-  // edge, around the lower eye, out to the bottom wing tip, up the inner
-  // (left) edge, around the upper eye, back to the tip. `c` marks a corner.
-  nodes: [
-    { p: [0.02, 0.398] as P2, c: true }, // top wing tip
-    { p: [0.078, 0.24] as P2 }, // outer upper
-    { p: [0.09, 0.02] as P2 }, // outer throat (near-vertical)
-    { p: [0.108, -0.18] as P2 }, // outer lower
-    { p: [0.188, -0.3] as P2 }, // outer shoulder of the lower eye
-    { p: [0.168, -0.388] as P2 }, // under the lower eye
-    { p: [0.088, -0.392] as P2 }, // inner-bottom of the lower eye
-    { p: [0.035, -0.398] as P2, c: true }, // bottom wing tip
-    { p: [0.085, -0.28] as P2 }, // lower inner
-    { p: [0.072, -0.06] as P2 }, // inner mid-lower (slim throat)
-    { p: [0.06, 0.07] as P2 }, // inner throat (narrowest)
-    { p: [0.025, 0.235] as P2 }, // upper inner
-    { p: [-0.113, 0.31] as P2 }, // outer flank of the upper eye
-  ] as { p: P2; c?: boolean }[],
-};
-
-/** Closed Catmull-Rom polygon through FHOLE.nodes (corners kept sharp). */
-function fHoleStemPoints(perSeg = 16): P2[] {
-  const nd = FHOLE.nodes;
-  const n = nd.length;
-  const pts: P2[] = [];
-  for (let i = 0; i < n; i++) {
-    const p0 = nd[(i - 1 + n) % n].p,
-      p1 = nd[i].p,
-      p2 = nd[(i + 1) % n].p,
-      p3 = nd[(i + 2) % n].p;
-    const c1 = nd[i].c,
-      c2 = nd[(i + 1) % n].c;
-    // tangents; a corner endpoint pulls its handle onto the chord (straight)
-    const t1: P2 = c1 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p2[0] - p0[0]) / 2, (p2[1] - p0[1]) / 2];
-    const t2: P2 = c2 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p3[0] - p1[0]) / 2, (p3[1] - p1[1]) / 2];
-    const b1: P2 = [p1[0] + t1[0] / 3, p1[1] + t1[1] / 3];
-    const b2: P2 = [p2[0] - t2[0] / 3, p2[1] - t2[1] / 3];
-    for (let k = 0; k < perSeg; k++) pts.push(cubicAt(p1, b1, b2, p2, k / perSeg));
-  }
-  return pts;
 }
 
 // --------------------------------------------------------------------------

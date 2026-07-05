@@ -144,52 +144,15 @@ function purflingPoints(d, perSeg = 28) {
 }
 
 // --------------------------------------------------------------------------
-// F-hole (right-hand variant): the throat is one closed ribbon traced through
-// on-curve NODES (Catmull-Rom, with corners at the wing tips and nicks), and
-// the two eyes are round circles stamped over its ends. Fitted to the Le Brun
-// photo — eyes pixel-measured (upper 6mm, lower 9mm per the Sacconi/Stradivari
-// method), the whole f leaning ~23° so the lower eye sits well outboard of the
-// upper. Keep in sync with scene.ts.
-const FHOLE = {
-  eyeTop: { c: [-0.078, 0.332], r: 0.033 },
-  eyeBot: { c: [0.145, -0.335], r: 0.048 },
-  // ribbon nodes, clockwise from the top wing tip: down the outer (right)
-  // edge, around the lower eye, out to the bottom wing tip, up the inner
-  // (left) edge, around the upper eye, back to the tip. { p:[x,y], c:true }
-  // marks a sharp corner (the wing tips).
-  nodes: [
-    { p: [0.02, 0.398], c: true }, // top wing tip
-    { p: [0.078, 0.24] }, // outer upper
-    { p: [0.09, 0.02] }, // outer throat (near-vertical)
-    { p: [0.108, -0.18] }, // outer lower
-    { p: [0.188, -0.3] }, // outer shoulder of the lower eye
-    { p: [0.168, -0.388] }, // under the lower eye
-    { p: [0.088, -0.392] }, // inner-bottom of the lower eye
-    { p: [0.035, -0.398], c: true }, // bottom wing tip
-    { p: [0.085, -0.28] }, // lower inner
-    { p: [0.072, -0.06] }, // inner mid-lower (slim throat)
-    { p: [0.06, 0.07] }, // inner throat (narrowest)
-    { p: [0.025, 0.235] }, // upper inner
-    { p: [-0.113, 0.31] }, // outer flank of the upper eye
-  ],
-};
-
-/** Closed Catmull-Rom polygon through FHOLE.nodes (corners kept sharp). */
-function fHoleStemPoints(perSeg = 16) {
-  const nd = FHOLE.nodes;
-  const n = nd.length;
-  const pts = [];
-  for (let i = 0; i < n; i++) {
-    const p0 = nd[(i - 1 + n) % n].p, p1 = nd[i].p, p2 = nd[(i + 1) % n].p, p3 = nd[(i + 2) % n].p;
-    const c1 = nd[i].c, c2 = nd[(i + 1) % n].c;
-    // tangents; a corner endpoint pulls its handle onto the chord (straight)
-    const t1 = c1 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p2[0] - p0[0]) / 2, (p2[1] - p0[1]) / 2];
-    const t2 = c2 ? [p2[0] - p1[0], p2[1] - p1[1]] : [(p3[0] - p1[0]) / 2, (p3[1] - p1[1]) / 2];
-    const b1 = [p1[0] + t1[0] / 3, p1[1] + t1[1] / 3];
-    const b2 = [p2[0] - t2[0] / 3, p2[1] - t2[1] / 3];
-    for (let k = 0; k < perSeg; k++) pts.push(cubicAt(p1, b1, b2, p2, k / perSeg));
-  }
-  return pts;
+// F-hole: the openclipart "Violin f hole" vector fitted to the Le Brun Strad
+// (see scripts/fit-svg-fhole.mjs). One filled path (the eyes are the solid
+// rounded ends), in the local frame (y up, origin at centre; mirror x for the
+// left f-hole). Loaded from the generated JSON so it stays identical to the app.
+const FHOLE_OUTLINE = JSON.parse(
+  fs.readFileSync(new URL("../scripts/fhole-outline.json", import.meta.url), "utf8")
+);
+function fHoleStemPoints() {
+  return FHOLE_OUTLINE;
 }
 
 // --------------------------------------------------------------------------
@@ -288,17 +251,7 @@ function polyD(T, pts, close = true) {
 }
 
 function fHoleGroup(T) {
-  const stem = polyD(T, fHoleStemPoints());
-  const [tc, bc] = [FHOLE.eyeTop, FHOLE.eyeBot];
-  const [tx, ty] = T(tc.c).split(",");
-  const [bx, by] = T(bc.c).split(",");
-  const s = parseFloat(T([1, 0]).split(",")[0]) - parseFloat(T([0, 0]).split(",")[0]);
-  const rPix = (r) => Math.abs(r * s).toFixed(2);
-  return (
-    `<path d="${stem}" fill="${WOOD.fhole}"/>` +
-    `<circle cx="${tx}" cy="${ty}" r="${rPix(tc.r)}" fill="${WOOD.fhole}"/>` +
-    `<circle cx="${bx}" cy="${by}" r="${rPix(bc.r)}" fill="${WOOD.fhole}"/>`
-  );
+  return `<path d="${polyD(T, fHoleStemPoints())}" fill="${WOOD.fhole}"/>`;
 }
 
 function bridgeGroup(T) {
@@ -415,10 +368,6 @@ for (const [dx, withOverlay] of [[1670, false], [2100, true]]) {
   if (!withOverlay) continue;
   const Tof = crop.designPanel(FH_ROT, 1, FH_X, FH_Y);
   fzoom += `<path d="${polyD(Tof, fHoleStemPoints())}" fill="#00d8ff" opacity="0.55"/>`;
-  for (const e of [FHOLE.eyeTop, FHOLE.eyeBot]) {
-    const [ex, ey] = Tof(e.c).split(",");
-    fzoom += `<circle cx="${ex}" cy="${ey}" r="${(e.r * (1028 / L) * mag).toFixed(1)}" fill="#00d8ff" opacity="0.55"/>`;
-  }
 }
 
 const BZ_S = 900;
