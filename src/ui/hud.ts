@@ -226,11 +226,11 @@ export class Hud {
       },
       true
     );
-    // ? opens the help dialog (mirrors the ? button)
+    // ? opens the help dialog (mirrors the menu's "How to play…" item)
     window.addEventListener("keydown", (e) => {
       if (e.key === "?" && !helpOpen()) help.classList.remove("hidden");
     });
-    // auto-open help on the first visit only; the ? button reopens it
+    // auto-open help on the first visit only; the ☰ menu reopens it
     let seen = false;
     try {
       seen = localStorage.getItem(HELP_SEEN_KEY) === "1";
