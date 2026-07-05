@@ -39,9 +39,13 @@ impossible until the bowing finger lifted.
 
 - **Tool picker** — Bow / Pick / Pizz (top-left).
 - **Left hand** — Press / Touch (harmonic) / Lift (top-left).
-- **String picker** — G / D / A / E (top-right).
+- **String picker** — G / D / A / E (top-right); switches to the *open*
+  string, lifting any latched finger (moving the finger between strings with
+  the stop kept is the left-hand touch on the board instead).
 - **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
-  readout (top-right).
+  readout, and the note-under-the-finger / hover-note guide (top-right; the
+  guide lives here rather than in the picker panel so the picker's width
+  doesn't track the text).
 - **Bow pressure slider** — the only slider in the bottom-left panel; sets
   `state.bowForce`.
 - **Help (`?`)** — opens the "How to play" overlay.
@@ -49,7 +53,8 @@ impossible until the bowing finger lifted.
   board stops the nearest string lane (touching another string moves the
   finger, and the bow, there); a drag glissandos; a tap on the latched finger
   leaves it latched, while flicking it sideways off its string lifts it; a tap
-  in the top-left corner of the play area (or above the nut) lifts the hand.
+  in the top-left corner of the play area lifts the hand, and a tap at the nut
+  lifts it *and* selects the tapped lane — that string, open.
 - **Keyboard shortcuts** (`src/input/keyboard.ts`) — arrows bow (`→` down
   bow, `←` up bow, `↑`/`↓` contact point), `Space` (held) auto-bows,
   `[`/`]` (held) ramp the bow pressure, digits (held) add their semitones

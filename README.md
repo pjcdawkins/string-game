@@ -46,7 +46,9 @@ npm run build    # production build (worklet bundles to a self-contained file)
   all four strings are playable by touch alone, though only one sounds at a
   time. Tapping a latched finger leaves it latched; to lift it, flick it
   sideways off its string, tap the top-left corner of the play area (or above
-  the nut), or press `Esc`. The board, right over
+  the nut — where the tap also selects the lane it lands on: every string is
+  open at the nut, so tapping a string there plays it open, as the picker's
+  G/D/A/E buttons do), or press `Esc`. The board, right over
   the strings, is the left hand's; the bow and plucks live below it or reach in
   from either flank. Multi-touch: hold a stop with one finger and bow or pluck
   with another — a second touch on the board, bridge-side of the stop, plays
