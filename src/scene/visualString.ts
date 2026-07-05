@@ -65,6 +65,16 @@ const VIB_AMP_GAIN = 0.5;
 const RAUCOUS_MIN_AMP = 0.0033;
 const SOUNDING_MIN_AMP = 0.0009;
 
+// Glow gain per regime, applied where the glow envelope is fed (displacement →
+// opacity units). The *driven* bowed swing was narrowed (VIB_AMP_MAX above),
+// so its gain rose in step to keep a full-drive bow at the same glow ceiling;
+// plucks and the free ring-down glow from the wave's real displacement, whose
+// scale did NOT change (a grab still bends up to MAX_BEND), so they keep the
+// original gain — otherwise a pizz would saturate the halo at half its old
+// displacement and lose its ring-down dynamics.
+const GLOW_GAIN_DRIVEN = 10;
+const GLOW_GAIN_FREE = 4.4;
+
 // driven bowed-flageolet swing is seeded a touch hotter than the corner regime so
 // the standing mode reads clearly; the glow guard must use the same scale or the
 // bow wash-out fix regresses silently (seeded wave and glow amplitude drift apart)
@@ -104,7 +114,8 @@ export class VisualString {
 
   private wave = new WaveString(NPTS);
   private vibAmp = 0; // smoothed drive amplitude (follows audio RMS while bowing)
-  private glowAmp = 0; // envelope of the actual string motion (drives the glow)
+  private glowAmp = 0; // slow-release glow envelope, in opacity units (each
+  // regime's displacement is scaled by its GLOW_GAIN_* as it feeds this)
   private helmPhase = 0; // bowed corner travel phase, cycles
   private harmPhase = 0; // bowed-flageolet standing-mode swing phase, cycles
   // true while a free ring-down is a pluck's (vs a bow release's), so the
@@ -293,10 +304,12 @@ export class VisualString {
     // twice per cycle (a standing flageolet collapses to flat), which would
     // flicker the glow; so during driven modes use the phase-independent drive
     // amplitude (matching the seeded peak: 1.4·vibAmp flageolet, vibAmp corner),
-    // and fall back to the live peak for plucks and the free ring-down.
+    // and fall back to the live peak for plucks and the free ring-down. Each
+    // regime feeds the envelope through its own gain (see GLOW_GAIN_* above),
+    // so glowAmp is in opacity units from here on.
     const peak = sounding
-      ? this.vibAmp * (harmN > 0 ? BOW_HARMONIC_AMP_SCALE : 1)
-      : this.wave.peakAbs();
+      ? this.vibAmp * (harmN > 0 ? BOW_HARMONIC_AMP_SCALE : 1) * GLOW_GAIN_DRIVEN
+      : this.wave.peakAbs() * GLOW_GAIN_FREE;
     this.glowAmp = Math.max(peak, this.glowAmp * Math.exp(-dt * 2.2));
 
     const fingerDepth = inp.fingerOn ? Math.min(0.085, 0.1 * inp.fingerPressure) : 0;
@@ -323,11 +336,10 @@ export class VisualString {
 
     this.line.geometry.setPositions(Array.from(this.positions));
     this.glow.geometry.setPositions(Array.from(this.positions));
-    // the gain (10) is tuned against VIB_AMP_MAX so a full-drive bow still
-    // reaches the same glow ceiling despite the narrower swing
+    // glowAmp already carries its regime's gain (see above)
     this.glowMat.opacity =
-      Math.min(0.55, this.glowAmp * 10 + (grab ? 0.12 : 0)) * this.glowOpacityScale;
-    // skip the (full-length, 9px-wide) glow line entirely while inaudible —
+      Math.min(0.55, this.glowAmp + (grab ? 0.12 : 0)) * this.glowOpacityScale;
+    // skip the (full-length, 6px-wide) glow line entirely while inaudible —
     // a real saving on weak GPUs and software renderers
     this.glow.visible = this.glowMat.opacity > 0.01;
     // colour shifts warmer when the tone is raucous/crunchy
