@@ -13,6 +13,8 @@ export class Hud {
   private freqEl!: HTMLElement;
   private slipEl!: HTMLElement;
   private posNoteEl!: HTMLElement;
+  private soundHintEl!: HTMLElement;
+  private soundHintText = "";
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement("div");
@@ -53,6 +55,7 @@ export class Hud {
       <div class="tuner-row"><span id="cents">±0¢</span><span id="freq"></span><span id="slip" class="slip"></span></div>
       <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
+    <div class="sound-hint off" id="soundHint"></div>
     <div class="panel bottom-left">
       <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
       <button id="helpBtn" class="seg">?</button>
@@ -118,6 +121,7 @@ export class Hud {
     this.freqEl = $("#freq");
     this.slipEl = $("#slip");
     this.posNoteEl = $("#posnote");
+    this.soundHintEl = $("#soundHint");
 
     this.root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) =>
       tap(b, () => {
@@ -223,6 +227,16 @@ export class Hud {
 
   /** Per-frame tuner + position readout update. */
   updateMeters(): void {
+    // Audio-status pill: the engine prewarms at page load but the context
+    // stays muted until the first user gesture (autoplay policy) — and on a
+    // slow first visit the worklet itself may still be loading. Say which,
+    // rather than letting a responsive-but-silent string read as broken.
+    const hint = engine.running ? "" : engine.started ? "🔇 tap for sound" : "🔇 sound loading…";
+    if (hint !== this.soundHintText) {
+      this.soundHintText = hint;
+      if (hint) this.soundHintEl.textContent = hint;
+      this.soundHintEl.classList.toggle("off", hint === "");
+    }
     const f = state.detectedFreq;
     if (f > 0 && state.meter.rms > 0.001) {
       const n = freqToNote(f);

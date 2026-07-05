@@ -20,6 +20,15 @@ new Keyboard(input);
 // initialise the engine's string when audio first becomes available
 let stringInitialised = false;
 
+// Warm the audio engine as soon as the page is idle: fetch + compile the
+// worklet and build the graph now, while the context sits suspended awaiting
+// the first gesture. Left to the first touch, all of that loading happens
+// *inside* the opening stroke — a silent second or two on a phone's first
+// visit. Idle-scheduled so it stays off the critical path of the first
+// rendered frame (setTimeout fallback: Safari has no requestIdleCallback).
+const idle = window.requestIdleCallback?.bind(window) ?? ((cb: () => void) => setTimeout(cb, 1));
+idle(() => engine.prewarm());
+
 // Cap the visual update + render at ~30fps. The string is a slow-motion
 // caricature, so 30fps reads identically to 60 while halving the per-frame
 // geometry rebuild — meaningful headroom on weaker devices (e.g. older iPads).
