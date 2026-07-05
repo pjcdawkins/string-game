@@ -411,10 +411,16 @@ else ok("P switched to pizzicato");
 await page.keyboard.press("p");
 if ((await tool()) !== "bow") fail("second P did not return to arco");
 else ok("P toggled back to arco");
-await page.keyboard.press("Backslash");
+// dispatch with code "IntlBackslash" (the UK/ISO backslash key) to prove the
+// shortcut keys off the produced "\" character, not a US-layout e.code
+const pressBackslash = () =>
+  page.evaluate(() =>
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "\\", code: "IntlBackslash", bubbles: true }))
+  );
+await pressBackslash();
 if ((await tool()) !== "pick") fail("\\ did not switch to the pick");
 else ok("\\ switched to the pick");
-await page.keyboard.press("Backslash");
+await pressBackslash();
 if ((await tool()) !== "bow") fail("second \\ did not return to arco");
 else ok("\\ toggled back to arco");
 // Esc resets tool and left-hand mode even from a non-default state

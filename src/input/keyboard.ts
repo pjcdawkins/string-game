@@ -94,7 +94,10 @@ export class Keyboard {
       return;
     }
     // \ toggles the pick; pressing it again drops back to the bow (arco).
-    if (e.code === "Backslash") {
+    // Match the produced character, not e.code "Backslash": the physical
+    // backslash sits on different keys across layouts (e.g. IntlBackslash on
+    // UK/ISO boards), but they all type "\".
+    if (e.key === "\\" && !e.ctrlKey && !e.metaKey) {
       e.preventDefault();
       if (e.repeat) return;
       state.tool = state.tool === "pick" ? "bow" : "pick";

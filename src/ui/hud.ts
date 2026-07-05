@@ -105,7 +105,7 @@ export class Hud {
         string and <kbd>Esc</kbd> lifts the hand (and returns the right hand to an ordinary
         bow). Hold <kbd>Shift</kbd> for portamento slides.
         <kbd>S</kbd> is the firm press (stop), <kbd>H</kbd> the light touch (harmonics).
-        <kbd>P</kbd> toggles pizzicato and <kbd>\</kbd> the pick — press either again to return to
+        <kbd>P</kbd> toggles pizzicato and <kbd>\\</kbd> the pick — press either again to return to
         the bow. Everything combines mid-stroke: slide the contact point, swell, and change
         fingers while bowing.</p>
         <p class="desktop-only"><b>Strings</b> (desktop): <kbd>Page&nbsp;Up</kbd>/<kbd>Page&nbsp;Down</kbd>
