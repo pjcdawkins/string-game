@@ -35,7 +35,15 @@ const FINGER_MIN = -FINGER_RADIUS;
 // a bow can still fit between it and the bridge, i.e. one bow-clearance short of
 // the bow's own bridge-side limit (about a bow-width from the bridge).
 const FINGER_DRAG_MAX = BOW_MAX - BOW_CLEARANCE;
-const MAX_BEND = 0.55;
+// Furthest the string can be pulled aside for a pluck (world units), and the
+// displacement at which the pluck reaches full force. Kept within a few lane
+// widths (the lanes sit 0.062..0.128 apart, see scene/lanes.ts) so the bend
+// and the ring-down that starts from it read as one string among four — the
+// same reasoning as the bowed swing's VIB_AMP_MAX in scene/visualString.ts.
+// Everything downstream scales with it consistently: the grab clamps here,
+// the release seeds the visual ring-down at the held displacement, and the
+// audio force maps off the same range.
+const MAX_BEND = 0.18;
 // A fingertip pizz's soft force pulse, as a fraction of the string period —
 // wide enough to sound mellow (rounder than the plectrum) but not so wide it
 // self-cancels into a whisper. Period-relative so it balances across the range.
