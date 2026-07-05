@@ -65,7 +65,7 @@ export class Hud {
         </div>
       </div>
       <div class="panel pressure-panel">
-        <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
+        <label>Pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
       </div>
     </div>
     <div class="overlay hidden" id="help">
@@ -78,11 +78,12 @@ export class Hud {
         <p><b>Right hand</b>: with the <b>Bow</b>, press and drag sideways — stroke speed
         is bow speed, vertical position chooses the contact point, from over the
         fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
-        (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The bow pressure slider
+        (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The <b>Pressure</b> slider
         (or pen/touch pressure) sets bow weight: too little skates on the surface, too
         much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string below the
         fingerboard, or reach in from either side of the board, bend it sideways and
-        release — so you can pluck an open string sul tasto, anywhere up its length.</p>
+        release — so you can pluck an open string sul tasto, anywhere up its length; how
+        far you pull sets the attack, and <b>Pressure</b> scales it too.</p>
         <p><b>Left hand</b>: tap anywhere on the fingerboard to place a finger — it stays
         (latches) so you can bow with the mouse. Tap a different string to move the finger
         there; the bow follows it. Tapping a string at the nut, or its letter in the
@@ -98,14 +99,18 @@ export class Hud {
         <p class="desktop-only"><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
         (flip direction when you run out of bow), hold <kbd>Space</kbd> for auto-bowing,
         <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
-        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. Left hand — digits are
+        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. In <b>Pick</b>/<b>Pizz</b>
+        the right hand plucks instead: <kbd>→</kbd>/<kbd>←</kbd> (and <kbd>Space</kbd>) each pluck,
+        <kbd>↑</kbd>/<kbd>↓</kbd> set where, and <kbd>[</kbd>/<kbd>]</kbd> how hard. Left hand — digits are
         semitones above the open string (<kbd>1</kbd> = semitone … <kbd>9</kbd>) and held
         digits <i>add</i>: 4+3 stops a fifth, 9+3 an octave. Releasing peels intervals off, and
         letting go of every digit leaves the finger latched there — <kbd>0</kbd> plays the open
-        string and <kbd>Esc</kbd> lifts the hand. Hold <kbd>Shift</kbd> for portamento slides.
+        string and <kbd>Esc</kbd> lifts the hand (and returns the right hand to an ordinary
+        bow). Hold <kbd>Shift</kbd> for portamento slides.
         <kbd>S</kbd> is the firm press (stop), <kbd>H</kbd> the light touch (harmonics).
-        Everything combines mid-stroke: slide the contact point, swell, and change fingers
-        while bowing.</p>
+        <kbd>P</kbd> toggles pizzicato and <kbd>\\</kbd> the pick — press either again to return to
+        the bow. Everything combines mid-stroke: slide the contact point, swell, and change
+        fingers while bowing.</p>
         <p class="desktop-only"><b>Strings</b> (desktop): <kbd>Page&nbsp;Up</kbd>/<kbd>Page&nbsp;Down</kbd>
         move up/down one string, or press its letter — <kbd>G</kbd> <kbd>D</kbd> <kbd>A</kbd> <kbd>E</kbd> —
         to jump straight there. <kbd>,</kbd>/<kbd>.</kbd> slow down / speed up the bow (arrow strokes

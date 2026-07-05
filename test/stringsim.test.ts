@@ -71,6 +71,26 @@ describe("StringSim", () => {
     expect(f).toBeLessThan(220 * 1.02);
   });
 
+  it("low-string pluck is boosted to at least match a high string (loudness tilt)", () => {
+    // a low pizz carries as much energy as a high one but reads far quieter to
+    // the ear; the low-frequency tilt lifts it so raw levels favour the low
+    // string. Same force, same darkness/loss — only f0 differs.
+    const base = { darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 };
+    const low = new StringSim(FS);
+    low.setString({ ...base, f0: 196 }); // open G
+    low.bowPosition = 0.85;
+    low.pluck(0.6, 1.2);
+    const lowRms = rms(render(low, 0.4), 0.02, 0.2);
+
+    const high = new StringSim(FS);
+    high.setString({ ...base, f0: 659 }); // open E (the tilt's anchor: no boost)
+    high.bowPosition = 0.85;
+    high.pluck(0.6, 1.2);
+    const highRms = rms(render(high, 0.4), 0.02, 0.2);
+
+    expect(lowRms).toBeGreaterThan(highRms);
+  });
+
   it("pluck decays over time", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.3, loss: 0.5, stiffness: 0.1, nonlinearity: 0 });

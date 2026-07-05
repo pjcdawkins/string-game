@@ -401,6 +401,102 @@ else ok("string button switches to the open string (finger lifted)");
 
 await page.keyboard.press("KeyA"); // back to the A string for the tests below
 
+// 10d. tool shortcuts: P toggles pizz (finger) and back to arco, \ toggles the
+// pick and back, and Esc returns the right hand to an ordinary bow.
+const tool = () => page.evaluate(() => window.__debug.state.tool);
+await page.keyboard.press("Escape"); // start from a known arco/press default
+await page.keyboard.press("p");
+if ((await tool()) !== "finger") fail("P did not switch to pizzicato");
+else ok("P switched to pizzicato");
+await page.keyboard.press("p");
+if ((await tool()) !== "bow") fail("second P did not return to arco");
+else ok("P toggled back to arco");
+// dispatch with code "IntlBackslash" (the UK/ISO backslash key) to prove the
+// shortcut keys off the produced "\" character, not a US-layout e.code
+const pressBackslash = () =>
+  page.evaluate(() =>
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "\\", code: "IntlBackslash", bubbles: true }))
+  );
+await pressBackslash();
+if ((await tool()) !== "pick") fail("\\ did not switch to the pick");
+else ok("\\ switched to the pick");
+await pressBackslash();
+if ((await tool()) !== "bow") fail("second \\ did not return to arco");
+else ok("\\ toggled back to arco");
+// Esc resets tool and left-hand mode even from a non-default state
+await page.keyboard.press("p");
+await page.evaluate(() => { window.__debug.state.leftMode = "touch"; });
+await page.keyboard.press("Escape");
+const reset = await page.evaluate(() => ({
+  tool: window.__debug.state.tool,
+  leftMode: window.__debug.state.leftMode,
+}));
+if (reset.tool !== "bow" || reset.leftMode !== "press")
+  fail(`Esc did not reset to arco/press (tool=${reset.tool}, leftMode=${reset.leftMode})`);
+else ok("Esc reset to arco + ordinario press");
+
+// 10e. pluck shortcuts: in the pizz tool, Space and ←/→ pluck the open string
+// (the only keyboard path to a pizzicato); they must not revert to the bow.
+const peakRmsAfter = async () => {
+  let rms = 0;
+  for (let i = 0; i < 6; i++) {
+    rms = Math.max(rms, await page.evaluate(() => window.__debug.state.meter.rms));
+    await page.waitForTimeout(80);
+  }
+  return rms;
+};
+await page.keyboard.press("p"); // -> pizzicato (finger)
+await page.waitForTimeout(300); // let any earlier ring-down decay
+await page.keyboard.press("Space");
+// the implement (here the right-hand fingertip) must flick into view on a key
+// pluck, just as `grabbed` shows it during a mouse pluck — poll a few frames
+const flicked = await page.evaluate(
+  () =>
+    new Promise((res) => {
+      const t0 = performance.now();
+      const tick = () => {
+        if (window.__debug.view.tools.rightFinger.visible || window.__debug.input.pluckAnim)
+          return res(true);
+        if (performance.now() - t0 > 300) return res(false);
+        requestAnimationFrame(tick);
+      };
+      tick();
+    })
+);
+if (!flicked) fail("Space pluck did not show the implement");
+else ok("Space pluck showed the implement");
+let pk = await peakRmsAfter();
+if (pk < 0.002) fail(`Space did not pluck in pizz mode (rms=${pk})`);
+else ok(`Space plucked in pizz, rms=${pk.toFixed(4)}`);
+await page.waitForTimeout(400);
+await page.keyboard.press("ArrowRight");
+pk = await peakRmsAfter();
+if (pk < 0.002) fail(`ArrowRight did not pluck in pizz mode (rms=${pk})`);
+else ok(`→ plucked in pizz, rms=${pk.toFixed(4)}`);
+if ((await tool()) !== "finger") fail(`a pluck key reverted the tool to ${await tool()}`);
+else ok("pluck keys kept the pizz tool (no revert to bow)");
+
+// the Pressure control scales pluck strength (not just bow weight): a soft
+// setting plucks quieter than a firm one
+const pluckPeakAt = async (pressure) => {
+  // set the slider without focusing it — a focused input would swallow the
+  // Space keydown (the keyboard handler ignores editable targets)
+  await page.evaluate((v) => {
+    const el = document.getElementById("force");
+    el.value = String(v);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, pressure);
+  await page.waitForTimeout(500); // let the previous ring-down decay
+  await page.keyboard.press("Space");
+  return peakRmsAfter();
+};
+const softPluck = await pluckPeakAt(0.1);
+const firmPluck = await pluckPeakAt(1.1);
+if (firmPluck < softPluck * 1.5)
+  fail(`Pressure did not scale pluck force (soft=${softPluck.toFixed(4)}, firm=${firmPluck.toFixed(4)})`);
+else ok(`Pressure scales pluck force (soft=${softPluck.toFixed(4)} -> firm=${firmPluck.toFixed(4)})`);
+await page.keyboard.press("Escape"); // back to the arco default for later tests
+
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the
 // canvas, a second finger taps a string button. Regression check — the HUD
 // used to listen for `click`, which browsers only fire for the *primary*

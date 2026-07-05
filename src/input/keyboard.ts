@@ -10,11 +10,15 @@
  * bow, ← an up bow, ↑/↓ slide the contact point toward the nut/bridge, and
  * holding [ / ] eases off / leans into the string (bow pressure). Holding
  * Space sustains an automatic détaché instead (release to stop); the arrows
- * stay fully manual, and override it while held. All of it combines
+ * stay fully manual, and override it while held. In the pick/pizz tools the
+ * right hand plucks instead: → and ← each pluck (as does Space), ↑/↓ still
+ * place where the pluck lands, and [ / ] set how hard. All of it combines
  * mid-stroke. The string is chosen with Page Up/Page Down (one string at a
  * time, no looping) or by its letter name (G/D/A/E); , and . nudge the bow
  * speed down/up (manual and auto alike, even mid-stroke); S sets the firm
- * Press stop and H the light Touch (harmonics), Esc lifts the left hand.
+ * Press stop and H the light Touch (harmonics). P toggles pizzicato and \
+ * toggles the pick, each dropping back to the bow when pressed a second time.
+ * Esc lifts the left hand and returns the right to an ordinary arco.
  */
 import { engine } from "../audio/engine";
 import { state, notify, STRINGS, FINGER_RADIUS } from "../state";
@@ -83,6 +87,25 @@ export class Keyboard {
       this.input.liftFinger();
       return;
     }
+    // Esc resets to the default hand: Interactions' own Esc listener lifts the
+    // left hand (open string); here the right hand returns to an ordinary bow.
+    if (e.code === "Escape") {
+      state.tool = "bow";
+      state.leftMode = "press";
+      notify();
+      return;
+    }
+    // \ toggles the pick; pressing it again drops back to the bow (arco).
+    // Match the produced character, not e.code "Backslash": the physical
+    // backslash sits on different keys across layouts (e.g. IntlBackslash on
+    // UK/ISO boards), but they all type "\".
+    if (e.key === "\\" && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      if (e.repeat) return;
+      state.tool = state.tool === "pick" ? "bow" : "pick";
+      notify();
+      return;
+    }
     // string switching: Page Up/Down step one string (no looping past the ends)
     if (e.code === "PageUp" || e.code === "PageDown") {
       e.preventDefault();
@@ -115,6 +138,14 @@ export class Keyboard {
         notify();
         return;
       }
+      // P toggles pizzicato (the finger tool); a second press returns to arco.
+      if (letter === "P") {
+        e.preventDefault();
+        if (e.repeat) return;
+        state.tool = state.tool === "finger" ? "bow" : "finger";
+        notify();
+        return;
+      }
     }
     // , / . decrease / increase the (auto-)bow speed; repeat to sweep
     if (e.code === "Comma" || e.code === "Period") {
@@ -131,8 +162,12 @@ export class Keyboard {
     if (e.code === "Space") {
       e.preventDefault();
       if (e.repeat) return;
+      // in a pluck tool Space plucks the active string instead of auto-bowing
+      if (state.tool !== "bow") {
+        this.input.keyPluck();
+        return;
+      }
       void engine.ensureStarted();
-      if (state.tool !== "bow") state.tool = "bow";
       state.autoBow = true;
       notify();
       return;
@@ -141,6 +176,12 @@ export class Keyboard {
       e.preventDefault();
       if (e.repeat) return;
       void engine.ensureStarted();
+      // in a pluck tool, ← / → each pluck the string (up-/down-stroke) rather
+      // than bowing; ↑ / ↓ still slide the contact point where the pluck lands
+      if (state.tool !== "bow" && (e.code === "ArrowLeft" || e.code === "ArrowRight")) {
+        this.input.keyPluck(e.code === "ArrowRight" ? 1 : -1);
+        return;
+      }
       // bowing from the keyboard implies the bow tool
       if ((e.code === "ArrowLeft" || e.code === "ArrowRight") && state.tool !== "bow") {
         state.tool = "bow";
