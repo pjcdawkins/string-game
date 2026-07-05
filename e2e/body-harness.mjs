@@ -289,8 +289,11 @@ for (const side of [1, -1]) {
   body += fHoleGroup(Tf);
 }
 
-// bridge, squashed as in the app, its crown peak on the bridge line
-const BRIDGE_SQUASH = 0.62;
+// bridge, squashed as in the app, its crown peak on the bridge line (keep this
+// in sync with BRIDGE_SQUASH in src/scene/scene.ts; the app also lifts the
+// bridge by BRIDGE_RISE, which is pure positioning and doesn't change the shape
+// this harness previews)
+const BRIDGE_SQUASH = 0.15;
 {
   const s = BODY_S;
   const Tb = (p) =>
