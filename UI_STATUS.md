@@ -51,13 +51,15 @@ impossible until the bowing finger lifted.
   board instead).
 - **Finger mode** — Press / Touch (harmonic) / Lift (top-left).
 - **Tool picker** — Bow / Pick / Pizz (bottom-right, with the right-hand
-  controls).
-- **Bow pressure slider** — bottom-right, under the tool picker; sets
-  `state.bowForce`.
+  controls); the three buttons share one fixed width.
+- **Bow pressure slider** — bottom-right, in its own panel under the tool
+  picker; sets `state.bowForce`.
 - **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
   readout, and the note-under-the-finger / hover-note guide (top-right, below
   the ☰ button; the guide lives here rather than in a picker panel so no
-  picker's width tracks the text).
+  picker's width tracks the text). The panel itself is fixed-width, sized for
+  the worst-case readout, and the readout row holds its height while silent —
+  the box must not breathe as digits come and go or sound starts and stops.
 - **☰ menu** (top-right) — *How to play…* opens the help overlay (also
   auto-opens on first visit, and `?` reopens it), and *Node markers* toggles
   `state.markers`, the harmonic-node dots drawn by `src/scene/scene.ts`.

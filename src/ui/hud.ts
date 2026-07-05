@@ -52,17 +52,19 @@ export class Hud {
     <div class="panel tuner">
       <div class="note" id="note">—</div>
       <div class="cents-bar"><div class="needle" id="needle"></div></div>
-      <div class="tuner-row"><span id="cents">±0¢</span><span id="freq"></span><span id="slip" class="slip"></span></div>
+      <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
       <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
     <div class="sound-hint off" id="soundHint"></div>
-    <div class="panel bottom-right">
-      <div class="row seg-group" id="tools">
-        <button class="seg tool" data-tool="bow">🎻 Bow</button>
-        <button class="seg tool" data-tool="pick">▷ Pick</button>
-        <button class="seg tool" data-tool="finger">☝ Pizz</button>
+    <div class="right-station">
+      <div class="panel tools-panel">
+        <div class="row seg-group" id="tools">
+          <button class="seg tool" data-tool="bow">🎻 Bow</button>
+          <button class="seg tool" data-tool="pick">▷ Pick</button>
+          <button class="seg tool" data-tool="finger">☝ Pizz</button>
+        </div>
       </div>
-      <div class="row">
+      <div class="panel pressure-panel">
         <label>Bow pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
       </div>
     </div>
