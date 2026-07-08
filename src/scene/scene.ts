@@ -535,11 +535,18 @@ export class SceneView {
     this.updateMapping();
   }
 
+  /** Half the world-height visible at z = 0 with zoom 1: the perspective
+   * frustum's half-height at the instrument plane. The zoom framing and the
+   * bow fit both derive from this, so it lives in one place. */
+  private baseHalfHeight(): number {
+    return Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z;
+  }
+
   /** Zoom + recentre the camera to fill a small screen with the playable
    * string (nut to bridge); larger screens keep the default framing. Updates
    * the projection so the derived mapping/bow scale pick the change up. */
   private applyZoom(): void {
-    const halfHBase = Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z;
+    const halfHBase = this.baseHalfHeight();
     if (window.innerWidth <= SMALL_SCREEN_MAX) {
       const halfWBase = halfHBase * this.camera.aspect;
       const zoomV = halfHBase / ((FRAME_TOP - FRAME_BOT) / 2);
@@ -559,8 +566,7 @@ export class SceneView {
    * down to fit a narrow viewport (but never below its base geometry, which
    * already overflows a phone and reads well there). */
   private applyBowScale(): void {
-    const halfH =
-      (Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z) / this.camera.zoom;
+    const halfH = this.baseHalfHeight() / this.camera.zoom;
     const viewWidth = 2 * halfH * this.camera.aspect; // world units visible at z = 0
     const hairFull = BOW_HAIR_RATIO * STRING_LEN; // full-size bow hair
     const hairLen = Math.max(BOW_HAIR_SPAN, Math.min(hairFull, viewWidth * BOW_FIT));
