@@ -546,25 +546,40 @@ body {
     font-size: 10px;
   }
 
-  /* tuner: down into the strip below the bridge, clear of the string */
+  /* tuner: a compact readout over the upper-left bout, out of the centre where
+     the right hand bows near the bridge. It is display-only, so pointer-events
+     are off — a bow stroke started over it still reaches the string. The Hz
+     readout is dropped to keep the pill slim (note, cents needle, technique
+     verdict and the stop/here guide remain). */
   .tuner {
-    top: auto;
-    bottom: 8px;
-    left: 8px;
+    top: 45%;
+    bottom: auto;
+    left: 6px;
     right: auto;
-    width: 184px;
-    padding: 6px 10px;
+    width: 112px;
+    padding: 5px 8px;
+    pointer-events: none;
   }
   .tuner .note {
-    font-size: 20px;
+    font-size: 18px;
+  }
+  .tuner .freq {
+    display: none;
+  }
+  /* tighten the cents/technique row so it fits the slimmer pill */
+  .tuner .tuner-row {
+    gap: 6px;
+  }
+  .tuner-row .slip {
+    min-width: 46px;
   }
 
-  /* right-hand station: top-right gutter, tucked under the ☰ button, so it
-     no longer sits over the resting bow near the bridge. The tool column is
-     stacked over the pressure panel; the tools share one modest width while
-     the slider panel stays wider for granularity */
+  /* right-hand station: over the upper-right bout, opposite the tuner — clear
+     of both the fingerboard (left hand, up the centre) and the bridge (right
+     hand, bottom centre). The tool column is stacked over the pressure panel;
+     the tools share one modest width while the slider stays wider for grip */
   .right-station {
-    top: 44px;
+    top: 40%;
     bottom: auto;
     right: 6px;
     gap: 6px;
@@ -578,13 +593,17 @@ body {
     padding: 7px 8px;
     font-size: 12px;
   }
+  /* match the tuner's width exactly, opposite it on the other bout */
+  .pressure-panel {
+    width: 112px;
+  }
   .pressure-panel label {
     flex-direction: column;
     align-items: stretch;
     gap: 4px;
   }
   .pressure-panel input[type="range"] {
-    width: 118px;
+    width: 100%;
   }
 
   /* the "(harm.)" hint doesn't fit on the narrow Touch button */
