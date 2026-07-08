@@ -111,7 +111,16 @@ body {
   padding: 7px 12px;
   font-size: 15px;
   line-height: 1.2;
+  /* match the translucent panels rather than the grey seg buttons that sit
+     *on* the panels — it reads as furniture of the same family as the tuner */
+  background: var(--panel-bg);
+  border-color: var(--panel-border);
   backdrop-filter: blur(8px);
+}
+
+.menu-btn:hover {
+  background: var(--panel-bg);
+  border-color: var(--seg-on-border);
 }
 
 /* ☰ opens a floating sidebar drawer flush to the right edge, over a dimming
@@ -384,10 +393,7 @@ body {
   pointer-events: none;
 }
 
-/* the tool + pressure panels flow in the station's column; the tuner is a
-   child too but stays fixed top-right on wide screens (it only joins the
-   column on narrow ones — see the media query) */
-.right-station .panel:not(.tuner) {
+.right-station .panel {
   position: static;
 }
 
@@ -575,13 +581,15 @@ body {
     font-size: 10px;
   }
 
-  /* tuner: a compact, display-only readout that joins the top of the
-     right-hand column, sitting just above the Bow/Pick/Pizz picker. It flows
-     in the station's flex column (position: static) rather than floating on
-     its own. pointer-events are off so a bow stroke started over it still
-     reaches the string; the Hz readout is dropped to keep the pill slim. */
+  /* tuner: a compact, display-only readout tucked up in the top-right corner
+     just below the ☰ button, clear of the play area. pointer-events are off so
+     a bow stroke started over it still reaches the string; the Hz readout is
+     dropped to keep the pill slim. */
   .tuner {
-    position: static;
+    top: 48px;
+    right: 6px;
+    left: auto;
+    bottom: auto;
     width: 112px;
     padding: 5px 8px;
     pointer-events: none;
@@ -600,22 +608,27 @@ body {
     min-width: 46px;
   }
 
-  /* right-hand station: the whole right-hand column — tuner, then Bow/Pick/Pizz,
-     then Pressure — over the upper-right bout, clear of both the fingerboard
+  /* right-hand station: Pressure over Bow/Pizz/Pick, down over the upper-right
+     bout near the bowing/plucking position, clear of both the fingerboard
      (left hand, up the centre) and the bridge (right hand, bottom centre) */
   .right-station {
-    top: 26%;
+    top: 40%;
     bottom: auto;
     right: 6px;
     gap: 6px;
   }
+  /* Bow/Pizz/Pick: drop the fixed 76px width and give the buttons the same
+     modest horizontal padding as Press/Touch/Lift; stretched to a uniform
+     width sized to the widest label, so the panel is clearly narrower than the
+     tuner/pressure panels above it rather than almost matching them */
   .tools-panel .row.seg-group {
     flex-direction: column;
-    align-items: flex-end;
+    align-items: stretch;
     gap: 5px;
   }
   .tools-panel .seg.tool {
-    padding: 7px 8px;
+    width: auto;
+    padding: 8px 9px;
     font-size: 12px;
   }
   /* match the tuner's width exactly, opposite it on the other bout */
