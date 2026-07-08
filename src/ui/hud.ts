@@ -58,23 +58,23 @@ export class Hud {
       <button class="seg menu-item toggle" id="menuNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Node markers</span><span class="checkbox" aria-hidden="true">✓</span></button>
       <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer"><span class="menu-label">${GITHUB_ICON}GitHub repo</span><span class="ext" aria-hidden="true">↗</span></a>
     </div>
+    <div class="panel tuner">
+      <div class="note" id="note">&nbsp;</div>
+      <div class="cents-bar"><div class="needle" id="needle"></div></div>
+      <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
+      <div class="pos-note" id="posnote">&nbsp;</div>
+    </div>
     <div class="sound-hint off" id="soundHint"></div>
     <div class="right-station">
-      <div class="panel tuner">
-        <div class="note" id="note">—</div>
-        <div class="cents-bar"><div class="needle" id="needle"></div></div>
-        <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
-        <div class="pos-note" id="posnote">&nbsp;</div>
+      <div class="panel pressure-panel">
+        <label>Pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
       </div>
       <div class="panel tools-panel">
         <div class="row seg-group" id="tools">
           <button class="seg tool" data-tool="bow">🎻 Bow</button>
-          <button class="seg tool" data-tool="pick">▷ Pick</button>
           <button class="seg tool" data-tool="finger">☝ Pizz</button>
+          <button class="seg tool" data-tool="pick">▷ Pick</button>
         </div>
-      </div>
-      <div class="panel pressure-panel">
-        <label>Pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
       </div>
     </div>
     <div class="overlay hidden" id="help">
@@ -297,7 +297,7 @@ export class Hud {
     // stays muted until the first user gesture (autoplay policy) — and on a
     // slow first visit the worklet itself may still be loading. Say which,
     // rather than letting a responsive-but-silent string read as broken.
-    const hint = engine.running ? "" : engine.started ? "🔇 tap for sound" : "🔇 sound loading…";
+    const hint = engine.running ? "" : engine.started ? "🔇 Tap for sound" : "🔇 Sound loading…";
     if (hint !== this.soundHintText) {
       this.soundHintText = hint;
       if (hint) this.soundHintEl.textContent = hint;
@@ -314,7 +314,9 @@ export class Hud {
         this.centsNeedle.style.opacity = "1";
       }
     } else {
-      this.noteEl.textContent = "—";
+      // blank (not an em-dash — that reads as a drag handle on the panel);
+      // the nbsp holds the line's height so the panel doesn't shrink
+      this.noteEl.innerHTML = "&nbsp;";
       this.centsEl.textContent = "";
       this.freqEl.textContent = "";
       this.centsNeedle.style.opacity = "0.2";

@@ -21,19 +21,19 @@ switch strings too.
 The controls are stationed by hand, mirroring the instrument (nut at the
 top, bridge at the bottom): the **left hand's** controls — string picker and
 Press/Touch/Lift — sit **top-left**, beside where the left hand plays, and
-the **right hand's** — Bow/Pick/Pizz and bow pressure — sit **bottom-right**,
+the **right hand's** — Bow/Pizz/Pick and bow pressure — sit **bottom-right**,
 by the bridge. The tuner (feedback, not a control) and the ☰ menu (meta:
 help, display toggles, repo link) take the top-right. On narrow portrait
 screens (`max-width: 600px`, see `src/style.css`) the stations dock into the
 gutters and onto the **upper bouts**, keeping the centre column clear: the
-left-hand string/technique controls run down the top-left edge, and the ☰
-button stays top-right with the whole **right-hand column beneath it, over the
-upper-right bout** — the tuner on top, then Bow/Pick/Pizz, then pressure (the
-tuner joins the column via `position: static`; on wide screens it stays fixed
-top-right). So neither the fingerboard (left hand, up the centre) nor the
-bridge (right hand, bottom centre) is covered. The narrow tuner is a slimmed,
-display-only pill (`pointer-events: none`, Hz readout dropped, matched to the
-pressure panel's width) so a bow stroke begun over it still reaches the string. On those same small screens the camera
+left-hand string/technique controls run down the top-left edge; the ☰ button
+sits top-right with the **tuner tucked just beneath it**; and the right-hand
+controls — **Pressure over Bow/Pizz/Pick** — sit lower over the **upper-right
+bout**, near the bowing/plucking position. So neither the fingerboard (left
+hand, up the centre) nor the bridge (right hand, bottom centre) is covered.
+The narrow tuner is a slimmed, display-only pill (`pointer-events: none`, Hz
+readout dropped, matched to the pressure panel's width) so a bow stroke begun
+over it still reaches the string. On those same small screens the camera
 zooms in on the playable string — the nut-to-bridge stretch fills the height,
 cropping the body flanks and the belly below the bridge (`applyZoom` in
 `src/scene/scene.ts`); the screen↔string mapping and the bow scale follow the
@@ -59,20 +59,24 @@ impossible until the bowing finger lifted.
   finger between strings with the stop kept is the left-hand touch on the
   board instead).
 - **Finger mode** — Press / Touch (harmonic) / Lift (top-left).
-- **Tool picker** — Bow / Pick / Pizz (bottom-right with the right-hand
-  controls, over the upper-right bout on narrow screens); the three buttons
-  share one fixed width.
-- **Bow pressure slider** — in its own panel under the tool picker (bottom-right,
-  or over the upper-right bout on narrow screens); sets `state.bowForce`.
+- **Tool picker** — Bow / Pizz / Pick (bottom-right with the right-hand
+  controls, over the upper-right bout on narrow screens). On desktop the three
+  buttons share one fixed width; on narrow screens they take the same modest
+  padding as Press/Touch/Lift and stretch to a uniform label-width, so the
+  panel stays clearly narrower than the tuner/pressure pills.
+- **Bow pressure slider** — in its own panel (bottom-right, or over the
+  upper-right bout *above* the tool picker on narrow screens); sets
+  `state.bowForce`.
 - **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
   readout, and the note-under-the-finger / hover-note guide (top-right, below
   the ☰ button; the guide lives here rather than in a picker panel so no
-  picker's width tracks the text). The panel itself is fixed-width, sized for
-  the worst-case readout, and the readout row holds its height while silent —
-  the box must not breathe as digits come and go or sound starts and stops. On
-  narrow screens it slims to a display-only pill (`pointer-events: none`, no Hz)
-  that sits at the top of the right-hand column, just above the Bow/Pick/Pizz
-  picker.
+  picker's width tracks the text). With no pitch the note line is left blank
+  (an em-dash there read as a drag handle on the panel). The panel itself is
+  fixed-width, sized for the worst-case readout, and the readout row holds its
+  height while silent — the box must not breathe as digits come and go or sound
+  starts and stops. On narrow screens it slims to a display-only pill
+  (`pointer-events: none`, no Hz) tucked into the top-right corner just beneath
+  the ☰ button.
 - **☰ menu** (top-right) — a floating sidebar drawer (over a dimming scrim;
   press the ✕, the scrim, `Esc`, or outside it to close). *How to play…* opens
   the help overlay (also auto-opens on first visit, and `?` reopens it),
