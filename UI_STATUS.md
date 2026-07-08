@@ -26,13 +26,14 @@ by the bridge. The tuner (feedback, not a control) and the ☰ menu (meta:
 help, display toggles, repo link) take the top-right. On narrow portrait
 screens (`max-width: 600px`, see `src/style.css`) the stations dock into the
 gutters and onto the **upper bouts**, keeping the centre column clear: the
-left-hand string/technique controls run down the top-left edge, the ☰ button
-stays top-right, and the right-hand controls (Bow/Pick/Pizz + pressure) move
-onto the **upper-right bout** with the tuner opposite on the **upper-left
-bout** — so neither the fingerboard (left hand, up the centre) nor the bridge
-(right hand, bottom centre) is covered. The narrow tuner is a slimmed,
-display-only pill (`pointer-events: none`, Hz readout dropped) so a bow stroke
-begun over it still reaches the string. On those same small screens the camera
+left-hand string/technique controls run down the top-left edge, and the ☰
+button stays top-right with the whole **right-hand column beneath it, over the
+upper-right bout** — the tuner on top, then Bow/Pick/Pizz, then pressure (the
+tuner joins the column via `position: static`; on wide screens it stays fixed
+top-right). So neither the fingerboard (left hand, up the centre) nor the
+bridge (right hand, bottom centre) is covered. The narrow tuner is a slimmed,
+display-only pill (`pointer-events: none`, Hz readout dropped, matched to the
+pressure panel's width) so a bow stroke begun over it still reaches the string. On those same small screens the camera
 zooms in on the playable string — the nut-to-bridge stretch fills the height,
 cropping the body flanks and the belly below the bridge (`applyZoom` in
 `src/scene/scene.ts`); the screen↔string mapping and the bow scale follow the
@@ -70,13 +71,15 @@ impossible until the bowing finger lifted.
   the worst-case readout, and the readout row holds its height while silent —
   the box must not breathe as digits come and go or sound starts and stops. On
   narrow screens it slims to a display-only pill (`pointer-events: none`, no Hz)
-  over the upper-left bout, opposite the right-hand controls.
+  that sits at the top of the right-hand column, just above the Bow/Pick/Pizz
+  picker.
 - **☰ menu** (top-right) — a floating sidebar drawer (over a dimming scrim;
   press the ✕, the scrim, `Esc`, or outside it to close). *How to play…* opens
   the help overlay (also auto-opens on first visit, and `?` reopens it),
-  *Node markers* toggles `state.markers`, the harmonic-node dots drawn by
-  `src/scene/scene.ts`, and *GitHub repo* links out to the source. A future
-  About entry belongs here too.
+  *Node markers* is a checkbox row (filled tick + highlighted row when on)
+  toggling `state.markers`, the harmonic-node dots drawn by
+  `src/scene/scene.ts`, and *GitHub repo* (with the GitHub mark) links out to
+  the source. A future About entry belongs here too.
 - **Left-hand touch gestures** (`src/input/interactions.ts`) — a tap on the
   board stops the nearest string lane (touching another string moves the
   finger, and the bow, there); a drag glissandos; a tap on the latched finger

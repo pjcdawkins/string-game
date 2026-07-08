@@ -171,14 +171,35 @@ body {
   gap: 14px;
   width: 100%;
   text-align: left;
+  padding: 9px 12px;
 }
 
-.menu-item .tick {
-  opacity: 0;
+.menu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
 }
 
-.menu-item.on .tick {
-  opacity: 1;
+/* Node markers reads as a real checkbox: an empty box when off, an accent
+   filled box with a tick when on (the item's .on class is toggled in sync()) */
+.menu-item.toggle .checkbox {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid var(--seg-border);
+  border-radius: 5px;
+  font-size: 12px;
+  line-height: 1;
+  color: transparent; /* hide the ✓ glyph until checked */
+}
+
+.menu-item.toggle.on .checkbox {
+  background: var(--seg-on-bg);
+  border-color: var(--seg-on-border);
+  color: var(--fg-strong);
 }
 
 /* the repo link reads as a menu row; its trailing ↗ marks the outbound jump */
@@ -190,6 +211,11 @@ body {
 .menu-link .ext {
   opacity: 0.55;
   font-size: 12px;
+}
+
+.gh-icon {
+  flex: none;
+  opacity: 0.85;
 }
 
 .title {
@@ -358,7 +384,10 @@ body {
   pointer-events: none;
 }
 
-.right-station .panel {
+/* the tool + pressure panels flow in the station's column; the tuner is a
+   child too but stays fixed top-right on wide screens (it only joins the
+   column on narrow ones — see the media query) */
+.right-station .panel:not(.tuner) {
   position: static;
 }
 
@@ -546,16 +575,13 @@ body {
     font-size: 10px;
   }
 
-  /* tuner: a compact readout over the upper-left bout, out of the centre where
-     the right hand bows near the bridge. It is display-only, so pointer-events
-     are off — a bow stroke started over it still reaches the string. The Hz
-     readout is dropped to keep the pill slim (note, cents needle, technique
-     verdict and the stop/here guide remain). */
+  /* tuner: a compact, display-only readout that joins the top of the
+     right-hand column, sitting just above the Bow/Pick/Pizz picker. It flows
+     in the station's flex column (position: static) rather than floating on
+     its own. pointer-events are off so a bow stroke started over it still
+     reaches the string; the Hz readout is dropped to keep the pill slim. */
   .tuner {
-    top: 45%;
-    bottom: auto;
-    left: 6px;
-    right: auto;
+    position: static;
     width: 112px;
     padding: 5px 8px;
     pointer-events: none;
@@ -574,12 +600,11 @@ body {
     min-width: 46px;
   }
 
-  /* right-hand station: over the upper-right bout, opposite the tuner — clear
-     of both the fingerboard (left hand, up the centre) and the bridge (right
-     hand, bottom centre). The tool column is stacked over the pressure panel;
-     the tools share one modest width while the slider stays wider for grip */
+  /* right-hand station: the whole right-hand column — tuner, then Bow/Pick/Pizz,
+     then Pressure — over the upper-right bout, clear of both the fingerboard
+     (left hand, up the centre) and the bridge (right hand, bottom centre) */
   .right-station {
-    top: 40%;
+    top: 26%;
     bottom: auto;
     right: 6px;
     gap: 6px;
