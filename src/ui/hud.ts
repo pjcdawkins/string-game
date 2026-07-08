@@ -5,6 +5,9 @@ import { engine } from "../audio/engine";
 /** localStorage flag: the intro help has been dismissed once already. */
 const HELP_SEEN_KEY = "stringGame.helpSeen";
 
+/** GitHub's mark, inlined as an SVG (no network fetch, themes via currentColor). */
+const GITHUB_ICON = `<svg class="gh-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>`;
+
 export class Hud {
   private root: HTMLElement;
   private noteEl!: HTMLElement;
@@ -51,18 +54,18 @@ export class Hud {
         <span class="sidebar-title">Menu</span>
         <button class="seg close-x" id="menuClose" aria-label="Close menu">✕</button>
       </div>
-      <button class="seg menu-item" id="menuHelp">How to play…</button>
-      <button class="seg menu-item" id="menuNodes" role="menuitemcheckbox" aria-checked="false">Node markers<span class="tick">✓</span></button>
-      <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer">GitHub repo<span class="ext">↗</span></a>
-    </div>
-    <div class="panel tuner">
-      <div class="note" id="note">—</div>
-      <div class="cents-bar"><div class="needle" id="needle"></div></div>
-      <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
-      <div class="pos-note" id="posnote">&nbsp;</div>
+      <button class="seg menu-item" id="menuHelp"><span class="menu-label">How to play…</span></button>
+      <button class="seg menu-item toggle" id="menuNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Node markers</span><span class="checkbox" aria-hidden="true">✓</span></button>
+      <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer"><span class="menu-label">${GITHUB_ICON}GitHub repo</span><span class="ext" aria-hidden="true">↗</span></a>
     </div>
     <div class="sound-hint off" id="soundHint"></div>
     <div class="right-station">
+      <div class="panel tuner">
+        <div class="note" id="note">—</div>
+        <div class="cents-bar"><div class="needle" id="needle"></div></div>
+        <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
+        <div class="pos-note" id="posnote">&nbsp;</div>
+      </div>
       <div class="panel tools-panel">
         <div class="row seg-group" id="tools">
           <button class="seg tool" data-tool="bow">🎻 Bow</button>
