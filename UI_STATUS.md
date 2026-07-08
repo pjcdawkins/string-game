@@ -25,11 +25,15 @@ the **right hand's** — Bow/Pick/Pizz and bow pressure — sit **bottom-right**
 by the bridge. The tuner (feedback, not a control) and the ☰ menu (meta:
 help, display toggles, repo link) take the top-right. On narrow portrait
 screens (`max-width: 600px`, see `src/style.css`) the stations dock into the
-gutters, but the right-hand column moves **up under the ☰ button**
-(top-right) so it no longer sits over the resting bow near the bridge; the
-left-hand column runs down the left edge and the tuner sits in the strip
-below the bridge (bottom-left). On those same small screens the camera zooms
-in on the playable string — the nut-to-bridge stretch fills the height,
+gutters and onto the **upper bouts**, keeping the centre column clear: the
+left-hand string/technique controls run down the top-left edge, the ☰ button
+stays top-right, and the right-hand controls (Bow/Pick/Pizz + pressure) move
+onto the **upper-right bout** with the tuner opposite on the **upper-left
+bout** — so neither the fingerboard (left hand, up the centre) nor the bridge
+(right hand, bottom centre) is covered. The narrow tuner is a slimmed,
+display-only pill (`pointer-events: none`, Hz readout dropped) so a bow stroke
+begun over it still reaches the string. On those same small screens the camera
+zooms in on the playable string — the nut-to-bridge stretch fills the height,
 cropping the body flanks and the belly below the bridge (`applyZoom` in
 `src/scene/scene.ts`); the screen↔string mapping and the bow scale follow the
 zoom automatically, so fingering and bowing stay accurate.
@@ -55,16 +59,18 @@ impossible until the bowing finger lifted.
   board instead).
 - **Finger mode** — Press / Touch (harmonic) / Lift (top-left).
 - **Tool picker** — Bow / Pick / Pizz (bottom-right with the right-hand
-  controls, top-right under the ☰ button on narrow screens); the three
-  buttons share one fixed width.
+  controls, over the upper-right bout on narrow screens); the three buttons
+  share one fixed width.
 - **Bow pressure slider** — in its own panel under the tool picker (bottom-right,
-  or top-right on narrow screens); sets `state.bowForce`.
+  or over the upper-right bout on narrow screens); sets `state.bowForce`.
 - **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
   readout, and the note-under-the-finger / hover-note guide (top-right, below
   the ☰ button; the guide lives here rather than in a picker panel so no
   picker's width tracks the text). The panel itself is fixed-width, sized for
   the worst-case readout, and the readout row holds its height while silent —
-  the box must not breathe as digits come and go or sound starts and stops.
+  the box must not breathe as digits come and go or sound starts and stops. On
+  narrow screens it slims to a display-only pill (`pointer-events: none`, no Hz)
+  over the upper-left bout, opposite the right-hand controls.
 - **☰ menu** (top-right) — a floating sidebar drawer (over a dimming scrim;
   press the ✕, the scrim, `Esc`, or outside it to close). *How to play…* opens
   the help overlay (also auto-opens on first visit, and `?` reopens it),
