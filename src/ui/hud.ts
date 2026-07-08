@@ -45,9 +45,15 @@ export class Hud {
       </div>
     </div>
     <button class="seg menu-btn" id="menuBtn" aria-label="Menu" aria-haspopup="true" aria-expanded="false">☰</button>
-    <div class="panel menu hidden" id="menu">
+    <div class="menu-scrim hidden" id="menuScrim"></div>
+    <div class="panel sidebar hidden" id="menu" role="menu" aria-label="Menu">
+      <div class="sidebar-head">
+        <span class="sidebar-title">Menu</span>
+        <button class="seg close-x" id="menuClose" aria-label="Close menu">✕</button>
+      </div>
       <button class="seg menu-item" id="menuHelp">How to play…</button>
       <button class="seg menu-item" id="menuNodes" role="menuitemcheckbox" aria-checked="false">Node markers<span class="tick">✓</span></button>
+      <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer">GitHub repo<span class="ext">↗</span></a>
     </div>
     <div class="panel tuner">
       <div class="note" id="note">—</div>
@@ -181,12 +187,15 @@ export class Hud {
     // they never compete with the play controls for corner space
     const menu = $("#menu");
     const menuBtn = $("#menuBtn");
+    const scrim = $("#menuScrim");
     const menuOpen = () => !menu.classList.contains("hidden");
     const setMenu = (open: boolean) => {
       menu.classList.toggle("hidden", !open);
+      scrim.classList.toggle("hidden", !open);
       menuBtn.setAttribute("aria-expanded", String(open));
     };
     tap(menuBtn, () => setMenu(!menuOpen()));
+    tap($("#menuClose"), () => setMenu(false));
     tap($("#menuHelp"), () => {
       setMenu(false);
       help.classList.remove("hidden");
@@ -196,6 +205,10 @@ export class Hud {
       state.markers = !state.markers;
       notify();
     });
+    // the repo link is a real anchor (default navigation opens a new tab); just
+    // close the menu behind it — no tap()/preventDefault, which would swallow
+    // the navigation
+    $("#menuGithub").addEventListener("click", () => setMenu(false));
     // pressing anywhere outside dismisses the menu (capture phase runs before
     // the target's own tap() handler, and the button itself is excluded so
     // its toggle still sees the menu open)

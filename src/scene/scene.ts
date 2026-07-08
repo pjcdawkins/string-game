@@ -49,6 +49,18 @@ export const BOARD_SURFACE_Z = -0.08;
 const BOW_HAIR_RATIO = 2.0;
 const BOW_FIT = 0.94; // fraction of the viewport width a full-size bow may fill
 
+// On a small screen the camera zooms in on the playable string — the stretch
+// from the nut down to the bridge — cropping the wide body flanks and the belly
+// below the bridge so the string reads as large as the screen allows. Larger
+// screens keep the fuller portrait framing (zoom 1, centred on the origin). The
+// screen<->string mapping and the bow scale are both derived from the live
+// camera, so they follow the zoom automatically (see updateMapping /
+// applyBowScale). Mirrors the CSS narrow breakpoint in src/style.css.
+const SMALL_SCREEN_MAX = 600; // px viewport width
+const FRAME_TOP = 2.22; // world-y kept in view at the top (nut + board end)
+const FRAME_BOT = -1.7; // world-y kept in view at the bottom (below the bridge)
+const FRAME_HALF_W = 0.5; // world-x half-width kept in view (strings + finger reach)
+
 // The body is drawn in true proportions (an earlier below-bridge
 // foreshortening made the violin read as squashed) — the viewport simply
 // crops the lower bout. Only the bridge is drawn raked: squashed with its
@@ -516,18 +528,39 @@ export class SceneView {
     const h = window.innerHeight;
     this.renderer.setSize(w, h);
     this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    this.applyZoom();
     this.visual.setResolution(w, h);
     for (const m of this.fatLineMats) m.resolution.set(w, h);
     this.applyBowScale();
     this.updateMapping();
   }
 
+  /** Zoom + recentre the camera to fill a small screen with the playable
+   * string (nut to bridge); larger screens keep the default framing. Updates
+   * the projection so the derived mapping/bow scale pick the change up. */
+  private applyZoom(): void {
+    const halfHBase = Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z;
+    if (window.innerWidth <= SMALL_SCREEN_MAX) {
+      const halfWBase = halfHBase * this.camera.aspect;
+      const zoomV = halfHBase / ((FRAME_TOP - FRAME_BOT) / 2);
+      const zoomH = halfWBase / FRAME_HALF_W;
+      // the tighter of the two fits, so the whole region stays in view; never
+      // below 1, so we only ever zoom in from the default framing
+      this.camera.zoom = Math.max(1, Math.min(zoomV, zoomH));
+      this.camera.position.y = (FRAME_TOP + FRAME_BOT) / 2;
+    } else {
+      this.camera.zoom = 1;
+      this.camera.position.y = 0;
+    }
+    this.camera.updateProjectionMatrix();
+  }
+
   /** Size the bow to the true bow:violin ratio when there is room, scaling it
    * down to fit a narrow viewport (but never below its base geometry, which
    * already overflows a phone and reads well there). */
   private applyBowScale(): void {
-    const halfH = Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z;
+    const halfH =
+      (Math.tan((this.camera.fov * Math.PI) / 360) * this.camera.position.z) / this.camera.zoom;
     const viewWidth = 2 * halfH * this.camera.aspect; // world units visible at z = 0
     const hairFull = BOW_HAIR_RATIO * STRING_LEN; // full-size bow hair
     const hairLen = Math.max(BOW_HAIR_SPAN, Math.min(hairFull, viewWidth * BOW_FIT));

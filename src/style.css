@@ -114,19 +114,54 @@ body {
   backdrop-filter: blur(8px);
 }
 
-.panel.menu {
-  top: 54px;
-  right: 12px;
-  z-index: 6;
+/* ☰ opens a floating sidebar drawer flush to the right edge, over a dimming
+   scrim, rather than a corner dropdown — roomier, and it clears the play area
+   which the right-hand controls now share up in the corner */
+.panel.sidebar {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 8;
+  width: 264px;
+  max-width: 82vw;
+  border-radius: 14px 0 0 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 8px;
-  min-width: 180px;
+  padding: 14px;
+  overflow-y: auto;
 }
 
-.panel.menu.hidden {
+.panel.sidebar.hidden {
   display: none;
+}
+
+/* dimming scrim behind the drawer: also swallows the tap that would otherwise
+   start a bow stroke on the canvas, and the window-level outside-press handler
+   closes the drawer when it is pressed */
+.menu-scrim {
+  position: fixed;
+  inset: 0;
+  pointer-events: auto;
+  background: var(--overlay-bg);
+  z-index: 7;
+}
+
+.menu-scrim.hidden {
+  display: none;
+}
+
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.sidebar-title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
 }
 
 .menu-item {
@@ -144,6 +179,17 @@ body {
 
 .menu-item.on .tick {
   opacity: 1;
+}
+
+/* the repo link reads as a menu row; its trailing ↗ marks the outbound jump */
+.menu-link {
+  text-decoration: none;
+  color: var(--fg);
+}
+
+.menu-link .ext {
+  opacity: 0.55;
+  font-size: 12px;
 }
 
 .title {
@@ -491,13 +537,9 @@ body {
     margin-top: 0;
   }
 
-  /* ☰ menu: top-right gutter, the only thing living up there */
+  /* ☰ button in the top-right corner; its drawer stays a full-height sidebar */
   .menu-btn {
     top: 8px;
-    right: 6px;
-  }
-  .panel.menu {
-    top: 50px;
     right: 6px;
   }
   .pos-note {
@@ -517,12 +559,13 @@ body {
     font-size: 20px;
   }
 
-  /* right-hand station: bottom-right gutter, the tool column stacked over
-     the pressure panel. The tools share one modest width while the slider
-     panel stays wider for granularity — together with the fixed-width
-     tuner both fit the strip */
+  /* right-hand station: top-right gutter, tucked under the ☰ button, so it
+     no longer sits over the resting bow near the bridge. The tool column is
+     stacked over the pressure panel; the tools share one modest width while
+     the slider panel stays wider for granularity */
   .right-station {
-    bottom: 8px;
+    top: 44px;
+    bottom: auto;
     right: 6px;
     gap: 6px;
   }

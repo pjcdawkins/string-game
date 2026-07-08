@@ -23,12 +23,16 @@ top, bridge at the bottom): the **left hand's** controls — string picker and
 Press/Touch/Lift — sit **top-left**, beside where the left hand plays, and
 the **right hand's** — Bow/Pick/Pizz and bow pressure — sit **bottom-right**,
 by the bridge. The tuner (feedback, not a control) and the ☰ menu (meta:
-help and display toggles) take the top-right. On narrow portrait screens
-(`max-width: 600px`, see `src/style.css`) the same stations dock into the
-gutters — the left-hand column down the left edge, the right-hand column
-rising from the bottom-right, the tuner in the strip below the bridge
-(bottom-left), the ☰ button staying top-right — so the whole vertical string
-stays reachable for fingering and bowing.
+help, display toggles, repo link) take the top-right. On narrow portrait
+screens (`max-width: 600px`, see `src/style.css`) the stations dock into the
+gutters, but the right-hand column moves **up under the ☰ button**
+(top-right) so it no longer sits over the resting bow near the bridge; the
+left-hand column runs down the left edge and the tuner sits in the strip
+below the bridge (bottom-left). On those same small screens the camera zooms
+in on the playable string — the nut-to-bridge stretch fills the height,
+cropping the body flanks and the belly below the bridge (`applyZoom` in
+`src/scene/scene.ts`); the screen↔string mapping and the bow scale follow the
+zoom automatically, so fingering and bowing stay accurate.
 
 The HUD and the WebGL scene both follow the system colour scheme
 (`prefers-color-scheme`, applied live — there is no in-app toggle): the CSS
@@ -50,20 +54,23 @@ impossible until the bowing finger lifted.
   finger between strings with the stop kept is the left-hand touch on the
   board instead).
 - **Finger mode** — Press / Touch (harmonic) / Lift (top-left).
-- **Tool picker** — Bow / Pick / Pizz (bottom-right, with the right-hand
-  controls); the three buttons share one fixed width.
-- **Bow pressure slider** — bottom-right, in its own panel under the tool
-  picker; sets `state.bowForce`.
+- **Tool picker** — Bow / Pick / Pizz (bottom-right with the right-hand
+  controls, top-right under the ☰ button on narrow screens); the three
+  buttons share one fixed width.
+- **Bow pressure slider** — in its own panel under the tool picker (bottom-right,
+  or top-right on narrow screens); sets `state.bowForce`.
 - **Tuner** — note, cents needle, frequency, stick–slip/pressed/surface
   readout, and the note-under-the-finger / hover-note guide (top-right, below
   the ☰ button; the guide lives here rather than in a picker panel so no
   picker's width tracks the text). The panel itself is fixed-width, sized for
   the worst-case readout, and the readout row holds its height while silent —
   the box must not breathe as digits come and go or sound starts and stops.
-- **☰ menu** (top-right) — *How to play…* opens the help overlay (also
-  auto-opens on first visit, and `?` reopens it), and *Node markers* toggles
-  `state.markers`, the harmonic-node dots drawn by `src/scene/scene.ts`.
-  A future About entry belongs here too.
+- **☰ menu** (top-right) — a floating sidebar drawer (over a dimming scrim;
+  press the ✕, the scrim, `Esc`, or outside it to close). *How to play…* opens
+  the help overlay (also auto-opens on first visit, and `?` reopens it),
+  *Node markers* toggles `state.markers`, the harmonic-node dots drawn by
+  `src/scene/scene.ts`, and *GitHub repo* links out to the source. A future
+  About entry belongs here too.
 - **Left-hand touch gestures** (`src/input/interactions.ts`) — a tap on the
   board stops the nearest string lane (touching another string moves the
   finger, and the bow, there); a drag glissandos; a tap on the latched finger
