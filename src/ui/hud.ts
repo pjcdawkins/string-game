@@ -64,7 +64,7 @@ export class Hud {
       <div class="tuner-row"><span id="cents" class="cents">±0¢</span><span id="freq" class="freq"></span><span id="slip" class="slip"></span></div>
       <div class="pos-note" id="posnote">&nbsp;</div>
     </div>
-    <div class="sound-hint off" id="soundHint"></div>
+    <button class="sound-hint off" id="soundHint" type="button" aria-live="polite"></button>
     <div class="right-station">
       <div class="panel pressure-panel">
         <label>Pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
@@ -144,6 +144,13 @@ export class Hud {
     this.slipEl = $("#slip");
     this.posNoteEl = $("#posnote");
     this.soundHintEl = $("#soundHint");
+    // The pill is a real button so tapping it unlocks audio *without* the tap
+    // falling through to the canvas and stopping the string high up (which is
+    // a poor place to start). ensureStarted() runs inside the live gesture,
+    // which iOS needs to resume the context.
+    tap(this.soundHintEl, () => {
+      void engine.ensureStarted();
+    });
 
     this.root.querySelectorAll<HTMLButtonElement>(".tool").forEach((b) =>
       tap(b, () => {
