@@ -181,7 +181,11 @@ export class Interactions {
   private gestureDx = 0; // raw pointer movement accumulated since last frame
   private pointerForce = -1; // pen/touch pressure if meaningful
   private autoBowDir = 1;
-  private autoBowTimer = 0;
+  private autoBowPhase = 0; // fraction of the way through the current stroke
+  // whether the auto-bow actually drove the bow last frame (false while a
+  // pointer stroke or held arrow overrides it, even though state.autoBow is
+  // still on) — resuming resyncs the stroke phase to the bow's real position
+  private autoBowActive = false;
   private keyPluckDir: -1 | 1 = 1; // alternates the snap of successive key plucks
   // every stroke starts with a little extra bow weight (the "bite") which
   // reliably pulls the string into the fundamental Helmholtz regime instead
@@ -566,16 +570,12 @@ export class Interactions {
         // a fresh stroke or a bow change gets the starting "bite"
         this.biteTimer = 0;
         this.keyStrokeTime = 0;
-        // with under half the travel left in the new direction, retake the
-        // bow (lift and reset to the far end) — so a repeated down bow / up
-        // bow speaks instead of starting where the last stroke ran out
-        const remaining =
-          this.keyBowDir > 0 ? BOW_END - this.bowX : this.bowX + BOW_END;
-        if (remaining < BOW_END * 0.5) this.bowX = -this.keyBowDir * BOW_END;
       }
       this.keyStrokeTime += dt;
-      // the stroke dies away when it runs out of bow at either end; flipping
-      // direction (a bow change) is the way to keep the sound going
+      // the bow simply meets its limit and stops: the stroke dies away when it
+      // runs out of hair at either end, and pressing the same direction again
+      // stays put — flipping direction (a bow change) is what recovers travel
+      // and keeps the sound going
       const atEnd = this.keyBowDir > 0 ? this.bowX >= BOW_END : this.bowX <= -BOW_END;
       if (atEnd) {
         this.bowVel += (0 - this.bowVel) * Math.min(1, dt * 10);
@@ -593,24 +593,38 @@ export class Interactions {
       const kbite = 1 + KEY_BITE_AMP * Math.max(0, 1 - this.biteTimer / 0.25);
       engine.setBow(true, this.bowVel, force * kbite, this.bowPos);
     } else if (state.autoBow) {
-      if (!this.wasAutoBow) this.biteTimer = 0;
-      this.autoBowTimer += dt;
       // the détaché's stroke length tracks its speed setting, so a faster
       // auto-bow visibly sweeps faster (and a slow one lingers), landing in the
       // same fast→slow band as the manual strokes rather than a fixed tempo.
       const STROKE = clamp(0.57 / Math.max(0.02, state.autoBowSpeed), 0.6, 40);
-      if (this.autoBowTimer > STROKE) {
-        this.autoBowTimer = 0;
+      if (!this.autoBowActive) {
+        // taking over (a fresh Space, or resuming after a pointer/arrow
+        // override): re-articulate and pick the bow up from wherever it
+        // actually rests — stroking toward the far end, with the phase matched
+        // to the current bowX so the bow never jumps along its hair
+        this.biteTimer = 0;
+        this.autoBowDir = this.bowX > 0 ? -1 : 1;
+        this.autoBowPhase =
+          Math.asin(clamp(this.bowX / (this.autoBowDir * BOW_END), -1, 1)) / Math.PI + 0.5;
+      }
+      this.autoBowPhase += dt / STROKE;
+      if (this.autoBowPhase >= 1) {
+        // out of hair: a bow change, back the other way
+        this.autoBowPhase = 0;
         this.autoBowDir = -this.autoBowDir;
         this.biteTimer = 0;
       }
       // at a bow change the velocity passes through zero (like a real
       // détaché) — keeping the force up while speed ramps avoids kicking
       // the string into the double-slip (octave) regime
-      const edge = Math.min(this.autoBowTimer, STROKE - this.autoBowTimer);
+      const edge = Math.min(this.autoBowPhase, 1 - this.autoBowPhase) * STROKE;
       const ramp = Math.min(1, edge / 0.09);
       this.bowVel = this.autoBowDir * state.autoBowSpeed * ramp;
-      this.bowX = Math.sin((this.autoBowTimer / STROKE - 0.5) * Math.PI) * -this.autoBowDir * BOW_END;
+      // sinusoidal travel easing, moving WITH the bow velocity: positive
+      // bowVel sweeps frog -> tip, just as it does for pointer/arrow strokes
+      // (the sweep used to run the other way, so the drawn bow slid opposite
+      // to the string's driven swing)
+      this.bowX = Math.sin((this.autoBowPhase - 0.5) * Math.PI) * this.autoBowDir * BOW_END;
       engine.setBow(true, this.bowVel, state.bowForce * bite, this.bowPos);
     }
     // releasing the last stroke key or switching auto-bow off ends the stroke
@@ -619,6 +633,7 @@ export class Interactions {
     this.wasKeyBowing = this.keyBowing;
     this.prevKeyBowDir = this.keyBowing ? this.keyBowDir : 0;
     this.wasAutoBow = state.autoBow;
+    this.autoBowActive = !this.bowEngaged && !this.keyBowing && state.autoBow;
   }
 }
 

@@ -31,60 +31,67 @@ const BOW = {
 /**
  * Violin bow, lying along x with the hair ribbon through the group origin
  * (y = 0 is the contact line on the string). Frog to the right (+x), tip to
- * the left. Drawn slim, at the proportions of a real bow: a fine tapered stick
- * with a gentle camber that brings it closest to the hair mid-bow, a small
- * forward-leaning swan head with an ivory face plate, a compact ebony frog with
- * a pearl eye and silver ferrule, and a short silver winding and leather thumb
- * grip near the frog. (The whole group is uniformly scaled to size on screen —
- * see SceneView.applyBowScale — so these proportions hold at every size.)
+ * the left. Drawn slim, at the proportions of a real bow, and — like the frog
+ * — in profile (side view): a fine tapered stick with a gentle camber that
+ * brings it closest to the hair mid-bow, a Tourte swan head whose crest rises
+ * above the stick and whose ivory-plated face drops to a little beak at the
+ * hair line, a compact ebony frog with a pearl eye and silver ferrule, and a
+ * short silver winding and leather thumb grip near the frog. (The whole group
+ * is uniformly scaled to size on screen — see SceneView.applyBowScale — so
+ * these proportions hold at every size.)
  */
 export function makeBow(): THREE.Group {
   const g = new THREE.Group();
 
   // hair: a pale ribbon with a darker edge behind it, running from the head's
   // hair mortise to the ferrule at the frog. Kept thin so the bow reads fine.
-  const hairEdge = new THREE.Mesh(new THREE.PlaneGeometry(2.83, 0.024), flat(BOW.hairEdge));
-  hairEdge.position.set(-0.155, 0, 0);
-  const hair = new THREE.Mesh(new THREE.PlaneGeometry(2.82, 0.014), flat(BOW.hair));
-  hair.position.set(-0.155, 0.001, 0.005);
+  const hairEdge = new THREE.Mesh(new THREE.PlaneGeometry(2.87, 0.024), flat(BOW.hairEdge));
+  hairEdge.position.set(-0.175, 0, 0);
+  const hair = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 0.014), flat(BOW.hair));
+  hair.position.set(-0.175, 0.001, 0.005);
 
   // stick: a thin ribbon, ~0.02 thick and tapering toward the tip, with a
   // gentle camber (closest to the hair around the middle). The same outline
-  // carries on past the throat into the small swan head — its top edge is the
-  // stick's own line curving up to a rounded nose, its near-vertical front
-  // face (carrying the ivory plate) drops to a forward toe, and the throat
-  // sweeps concave from the hair mortise back up under the stick.
+  // carries on into the head, drawn in profile like the rest of the bow: a
+  // Tourte swan head, clearly taller than the stick, dropping from its crest
+  // to a beak at the hair line.
   const s = new THREE.Shape();
   // top edge, frog end -> tip
   s.moveTo(1.58, 0.114);
   s.quadraticCurveTo(1.3, 0.092, 0.7, 0.064);
   s.quadraticCurveTo(0.05, 0.054, -0.6, 0.06);
-  s.quadraticCurveTo(-1.08, 0.066, -1.44, 0.083); // up to the head throat
-  // the head: the top line runs on almost straight to a rounded front corner
-  // (no nose bump), then a clean near-vertical face drops to a forward toe, and
-  // the throat sweeps concave from the hair mortise back up under the stick
-  s.quadraticCurveTo(-1.57, 0.088, -1.62, 0.083); // top edge to the front corner
-  s.quadraticCurveTo(-1.648, 0.076, -1.652, 0.046); // round the corner into the face
-  s.quadraticCurveTo(-1.655, 0.02, -1.636, 0.004); // face down to the toe
-  s.quadraticCurveTo(-1.6, -0.003, -1.52, 0.001); // toe (the swan's bill) + underside
-  s.quadraticCurveTo(-1.47, 0.005, -1.448, 0.044); // throat, concave, up to the stick
+  s.quadraticCurveTo(-1.08, 0.066, -1.5, 0.086); // out to the head, still slim
+  // the head, side on: a compact form no longer than it is tall. The ridge
+  // line sweeps up into the crest (the back of the swan's head), rounds over
+  // the top, and the face — leaning gently forward — drops to the toe, a
+  // little beak jutting ahead at the hair line. Behind the toe the underside
+  // runs back to the hair mortise, and the throat (the swan's neck) scoops
+  // deeply concave up under the stick.
+  s.quadraticCurveTo(-1.567, 0.09, -1.608, 0.105); // ridge rising into the crest
+  s.quadraticCurveTo(-1.652, 0.116, -1.669, 0.092); // rounded crest, over the top
+  s.quadraticCurveTo(-1.681, 0.057, -1.686, 0.026); // the face, down toward the toe
+  s.quadraticCurveTo(-1.689, 0.009, -1.698, 0.002); // the toe (the swan's beak)
+  s.quadraticCurveTo(-1.669, -0.007, -1.616, -0.004); // underside, back from the beak
+  s.quadraticCurveTo(-1.6, -0.003, -1.585, 0.002); // to the hair mortise
+  s.quadraticCurveTo(-1.558, 0.052, -1.5, 0.066); // throat, scooped up under the stick
   // bottom edge, tip -> frog end
-  s.quadraticCurveTo(-1.08, 0.052, -0.6, 0.044);
+  s.quadraticCurveTo(-1.05, 0.054, -0.6, 0.044);
   s.quadraticCurveTo(0.05, 0.04, 0.7, 0.05);
   s.quadraticCurveTo(1.3, 0.076, 1.58, 0.096);
   s.closePath();
   const stick = new THREE.Mesh(new THREE.ShapeGeometry(s, 16), flat(BOW.stick));
   stick.position.z = 0.02;
 
-  // ivory face plate: a thin light sliver hugging the head's front face, from
-  // the toe up toward the nose, with a hairline dark liner behind it.
+  // ivory face plate: a thin light sliver hugging the head's face from just
+  // under the beak up to the crest, with a hairline dark liner behind it.
   const facePlate = (w: number): THREE.Shape => {
     const p = new THREE.Shape();
-    p.moveTo(-1.636, 0.005);
-    p.quadraticCurveTo(-1.66, 0.024, -1.657, 0.05); // outer edge, along the face
-    p.quadraticCurveTo(-1.653, 0.072, -1.633, 0.08); // up to just under the corner
-    p.lineTo(-1.633 + w, 0.078);
-    p.quadraticCurveTo(-1.649 + w, 0.05, -1.634 + w, 0.011); // inner edge
+    p.moveTo(-1.696, 0.0); // at the beak
+    p.quadraticCurveTo(-1.689, 0.02, -1.684, 0.04); // outer edge, up the face
+    p.quadraticCurveTo(-1.678, 0.07, -1.664, 0.092); // to just under the crest
+    p.lineTo(-1.664 + w, 0.09);
+    p.quadraticCurveTo(-1.678 + w, 0.066, -1.683 + w, 0.038); // inner edge
+    p.quadraticCurveTo(-1.688 + w, 0.016, -1.693 + w, 0.002);
     p.closePath();
     return p;
   };

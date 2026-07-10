@@ -92,18 +92,34 @@ if (Math.abs(res.freq - 440) > 440 * 0.04)
   fail(`keyboard-bowed open A pitch off: ${res.freq.toFixed(1)} Hz`);
 else ok(`keyboard-bowed open A at ${res.freq.toFixed(1)} Hz`);
 
-// 2. a repeated same-direction stroke retakes the bow instead of starting
-// where the last one ran out of travel (which would be a dead, silent stroke)
+// 2. running out of bow: the stroke dies away at the end of the hair and the
+// bow simply meets its limit and stops — a repeated same-direction stroke
+// must NOT teleport it back to the far end. The bow change (the opposite
+// arrow) is what recovers travel and speaks again.
 await page.keyboard.down("ArrowRight");
-await page.waitForTimeout(1400); // run the whole bow out
+// run the whole bow out (a full stroke takes ~3.5 s at the default speed)
+await page.waitForFunction(() => window.__debug.input.bowX >= 1.19, null, { timeout: 8000 });
 await page.keyboard.up("ArrowRight");
 await page.waitForTimeout(250);
-await page.keyboard.down("ArrowRight");
+await page.keyboard.down("ArrowRight"); // same direction again: no travel left
 await page.waitForTimeout(500);
-res = await page.evaluate(() => ({ rms: window.__debug.state.meter.rms }));
+res = await page.evaluate(() => ({
+  bowX: window.__debug.input.bowX,
+  bowVel: window.__debug.input.bowVel,
+}));
 await page.keyboard.up("ArrowRight");
-if (res.rms < 0.003) fail(`repeated down bow was silent (rms=${res.rms})`);
-else ok(`repeated down bow retakes and sounds, rms=${res.rms.toFixed(4)}`);
+if (res.bowX < 1.19)
+  fail(`repeated down bow left the limit (bowX=${res.bowX.toFixed(2)}, expected ~1.2)`);
+else ok(`repeated down bow stays at its limit (bowX=${res.bowX.toFixed(2)})`);
+if (Math.abs(res.bowVel) > 0.02)
+  fail(`bow at its limit still moving (bowVel=${res.bowVel.toFixed(3)})`);
+else ok(`bow at its limit has stopped (bowVel=${res.bowVel.toFixed(3)})`);
+await page.keyboard.down("ArrowLeft"); // the bow change recovers travel
+await page.waitForTimeout(600);
+res = await page.evaluate(() => ({ rms: window.__debug.state.meter.rms }));
+await page.keyboard.up("ArrowLeft");
+if (res.rms < 0.003) fail(`bow change after running out was silent (rms=${res.rms})`);
+else ok(`bow change recovers travel and sounds, rms=${res.rms.toFixed(4)}`);
 
 // 3. simultaneous shortcuts: slide the contact point (↑) during a stroke —
 // the bow keeps sounding while sul tasto/ponticello changes
