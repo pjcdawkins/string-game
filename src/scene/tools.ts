@@ -45,35 +45,36 @@ export function makeBow(): THREE.Group {
 
   // hair: a pale ribbon with a darker edge behind it, running from the head's
   // hair mortise to the ferrule at the frog. Kept thin so the bow reads fine.
-  const hairEdge = new THREE.Mesh(new THREE.PlaneGeometry(2.87, 0.024), flat(BOW.hairEdge));
-  hairEdge.position.set(-0.175, 0, 0);
-  const hair = new THREE.Mesh(new THREE.PlaneGeometry(2.86, 0.014), flat(BOW.hair));
-  hair.position.set(-0.175, 0.001, 0.005);
+  const hairEdge = new THREE.Mesh(new THREE.PlaneGeometry(2.9, 0.024), flat(BOW.hairEdge));
+  hairEdge.position.set(-0.189, 0, 0);
+  const hair = new THREE.Mesh(new THREE.PlaneGeometry(2.888, 0.014), flat(BOW.hair));
+  hair.position.set(-0.189, 0.001, 0.005);
 
   // stick: a thin ribbon, ~0.02 thick and tapering toward the tip, with a
   // gentle camber (closest to the hair around the middle). The same outline
-  // carries on into the head, drawn in profile like the rest of the bow: a
-  // Tourte swan head, clearly taller than the stick, dropping from its crest
-  // to a beak at the hair line.
+  // carries on into the head, drawn in profile like the rest of the bow.
+  // (The head geometry below is designed in e2e/bow-harness.mjs against a
+  // reference photograph — iterate it there, then port; keep the two in sync.)
   const s = new THREE.Shape();
   // top edge, frog end -> tip
   s.moveTo(1.58, 0.114);
   s.quadraticCurveTo(1.3, 0.092, 0.7, 0.064);
   s.quadraticCurveTo(0.05, 0.054, -0.6, 0.06);
-  s.quadraticCurveTo(-1.08, 0.066, -1.5, 0.086); // out to the head, still slim
-  // the head, side on: a compact form no longer than it is tall. The ridge
-  // line sweeps up into the crest (the back of the swan's head), rounds over
-  // the top, and the face — leaning gently forward — drops to the toe, a
-  // little beak jutting ahead at the hair line. Behind the toe the underside
-  // runs back to the hair mortise, and the throat (the swan's neck) scoops
-  // deeply concave up under the stick.
-  s.quadraticCurveTo(-1.567, 0.09, -1.608, 0.105); // ridge rising into the crest
-  s.quadraticCurveTo(-1.652, 0.116, -1.669, 0.092); // rounded crest, over the top
-  s.quadraticCurveTo(-1.681, 0.057, -1.686, 0.026); // the face, down toward the toe
-  s.quadraticCurveTo(-1.689, 0.009, -1.698, 0.002); // the toe (the swan's beak)
-  s.quadraticCurveTo(-1.669, -0.007, -1.616, -0.004); // underside, back from the beak
-  s.quadraticCurveTo(-1.6, -0.003, -1.585, 0.002); // to the hair mortise
-  s.quadraticCurveTo(-1.558, 0.052, -1.5, 0.066); // throat, scooped up under the stick
+  s.quadraticCurveTo(-1.08, 0.066, -1.56, 0.088); // out to the head, staying slim
+  // the head, side on: the ridge rises gently off the stick into a modest
+  // rounded crest (no tall dome), and the face — leaning forward as it
+  // descends — drops to the beak at the hair line. The underside runs
+  // straight back, flush with the hair, to the mortise where the hair
+  // enters; then the throat scoops deeply concave, sweeping back up under
+  // the stick (the swan's neck).
+  s.quadraticCurveTo(-1.612, 0.0915, -1.64, 0.0985); // ridge, a gentle rise
+  s.quadraticCurveTo(-1.658, 0.105, -1.669, 0.099); // crest, a modest dome
+  s.quadraticCurveTo(-1.6765, 0.068, -1.687, 0.03); // the face, leaning forward
+  s.quadraticCurveTo(-1.6925, 0.012, -1.7, 0.004); // into the beak
+  s.quadraticCurveTo(-1.702, 0.0, -1.696, -0.001); // the beak, wrapping slightly under
+  s.quadraticCurveTo(-1.665, 0.0005, -1.634, 0.004); // underside: straight, flush with the hair
+  s.quadraticCurveTo(-1.62, 0.015, -1.611, 0.038); // throat, rising steeply
+  s.quadraticCurveTo(-1.6, 0.062, -1.564, 0.067); // the scoop, back under the stick
   // bottom edge, tip -> frog end
   s.quadraticCurveTo(-1.05, 0.054, -0.6, 0.044);
   s.quadraticCurveTo(0.05, 0.04, 0.7, 0.05);
@@ -82,22 +83,36 @@ export function makeBow(): THREE.Group {
   const stick = new THREE.Mesh(new THREE.ShapeGeometry(s, 16), flat(BOW.stick));
   stick.position.z = 0.02;
 
-  // ivory face plate: a thin light sliver hugging the head's face from just
-  // under the beak up to the crest, with a hairline dark liner behind it.
-  const facePlate = (w: number): THREE.Shape => {
-    const p = new THREE.Shape();
-    p.moveTo(-1.696, 0.0); // at the beak
-    p.quadraticCurveTo(-1.689, 0.02, -1.684, 0.04); // outer edge, up the face
-    p.quadraticCurveTo(-1.678, 0.07, -1.664, 0.092); // to just under the crest
-    p.lineTo(-1.664 + w, 0.09);
-    p.quadraticCurveTo(-1.678 + w, 0.066, -1.683 + w, 0.038); // inner edge
-    p.quadraticCurveTo(-1.688 + w, 0.016, -1.693 + w, 0.002);
-    p.closePath();
-    return p;
+  // ivory tip plate: hugs the face from just under the crest, turns around
+  // the beak and runs straight back along the underside — nearly flush with
+  // the hair — to the mortise. Behind it an ebony liner shows as a thin dark
+  // line the whole way round, between the plate and the wood.
+  const outerFace = (p: THREE.Shape): void => {
+    p.moveTo(-1.6708, 0.0915);
+    p.quadraticCurveTo(-1.6778, 0.0634, -1.687, 0.03); // outer edge: down the face
+    p.quadraticCurveTo(-1.6925, 0.012, -1.7, 0.004); // (exactly the head outline
+    p.quadraticCurveTo(-1.702, 0.0, -1.696, -0.001); // around the beak...
+    p.quadraticCurveTo(-1.665, 0.0005, -1.634, 0.004); // ...straight along the underside)
   };
-  const tipLiner = new THREE.Mesh(new THREE.ShapeGeometry(facePlate(0.032), 8), flat(BOW.frog));
+  const liner = new THREE.Shape();
+  outerFace(liner);
+  liner.lineTo(-1.636, 0.0115); // cut end at the mortise
+  liner.quadraticCurveTo(-1.6655, 0.008, -1.6885, 0.0065); // inner: a hairline inside the plate
+  liner.quadraticCurveTo(-1.6935, 0.008, -1.6855, 0.0185); // inside the beak, turning up
+  liner.quadraticCurveTo(-1.685, 0.021, -1.6795, 0.034); // up the face
+  liner.quadraticCurveTo(-1.6705, 0.062, -1.6635, 0.0875);
+  liner.closePath();
+  const plate = new THREE.Shape();
+  outerFace(plate);
+  plate.lineTo(-1.636, 0.0095); // the cut end where the hair enters
+  plate.quadraticCurveTo(-1.6655, 0.006, -1.6905, 0.0045); // inner edge: back along the bottom
+  plate.quadraticCurveTo(-1.6955, 0.006, -1.6875, 0.0165); // inside the beak, turning up
+  plate.quadraticCurveTo(-1.687, 0.019, -1.6815, 0.032); // up the face
+  plate.quadraticCurveTo(-1.6725, 0.062, -1.6655, 0.086); // to just under the crest
+  plate.closePath();
+  const tipLiner = new THREE.Mesh(new THREE.ShapeGeometry(liner, 8), flat(BOW.frog));
   tipLiner.position.z = 0.021;
-  const tipPlate = new THREE.Mesh(new THREE.ShapeGeometry(facePlate(0.022), 8), flat(BOW.tipPlate));
+  const tipPlate = new THREE.Mesh(new THREE.ShapeGeometry(plate, 8), flat(BOW.tipPlate));
   tipPlate.position.z = 0.022;
 
   // frog: compact ebony block under the stick, thumb bevel toward the winding
