@@ -38,11 +38,11 @@ const STICK_TOP = [
 ];
 // the head, side on (see tools.ts for the prose description)
 const HEAD = [
-  [-1.612, 0.0915, -1.64, 0.0985], // ridge, a gentle rise off the stick
-  [-1.658, 0.105, -1.669, 0.099], // crest, a modest rounded dome
-  [-1.6765, 0.068, -1.687, 0.03], // face, leaning forward as it descends
-  [-1.6925, 0.012, -1.7, 0.004], // into the beak
-  [-1.702, 0.0, -1.696, -0.001], // the beak, wrapping slightly under
+  [-1.585, 0.094, -1.607, 0.0975], // top, rising gently off the stick
+  [-1.63, 0.101, -1.641, 0.099], // to the crest's soft front corner
+  [-1.6635, 0.0635, -1.6815, 0.031], // face: one long forward-leaning line
+  [-1.6935, 0.01, -1.7005, 0.0045], // into the beak
+  [-1.7025, 0.0005, -1.6965, -0.001], // the beak, wrapping slightly under
   [-1.665, 0.0005, -1.634, 0.004], // underside: straight, flush with the hair
   [-1.62, 0.015, -1.611, 0.038], // throat, rising steeply from the mortise
   [-1.6, 0.062, -1.564, 0.067], // the scoop sweeping back under the stick
@@ -59,32 +59,32 @@ const STICK_BOTTOM = [
 // the mortise so no ebony peeks out by the hair).
 function facePlateSegs(kind) {
   const outer = [
-    [-1.6778, 0.0634, -1.687, 0.03], // outer edge: down the face
-    [-1.6925, 0.012, -1.7, 0.004], // (exactly the head outline from here
-    [-1.702, 0.0, -1.696, -0.001], // around the beak...
+    [-1.6635, 0.0635, -1.6815, 0.031], // outer edge: the head's own face line
+    [-1.6935, 0.01, -1.7005, 0.0045], // (exactly the head outline from here
+    [-1.7025, 0.0005, -1.6965, -0.001], // around the beak...
     [-1.665, 0.0005, -1.634, 0.004], // ...straight along the underside)
   ];
   if (kind === "liner")
     return {
-      start: [-1.6708, 0.0915],
+      start: [-1.641, 0.099],
       segs: [
         ...outer,
-        ["L", -1.636, 0.0115], // cut end at the mortise
-        [-1.6655, 0.008, -1.6885, 0.0065], // inner: a hairline inside the plate
-        [-1.6935, 0.008, -1.6855, 0.0185], // inside the beak, turning up
-        [-1.685, 0.021, -1.6795, 0.034], // up the face
-        [-1.6705, 0.062, -1.6635, 0.0875],
+        ["L", -1.636, 0.0143], // cut end at the mortise
+        [-1.6655, 0.0108, -1.6872, 0.0093], // inner: a hairline inside the plate
+        [-1.6922, 0.0108, -1.687, 0.0178], // inside the beak, turning up
+        [-1.6865, 0.0208, -1.675, 0.0333], // up the face, hugging the plate
+        [-1.657, 0.0663, -1.6348, 0.0982], // right up to the crest corner
       ],
     };
   return {
-    start: [-1.6708, 0.0915],
+    start: [-1.641, 0.099],
     segs: [
       ...outer,
-      ["L", -1.636, 0.0095], // the cut end where the hair enters
-      [-1.6655, 0.006, -1.6905, 0.0045], // inner edge: back along the bottom
-      [-1.6955, 0.006, -1.6875, 0.0165], // inside the beak, turning up
-      [-1.687, 0.019, -1.6815, 0.032], // up the face
-      [-1.6725, 0.062, -1.6655, 0.086], // to just under the crest
+      ["L", -1.636, 0.0125], // the cut end where the hair enters
+      [-1.6655, 0.009, -1.6875, 0.0075], // inner edge: back along the bottom
+      [-1.694, 0.009, -1.6885, 0.016], // inside the beak, turning up
+      [-1.6885, 0.019, -1.677, 0.0315], // up the face
+      [-1.659, 0.0645, -1.6368, 0.0972], // the full height, to the crest corner
     ],
   };
 }

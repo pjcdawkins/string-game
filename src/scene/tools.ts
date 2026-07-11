@@ -61,17 +61,17 @@ export function makeBow(): THREE.Group {
   s.quadraticCurveTo(1.3, 0.092, 0.7, 0.064);
   s.quadraticCurveTo(0.05, 0.054, -0.6, 0.06);
   s.quadraticCurveTo(-1.08, 0.066, -1.56, 0.088); // out to the head, staying slim
-  // the head, side on: the ridge rises gently off the stick into a modest
-  // rounded crest (no tall dome), and the face — leaning forward as it
-  // descends — drops to the beak at the hair line. The underside runs
-  // straight back, flush with the hair, to the mortise where the hair
-  // enters; then the throat scoops deeply concave, sweeping back up under
-  // the stick (the swan's neck).
-  s.quadraticCurveTo(-1.612, 0.0915, -1.64, 0.0985); // ridge, a gentle rise
-  s.quadraticCurveTo(-1.658, 0.105, -1.669, 0.099); // crest, a modest dome
-  s.quadraticCurveTo(-1.6765, 0.068, -1.687, 0.03); // the face, leaning forward
-  s.quadraticCurveTo(-1.6925, 0.012, -1.7, 0.004); // into the beak
-  s.quadraticCurveTo(-1.702, 0.0, -1.696, -0.001); // the beak, wrapping slightly under
+  // the head, side on: the top rises gently off the stick to a soft corner
+  // at the crest, then the face — one long line leaning well forward (~32°)
+  // — descends to the beak at the hair line. The underside runs straight
+  // back, flush with the hair, to the mortise where the hair enters; then
+  // the throat scoops deeply concave, sweeping back up under the stick
+  // (the swan's neck).
+  s.quadraticCurveTo(-1.585, 0.094, -1.607, 0.0975); // top, rising gently
+  s.quadraticCurveTo(-1.63, 0.101, -1.641, 0.099); // to the crest's front corner
+  s.quadraticCurveTo(-1.6635, 0.0635, -1.6815, 0.031); // the face, leaning forward
+  s.quadraticCurveTo(-1.6935, 0.01, -1.7005, 0.0045); // into the beak
+  s.quadraticCurveTo(-1.7025, 0.0005, -1.6965, -0.001); // the beak, wrapping slightly under
   s.quadraticCurveTo(-1.665, 0.0005, -1.634, 0.004); // underside: straight, flush with the hair
   s.quadraticCurveTo(-1.62, 0.015, -1.611, 0.038); // throat, rising steeply
   s.quadraticCurveTo(-1.6, 0.062, -1.564, 0.067); // the scoop, back under the stick
@@ -83,32 +83,33 @@ export function makeBow(): THREE.Group {
   const stick = new THREE.Mesh(new THREE.ShapeGeometry(s, 16), flat(BOW.stick));
   stick.position.z = 0.02;
 
-  // ivory tip plate: hugs the face from just under the crest, turns around
-  // the beak and runs straight back along the underside — nearly flush with
-  // the hair — to the mortise. Behind it an ebony liner shows as a thin dark
-  // line the whole way round, between the plate and the wood.
+  // ivory tip plate: covers the face for its full height — from the crest's
+  // front corner down — turns around the beak and runs straight back along
+  // the underside, nearly flush with the hair, to the mortise. Behind it an
+  // ebony liner shows as a thin dark line the whole way round, between the
+  // plate and the wood.
   const outerFace = (p: THREE.Shape): void => {
-    p.moveTo(-1.6708, 0.0915);
-    p.quadraticCurveTo(-1.6778, 0.0634, -1.687, 0.03); // outer edge: down the face
-    p.quadraticCurveTo(-1.6925, 0.012, -1.7, 0.004); // (exactly the head outline
-    p.quadraticCurveTo(-1.702, 0.0, -1.696, -0.001); // around the beak...
+    p.moveTo(-1.641, 0.099);
+    p.quadraticCurveTo(-1.6635, 0.0635, -1.6815, 0.031); // outer edge: down the face
+    p.quadraticCurveTo(-1.6935, 0.01, -1.7005, 0.0045); // (exactly the head outline
+    p.quadraticCurveTo(-1.7025, 0.0005, -1.6965, -0.001); // around the beak...
     p.quadraticCurveTo(-1.665, 0.0005, -1.634, 0.004); // ...straight along the underside)
   };
   const liner = new THREE.Shape();
   outerFace(liner);
-  liner.lineTo(-1.636, 0.0115); // cut end at the mortise
-  liner.quadraticCurveTo(-1.6655, 0.008, -1.6885, 0.0065); // inner: a hairline inside the plate
-  liner.quadraticCurveTo(-1.6935, 0.008, -1.6855, 0.0185); // inside the beak, turning up
-  liner.quadraticCurveTo(-1.685, 0.021, -1.6795, 0.034); // up the face
-  liner.quadraticCurveTo(-1.6705, 0.062, -1.6635, 0.0875);
+  liner.lineTo(-1.636, 0.0143); // cut end at the mortise
+  liner.quadraticCurveTo(-1.6655, 0.0108, -1.6872, 0.0093); // inner: a hairline inside the plate
+  liner.quadraticCurveTo(-1.6922, 0.0108, -1.687, 0.0178); // inside the beak, turning up
+  liner.quadraticCurveTo(-1.6865, 0.0208, -1.675, 0.0333); // up the face, hugging the plate
+  liner.quadraticCurveTo(-1.657, 0.0663, -1.6348, 0.0982); // right up to the crest corner
   liner.closePath();
   const plate = new THREE.Shape();
   outerFace(plate);
-  plate.lineTo(-1.636, 0.0095); // the cut end where the hair enters
-  plate.quadraticCurveTo(-1.6655, 0.006, -1.6905, 0.0045); // inner edge: back along the bottom
-  plate.quadraticCurveTo(-1.6955, 0.006, -1.6875, 0.0165); // inside the beak, turning up
-  plate.quadraticCurveTo(-1.687, 0.019, -1.6815, 0.032); // up the face
-  plate.quadraticCurveTo(-1.6725, 0.062, -1.6655, 0.086); // to just under the crest
+  plate.lineTo(-1.636, 0.0125); // the cut end where the hair enters
+  plate.quadraticCurveTo(-1.6655, 0.009, -1.6875, 0.0075); // inner edge: back along the bottom
+  plate.quadraticCurveTo(-1.694, 0.009, -1.6885, 0.016); // inside the beak, turning up
+  plate.quadraticCurveTo(-1.6885, 0.019, -1.677, 0.0315); // up the face
+  plate.quadraticCurveTo(-1.659, 0.0645, -1.6368, 0.0972); // the full height, to the crest corner
   plate.closePath();
   const tipLiner = new THREE.Mesh(new THREE.ShapeGeometry(liner, 8), flat(BOW.frog));
   tipLiner.position.z = 0.021;
