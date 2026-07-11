@@ -41,11 +41,11 @@ const HEAD = [
   [-1.585, 0.094, -1.607, 0.0975], // top, rising gently off the stick
   [-1.63, 0.101, -1.641, 0.099], // to the crest's soft front corner
   [-1.6635, 0.0635, -1.6815, 0.031], // face: one long forward-leaning line
-  [-1.6935, 0.01, -1.7005, 0.0045], // into the beak
-  [-1.7025, 0.0005, -1.6965, -0.001], // the beak, wrapping slightly under
-  [-1.665, 0.0005, -1.634, 0.004], // underside: straight, flush with the hair
-  [-1.62, 0.015, -1.611, 0.038], // throat, rising steeply from the mortise
-  [-1.6, 0.062, -1.564, 0.067], // the scoop sweeping back under the stick
+  [-1.6935, 0.0135, -1.7005, 0.009], // into the beak
+  [-1.7035, 0.007, -1.699, 0.0055], // the beak's tip, wrapping under
+  [-1.6655, 0.004, -1.634, 0.002], // underside, sloping ~-3° down to the hair
+  [-1.62, 0.013, -1.611, 0.036], // throat, rising steeply from the mortise
+  [-1.6, 0.06, -1.564, 0.067], // the scoop sweeping back under the stick
 ];
 const STICK_BOTTOM = [
   [-1.05, 0.054, -0.6, 0.044],
@@ -53,38 +53,33 @@ const STICK_BOTTOM = [
   [1.3, 0.076, 1.58, 0.096],
 ];
 
-// ivory tip plate: hugs the face from just under the crest, wraps the beak's
-// chin and runs back along the underside to the mortise. Behind it a dark
-// liner shows as a hairline along the face and chin only (it stops short of
-// the mortise so no ebony peeks out by the hair).
 function facePlateSegs(kind) {
+  // the plate covers only the beak: a wedge whose outer edge is the head
+  // outline (down the beak's front, around the tip, along the underside to
+  // the mortise) and whose inner edge is one clean diagonal joint line back
+  // up to the beak's top on the face. The liner is the same wedge a hair
+  // taller, so the joint reads as a thin dark seam.
   const outer = [
-    [-1.6635, 0.0635, -1.6815, 0.031], // outer edge: the head's own face line
-    [-1.6935, 0.01, -1.7005, 0.0045], // (exactly the head outline from here
-    [-1.7025, 0.0005, -1.6965, -0.001], // around the beak...
-    [-1.665, 0.0005, -1.634, 0.004], // ...straight along the underside)
+    [-1.6935, 0.0135, -1.7005, 0.009], // outer edge: the beak's own front line
+    [-1.7035, 0.007, -1.699, 0.0055], // (exactly the head outline: the tip...
+    [-1.6655, 0.004, -1.634, 0.002], // ...then the underside to the mortise)
   ];
   if (kind === "liner")
     return {
-      start: [-1.641, 0.099],
+      start: [-1.6803, 0.0332], // a hair up the face from the plate's corner
       segs: [
+        ["L", -1.6815, 0.031],
         ...outer,
-        ["L", -1.636, 0.0143], // cut end at the mortise
-        [-1.6655, 0.0108, -1.6872, 0.0093], // inner: a hairline inside the plate
-        [-1.6922, 0.0108, -1.687, 0.0178], // inside the beak, turning up
-        [-1.6865, 0.0208, -1.675, 0.0333], // up the face, hugging the plate
-        [-1.657, 0.0663, -1.6348, 0.0982], // right up to the crest corner
+        ["L", -1.636, 0.0105], // cut end at the mortise
+        [-1.6625, 0.018, -1.6803, 0.0332], // joint line, back up to the face
       ],
     };
   return {
-    start: [-1.641, 0.099],
+    start: [-1.6815, 0.031],
     segs: [
       ...outer,
-      ["L", -1.636, 0.0125], // the cut end where the hair enters
-      [-1.6655, 0.009, -1.6875, 0.0075], // inner edge: back along the bottom
-      [-1.694, 0.009, -1.6885, 0.016], // inside the beak, turning up
-      [-1.6885, 0.019, -1.677, 0.0315], // up the face
-      [-1.659, 0.0645, -1.6368, 0.0972], // the full height, to the crest corner
+      ["L", -1.636, 0.0085], // the cut end where the hair enters
+      [-1.664, 0.0155, -1.6815, 0.031], // joint line, back up to the beak's top
     ],
   };
 }
