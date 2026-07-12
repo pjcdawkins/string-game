@@ -55,13 +55,14 @@ npm run build    # production build (worklet bundles to a self-contained file)
   over the board (*sul tasto*). The bow and plucks always stay on the bridge
   side of a stopped finger — the nut-side portion of the string is not modelled.
 - **Snap to a scale**: the ☰ menu's *Snap* select lightly magnetises the
-  stopping finger onto a scale rooted on the open string — each string gets
-  its own major (or minor) scale, tuned in quarter-comma meantone as befits a
-  violin (pure 5/4 thirds), or a chromatic scale in plain 12-EDO. The snap is
+  stopping finger onto a scale rooted on the open string — a chromatic scale
+  in plain 12-EDO (the default, so notes land true out of the box; *Off*
+  restores the free string), or each string's own major or minor scale, tuned
+  in quarter-comma meantone as befits a violin (pure 5/4 thirds). The snap is
   a continuous remap: exactly on a degree it locks in, between degrees the
   finger glides freely, so glissandi survive — they just linger on the notes.
-  In *Touch* mode the select gives way to a *Snap to nodes* toggle, which
-  magnetises the harmonic nodes instead.
+  In *Touch* mode the select gives way to a *Snap to nodes* toggle (also on
+  by default), which magnetises the harmonic nodes instead.
 - **Harmonics**: switch the left hand to *Touch* mode and brush a node
   (½, ⅓, ¼ … — with a firm stop down they are drawn relative to the stopped
   length) — the model kills every partial without a node there, just like a

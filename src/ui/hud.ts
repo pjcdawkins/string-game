@@ -58,9 +58,9 @@ export class Hud {
       <button class="seg menu-item toggle" id="menuNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Node markers</span><span class="checkbox" aria-hidden="true">✓</span></button>
       <div class="seg menu-item select-row" id="menuSnap"><label class="menu-label" for="snapSel">Snap</label><select id="snapSel" class="snap-sel">
         <option value="off">Off</option>
+        <option value="chromatic">Chromatic</option>
         <option value="major">Major</option>
         <option value="minor">Minor</option>
-        <option value="chromatic">Chromatic</option>
       </select></div>
       <button class="seg menu-item toggle" id="menuSnapNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Snap to nodes</span><span class="checkbox" aria-hidden="true">✓</span></button>
       <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer"><span class="menu-label">${GITHUB_ICON}GitHub repo</span><span class="ext" aria-hidden="true">↗</span></a>
