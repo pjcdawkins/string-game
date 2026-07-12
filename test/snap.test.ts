@@ -6,7 +6,7 @@ import {
   nodeTargets,
   snapPosition,
 } from "../src/input/snap";
-import { FINGER_RADIUS, MAX_STOP_NODE } from "../src/state";
+import { FINGER_RADIUS, MAX_STOP_NODE, state } from "../src/state";
 
 /** Cents above the open string sounded by a fingertip centred at `p`. */
 function centerToCents(p: number): number {
@@ -14,6 +14,10 @@ function centerToCents(p: number): number {
 }
 
 describe("snap scales", () => {
+  it("snaps chromatically out of the box", () => {
+    expect(state.snap).toBe("chromatic");
+  });
+
   it("tempers the meantone fifth by a quarter comma", () => {
     // a pure 3/2 is ~701.955¢; quarter-comma meantone flattens it ~5.38¢
     expect(MEANTONE_FIFTH_CENTS).toBeCloseTo(696.578, 2);

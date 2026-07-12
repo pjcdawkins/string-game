@@ -86,12 +86,16 @@ export function nodeTargets(): number[] {
 // uncapped half-way window would snap almost everything; capping it leaves a
 // free-glide stretch between low notes while high positions — where the notes
 // crowd closer than the cap — hand over seamlessly at the midpoints.
-const SNAP_WINDOW_MAX = 0.045;
+const SNAP_WINDOW_MAX = 0.0495;
 // Residual curve inside the window: offset' = offset·(|offset|/window)^EASE.
 // Continuous at the window edge (offset' = offset), zero at the target, and
 // in between the finger keeps ~this fraction of its distance — light enough
 // to slide through, firm enough that landing near a note lands ON it.
-const SNAP_EASE = 2;
+// (Both constants were tuned ~10% stickier after play-testing: the window cap
+// up from 0.045 widens the magnet's reach in the low positions where the cap
+// governs, and the ease up from 2 deepens the in-window pull everywhere,
+// including the high positions whose windows the note midpoints limit.)
+const SNAP_EASE = 2.2;
 
 /** Remap a fingertip-centre position by the light snap toward the nearest of
  * `targets` (sorted ascending). Positions outside every capture window pass

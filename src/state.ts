@@ -93,7 +93,7 @@ export const state: AppState = {
   fingerPos: 0.3,
   fingerPressure: 0,
   markers: false,
-  snap: "off",
+  snap: "chromatic", // gentle semitone snapping out of the box; Off in the ☰ menu
   snapNodes: false,
   slowMo: 2.4,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },

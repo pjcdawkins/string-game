@@ -84,7 +84,8 @@ impossible until the bowing finger lifted.
   toggling `state.markers`, the harmonic-node dots drawn by
   `src/scene/scene.ts` over the whole vibrating length — nut (or firm stop)
   to bridge, past the fingerboard's end, from the shared node set in
-  `src/harmonics.ts` — *Snap* is a select (Off / Major / Minor / Chromatic)
+  `src/harmonics.ts` — *Snap* is a select (Off / Chromatic / Major / Minor;
+  chromatic is the default)
   lightly magnetising a pressed finger onto a scale rooted on the open string
   (major/minor in quarter-comma meantone, chromatic in 12-EDO — see
   `src/input/snap.ts`), *Snap to nodes* is a checkbox doing the same for a
