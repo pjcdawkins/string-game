@@ -25,6 +25,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
 import { FINGERBOARD_END, state } from "../state";
+import { HARMONIC_NODES } from "../harmonics";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
 import { FHOLE_OUTLINE } from "./fholeOutline";
@@ -468,17 +469,9 @@ export class SceneView {
   }
 
   private buildNodeMarkers(): void {
-    // natural-harmonic node markers (n = 2..6)
-    const nodes = new Map<number, number>(); // position -> lowest harmonic number
-    for (let n = 2; n <= 6; n++) {
-      for (let k = 1; k < n; k++) {
-        if (gcd(k, n) !== 1) continue;
-        const p = k / n;
-        if (p > FINGERBOARD_END) continue;
-        if (!nodes.has(p)) nodes.set(p, n);
-      }
-    }
-    for (const [p, n] of nodes) {
+    // natural-harmonic node markers: the shared node set (harmonics.ts) also
+    // feeds the Touch-mode snap, so a dot and a snap target can never drift
+    for (const { p, n } of HARMONIC_NODES) {
       const c = new THREE.Color().setHSL(0.52 + (n - 2) * 0.07, 0.8, 0.6);
       const dot = new THREE.Mesh(
         new THREE.CircleGeometry(0.035, 20),
@@ -500,11 +493,12 @@ export class SceneView {
     this.nodeBase = stop;
     for (const d of this.nodeMarkers.children) {
       const p = (d.userData as { p: number }).p;
+      // beads sitting on the string itself: touch the dot, get the harmonic.
+      // They run the whole vibrating length — nut (or stop) to bridge — since
+      // the string can be touched past the fingerboard's end too.
       const abs = stop + p * (1 - stop);
-      // beads sitting on the string itself: touch the dot, get the harmonic
       d.position.x = laneX(this.activeString, abs);
       d.position.y = this.sToY(abs);
-      d.visible = abs <= FINGERBOARD_END;
     }
   }
 
@@ -845,8 +839,4 @@ function dedupe(pts: THREE.Vector2[]): THREE.Vector2[] {
   }
   if (out.length > 1 && out[0].distanceTo(out[out.length - 1]) < 1e-5) out.pop();
   return out;
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
 }

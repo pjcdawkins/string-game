@@ -1,5 +1,5 @@
 /** DOM heads-up display: tool/string pickers, technique controls, tuner. */
-import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode } from "../state";
+import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode, SnapMode } from "../state";
 import { engine } from "../audio/engine";
 
 /** localStorage flag: the intro help has been dismissed once already. */
@@ -56,6 +56,13 @@ export class Hud {
       </div>
       <button class="seg menu-item" id="menuHelp"><span class="menu-label">How to play…</span></button>
       <button class="seg menu-item toggle" id="menuNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Node markers</span><span class="checkbox" aria-hidden="true">✓</span></button>
+      <div class="seg menu-item select-row" id="menuSnap"><label class="menu-label" for="snapSel">Snap</label><select id="snapSel" class="snap-sel">
+        <option value="off">Off</option>
+        <option value="major">Major</option>
+        <option value="minor">Minor</option>
+        <option value="chromatic">Chromatic</option>
+      </select></div>
+      <button class="seg menu-item toggle" id="menuSnapNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Snap to nodes</span><span class="checkbox" aria-hidden="true">✓</span></button>
       <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer"><span class="menu-label">${GITHUB_ICON}GitHub repo</span><span class="ext" aria-hidden="true">↗</span></a>
     </div>
     <div class="panel tuner">
@@ -101,7 +108,10 @@ export class Hud {
         reaches. To lift, flick the finger sideways off its string, tap the top-left
         corner (or above the nut), or press <kbd>Esc</kbd> / <b>Lift</b>. In <b>Touch</b>
         mode the finger only brushes the string: touch a node to sound a natural
-        harmonic (<i>Node markers</i> in the ☰ menu shows where they are).</p>
+        harmonic (<i>Node markers</i> in the ☰ menu shows where they are). The menu's
+        <i>Snap</i> gently magnetises the finger onto a scale rooted on the open string —
+        major or minor in meantone tuning, or an equal-tempered chromatic — and in
+        Touch mode <i>Snap to nodes</i> magnetises the harmonic nodes instead.</p>
         <p><b>Multi-touch</b>: hold a stop with one finger while bowing or plucking with
         another — a second touch on the board, bridge-side of the stop, plays over the
         board (sul tasto).</p>
@@ -215,6 +225,20 @@ export class Hud {
       state.markers = !state.markers;
       notify();
     });
+    // Snap: a native select (no tap() — that would preventDefault the very
+    // pointerdown that opens its dropdown). It applies to a *pressed* finger,
+    // so it grays out in Touch mode, where "Snap to nodes" takes over below.
+    const snapSel = $<HTMLSelectElement>("#snapSel");
+    snapSel.addEventListener("change", () => {
+      state.snap = snapSel.value as SnapMode;
+      snapSel.blur(); // hand the keys back to playing (G/D/A/E, digits…)
+      notify();
+    });
+    tap($("#menuSnapNodes"), () => {
+      if (state.leftMode !== "touch") return; // grayed out under a pressed finger
+      state.snapNodes = !state.snapNodes;
+      notify();
+    });
     // the repo link is a real anchor (default navigation opens a new tab); just
     // close the menu behind it — no tap()/preventDefault, which would swallow
     // the navigation
@@ -296,6 +320,19 @@ export class Hud {
     const nodes = this.root.querySelector("#menuNodes") as HTMLButtonElement;
     nodes.classList.toggle("on", state.markers);
     nodes.setAttribute("aria-checked", String(state.markers));
+    // the two snap rows swap roles with the finger mode: the scale select
+    // works under a pressed finger, the node toggle under a harmonic touch
+    const touch = state.leftMode === "touch";
+    const snapRow = this.root.querySelector("#menuSnap") as HTMLElement;
+    const snapSel = this.root.querySelector("#snapSel") as HTMLSelectElement;
+    snapRow.classList.toggle("disabled", touch);
+    snapSel.disabled = touch;
+    snapSel.value = state.snap;
+    const snapNodes = this.root.querySelector("#menuSnapNodes") as HTMLButtonElement;
+    snapNodes.classList.toggle("disabled", !touch);
+    snapNodes.setAttribute("aria-disabled", String(!touch));
+    snapNodes.classList.toggle("on", state.snapNodes);
+    snapNodes.setAttribute("aria-checked", String(state.snapNodes));
   }
 
   /** Per-frame tuner + position readout update. */

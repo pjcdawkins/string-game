@@ -1,6 +1,7 @@
 import { SceneView } from "./scene/scene";
 import { setToolOpacity, BOW_HAIR_TIP, BOW_HAIR_FROG } from "./scene/tools";
 import { Interactions, BOW_MAX, BOW_END, LEFT_CATCH_X, LIFT_ZONE_S } from "./input/interactions";
+import { snapFinger } from "./input/snap";
 import { laneX } from "./scene/lanes";
 import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
@@ -124,8 +125,9 @@ function updateTools(): void {
   // the string lane a left-hand touch here would catch (nearest, sticky)
   const hoverLane = hoverLeft ? input.catchLane(hover!) : state.stringIdx;
 
-  // note guide: show what the cursor position would sound under the finger
-  hud.setHoverPosition(hoverLeft && !state.fingerOn ? hover!.s : null, hoverLane);
+  // note guide: show what the cursor position would sound under the finger —
+  // through the snap remap, so the readout names the note a tap would land on
+  hud.setHoverPosition(hoverLeft && !state.fingerOn ? snapFinger(hover!.s) : null, hoverLane);
 
   if (state.tool === "bow") {
     // the bow never disappears: solid while stroking, a ghost resting at its

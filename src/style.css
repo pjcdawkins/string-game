@@ -211,6 +211,38 @@ body {
   color: var(--fg-strong);
 }
 
+/* Snap rows: a native select chooses the scale a pressed finger snaps to;
+   whichever of the pair doesn't apply to the current finger mode grays out
+   (the scale select in Touch mode, the node toggle in Press mode) */
+.menu-item.select-row {
+  cursor: default;
+}
+
+/* the row itself isn't a button — only its select is — so no hover invite */
+.menu-item.select-row:hover {
+  background: var(--seg-bg);
+}
+
+.menu-item.select-row label {
+  cursor: default;
+}
+
+.snap-sel {
+  background: var(--seg-bg);
+  color: var(--fg);
+  border: 1px solid var(--seg-border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.menu-item.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 /* the repo link reads as a menu row; its trailing ↗ marks the outbound jump */
 .menu-link {
   text-decoration: none;
