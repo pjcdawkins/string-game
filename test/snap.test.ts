@@ -14,8 +14,9 @@ function centerToCents(p: number): number {
 }
 
 describe("snap scales", () => {
-  it("snaps chromatically out of the box", () => {
+  it("snaps chromatically — and onto nodes in Touch mode — out of the box", () => {
     expect(state.snap).toBe("chromatic");
+    expect(state.snapNodes).toBe(true);
   });
 
   it("tempers the meantone fifth by a quarter comma", () => {

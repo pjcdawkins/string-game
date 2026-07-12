@@ -88,7 +88,8 @@ impossible until the bowing finger lifted.
   chromatic is the default)
   lightly magnetising a pressed finger onto a scale rooted on the open string
   (major/minor in quarter-comma meantone, chromatic in 12-EDO — see
-  `src/input/snap.ts`), *Snap to nodes* is a checkbox doing the same for a
+  `src/input/snap.ts`), *Snap to nodes* is a checkbox (also on by default)
+  doing the same for a
   Touch-mode finger and the natural-harmonic nodes, and *GitHub repo* (with
   the GitHub mark) links out to the source. The two snap rows swap roles with
   the finger mode — the select grays out in Touch mode, the node toggle in

@@ -94,7 +94,7 @@ export const state: AppState = {
   fingerPressure: 0,
   markers: false,
   snap: "chromatic", // gentle semitone snapping out of the box; Off in the ☰ menu
-  snapNodes: false,
+  snapNodes: true, // and Touch-mode fingers settle onto the harmonic nodes
   slowMo: 2.4,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
   detectedFreq: 0,
