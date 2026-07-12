@@ -13,7 +13,8 @@
  * plain 12-EDO, where meantone's split into unequal semitones would just fight
  * the tuner readout.
  */
-import { state, FINGER_RADIUS, MAX_STOP_NODE, FINGERBOARD_END, SnapMode } from "../state";
+import { state, FINGER_RADIUS, MAX_STOP_NODE, SnapMode } from "../state";
+import { HARMONIC_NODES } from "../harmonics";
 
 /** Quarter-comma meantone fifth: four of them stack to a pure 5/4 double
  * octave, so one fifth is 5^(1/4), i.e. (1200/4)·log2(5) cents ≈ 696.58. */
@@ -69,25 +70,15 @@ export function scaleTargets(mode: Exclude<SnapMode, "off">): number[] {
   return t;
 }
 
-let nodeTargetCache: number[] | null = null;
+/** Snap targets for Touch mode: the natural-harmonic nodes (HARMONIC_NODES —
+ * the very set the node markers draw), as fingertip centres, over the whole
+ * string from the nut toward the bridge. The acoustic touch point sits a
+ * FINGER_RADIUS bridge-ward of the centre, so these too aim the centre a
+ * radius short of the node — the flageolet then speaks dead on. */
+const NODE_TARGETS = HARMONIC_NODES.map(({ p }) => p - FINGER_RADIUS);
 
-/** Snap targets for Touch mode: the natural-harmonic nodes k/n (n = 2..6, the
- * same set the node markers draw), as fingertip centres. The acoustic touch
- * point sits a FINGER_RADIUS bridge-ward of the centre, so these too aim the
- * centre a radius short of the node — the flageolet then speaks dead on. */
 export function nodeTargets(): number[] {
-  if (nodeTargetCache) return nodeTargetCache;
-  const nodes = new Set<number>();
-  for (let n = 2; n <= 6; n++) {
-    for (let k = 1; k < n; k++) {
-      if (gcd(k, n) === 1) nodes.add(k / n);
-    }
-  }
-  nodeTargetCache = [...nodes]
-    .filter((p) => p <= FINGERBOARD_END)
-    .sort((a, b) => a - b)
-    .map((p) => p - FINGER_RADIUS);
-  return nodeTargetCache;
+  return NODE_TARGETS;
 }
 
 // Widest capture window to either side of a target (fraction of the string).
@@ -129,8 +120,4 @@ export function snapFinger(p: number): number {
     return state.snapNodes ? snapPosition(p, nodeTargets()) : p;
   }
   return state.snap === "off" ? p : snapPosition(p, scaleTargets(state.snap));
-}
-
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
 }
