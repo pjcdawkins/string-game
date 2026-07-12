@@ -18,6 +18,7 @@ import { BOW_HAIR_SPAN } from "../scene/tools";
 import { laneX, N_LANES } from "../scene/lanes";
 import { engine } from "../audio/engine";
 import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop, STRINGS } from "../state";
+import { snapFinger } from "./snap";
 import type { GrabState } from "../scene/visualString";
 
 /** Bow and plucks alike may reach well over the fingerboard (sul tasto). */
@@ -422,7 +423,7 @@ export class Interactions {
    * With `glide`, a finger already down slides to the new position
    * (portamento) instead of jumping. */
   placeFingerAt(s: number, glide = false): void {
-    const p = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
+    const p = clamp(snapFinger(s), FINGER_MIN, FINGER_DRAG_MAX);
     if (glide && state.fingerOn) {
       this.fingerGlideTarget = p;
     } else {
@@ -436,7 +437,7 @@ export class Interactions {
   }
 
   private moveFinger(s: number): void {
-    state.fingerPos = clamp(s, FINGER_MIN, FINGER_DRAG_MAX);
+    state.fingerPos = clamp(snapFinger(s), FINGER_MIN, FINGER_DRAG_MAX);
     this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();
   }

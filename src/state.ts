@@ -2,6 +2,10 @@ import type { StringSpec } from "./audio/dsp/StringSim";
 
 export type Tool = "bow" | "pick" | "finger";
 export type LeftMode = "press" | "touch";
+/** Scale the stopping finger is lightly snapped onto (see input/snap.ts):
+ * major/minor are tuned in quarter-comma meantone relative to the open
+ * string, chromatic in 12-EDO. */
+export type SnapMode = "off" | "major" | "minor" | "chromatic";
 
 export interface ViolinString {
   name: string;
@@ -71,6 +75,8 @@ export interface AppState {
   fingerPos: number; // 0..1 from nut
   fingerPressure: number;
   markers: boolean;
+  snap: SnapMode; // scale snapping for a pressed finger
+  snapNodes: boolean; // harmonic-node snapping for a Touch-mode finger
   slowMo: number; // visual slow-motion factor (Hz of visual fundamental)
   meter: AudioMeter;
   detectedFreq: number;
@@ -87,6 +93,8 @@ export const state: AppState = {
   fingerPos: 0.3,
   fingerPressure: 0,
   markers: false,
+  snap: "off",
+  snapNodes: false,
   slowMo: 2.4,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
   detectedFreq: 0,
