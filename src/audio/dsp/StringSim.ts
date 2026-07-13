@@ -93,8 +93,8 @@ export class StringSim {
   bowPosition = 0.88; // 0 = nut, 1 = bridge (clamped to playable range)
   fingerOn = false;
   fingerPosition = 0.3; // fingertip CENTRE; 0 = nut, 1 = bridge (may go slightly
-  // negative when the finger slides up onto the nut). The terminating node sits
-  // one FINGER_RADIUS toward the bridge — see clampedPositions().
+  // negative when the finger slides up onto the nut). The terminating/damping
+  // node sits up to one FINGER_RADIUS toward the bridge — see fingerNode().
   fingerPressure = 0; // 0 = off, ~0.1 = harmonic touch, 1 = firm stop
   bodyMix = 0.75; // 0 = raw string, 1 = full body filter
   masterGain = 0.9;
@@ -271,25 +271,33 @@ export class StringSim {
     // and finger damping remains, as on a real fingerboard)
     const q = Math.min(1, this.fingerPressure);
     const rf = 200 * q * q * q + 8 * q;
-    // As the terminating node (the finger's bridge-side edge) reaches the nut,
-    // fade the damping out so the full string length speaks (the true open
-    // pitch) instead of terminating a hair short and sounding slightly sharp —
-    // the min-segment clamp in delayTargets() would otherwise hold the junction
+    // As the terminating node (see fingerNode) reaches the nut, fade the
+    // damping out so the full string length speaks (the true open pitch)
+    // instead of terminating a hair short and sounding slightly sharp — the
+    // min-segment clamp in delayTargets() would otherwise hold the junction
     // ~2 samples off the nut. This also releases the stop smoothly into the
     // open string as the finger slides up, like a glissando from the open note.
-    const node = this.fingerPosition + FINGER_RADIUS;
-    const nutFade = Math.min(1, Math.max(0, (node - NUT_OPEN) / NUT_FADE));
+    const nutFade = Math.min(1, Math.max(0, (this.fingerNode() - NUT_OPEN) / NUT_FADE));
     return rf * nutFade;
   }
 
+  /** Where the finger acts on the string (unclamped; fraction from the nut).
+   * A firm press flattens the fleshy fingertip against the board and the note
+   * speaks from the *bridge-side edge* of the contact patch, one FINGER_RADIUS
+   * past the centre; a light harmonic touch barely dents the flesh, so the
+   * string is damped under the finger's *middle*. The offset scales with
+   * pressure between those extremes — the flesh flattens as the finger leans
+   * in — which also keeps a mode switch under a latched finger continuous. */
+  private fingerNode(): number {
+    return this.fingerPosition + FINGER_RADIUS * Math.min(1, Math.max(0, this.fingerPressure));
+  }
+
   private clampedPositions(): [number, number] {
-    // the fleshy fingertip terminates the string at the bridge-side edge of its
-    // contact, a radius past the finger centre; slid up onto the nut (centre
-    // <= -FINGER_RADIUS) the node reaches 0 and the string speaks open. The node
-    // may run well past the fingerboard's end toward the bridge — the pitch (and,
-    // for a light touch, the selected flageolet) keeps rising into the very high
-    // register up to MAX_STOP_NODE, where the bow can only just still fit.
-    const pf = Math.min(MAX_STOP_NODE, Math.max(0, this.fingerPosition + FINGER_RADIUS));
+    // Slid up onto the nut the node reaches 0 and the string speaks open. The
+    // node may run well past the fingerboard's end toward the bridge — the
+    // pitch (and, for a light touch, the selected flageolet) keeps rising into
+    // the very high register up to MAX_STOP_NODE, where the bow only just fits.
+    const pf = Math.min(MAX_STOP_NODE, Math.max(0, this.fingerNode()));
     const pb = Math.min(0.99, Math.max(pf + 0.05, this.bowPosition));
     return [pf, pb];
   }

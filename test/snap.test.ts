@@ -3,7 +3,7 @@ import {
   MEANTONE_FIFTH_CENTS,
   scaleCents,
   scaleTargets,
-  guideStops,
+  guidePositions,
 } from "../src/guides";
 import { nodeTargets, snapPosition } from "../src/input/snap";
 import { FINGER_RADIUS, FINGERBOARD_END, MAX_STOP_NODE, state } from "../src/state";
@@ -62,29 +62,29 @@ describe("guide scales", () => {
     }
   });
 
-  it("rules a guide line at each snap target's stop, on the board only", () => {
+  it("rules each guide line right on its snap target (the fingertip centre), on the board only", () => {
     for (const mode of ["major", "minor", "chromatic"] as const) {
-      const g = guideStops(mode);
-      const stops = scaleTargets(mode).map((t) => t + FINGER_RADIUS);
+      const g = guidePositions(mode);
+      const targets = scaleTargets(mode);
       // no line at the nut (the unison), ascending, none past the board's end
       expect(g[0]).toBeGreaterThan(0.02);
       for (let i = 1; i < g.length; i++) expect(g[i]).toBeGreaterThan(g[i - 1]);
       expect(g[g.length - 1]).toBeLessThanOrEqual(FINGERBOARD_END);
-      // every guide marks exactly where some snap target's note speaks…
-      for (const stop of g) {
-        expect(Math.min(...stops.map((s) => Math.abs(s - stop)))).toBeLessThan(1e-9);
-      }
-      // …and every on-board target (bar the unison) gets its guide
-      expect(g).toHaveLength(stops.filter((s) => s > 1e-9 && s <= FINGERBOARD_END).length);
+      // a guide IS a snap target: a snapped finger centres dead on its line…
+      for (const p of g) expect(targets).toContain(p);
+      // …and every on-board target (bar the sub-nut unison) gets its guide
+      expect(g).toEqual(targets.filter((t) => t > 0 && t <= FINGERBOARD_END));
+      // the line sits a finger radius nut-ward of where the note speaks
+      expect(centerToCents(g[0])).toBeCloseTo(mode === "chromatic" ? 100 : scaleCents(mode)[1], 6);
     }
   });
 
-  it("aims the touch targets so the acoustic point lands on the node", () => {
+  it("aims the touch targets dead on the nodes (a light touch damps under the finger's middle)", () => {
     const t = nodeTargets();
     // lowest node is the 1/6 flageolet, highest the 5/6
-    expect(t[0] + FINGER_RADIUS).toBeCloseTo(1 / 6, 9);
-    expect(t[t.length - 1] + FINGER_RADIUS).toBeCloseTo(5 / 6, 9);
-    expect(t.map((p) => p + FINGER_RADIUS)).toContain(0.5);
+    expect(t[0]).toBeCloseTo(1 / 6, 9);
+    expect(t[t.length - 1]).toBeCloseTo(5 / 6, 9);
+    expect(t).toContain(0.5);
   });
 });
 

@@ -247,9 +247,14 @@ export class Keyboard {
     if (this.heldFingers.size === 0) return;
     let semis = 0;
     for (const code of this.heldFingers) semis += FINGER_KEYS[code];
-    // aim the fingertip's bridge-side edge (the acoustic stop) at the node
+    // A press speaks from the fingertip's bridge-side edge, so aim the centre
+    // a radius short of the node; a Touch-mode brush damps under the centre,
+    // so aim it dead on (9+3 then touches the octave's ½-node flageolet).
     const stop = 1 - Math.pow(2, -semis / 12);
-    this.input.placeFingerAt(stop - FINGER_RADIUS, this.shiftHeld);
+    this.input.placeFingerAt(
+      state.leftMode === "touch" ? stop : stop - FINGER_RADIUS,
+      this.shiftHeld
+    );
   }
 
   private syncArrows(): void {

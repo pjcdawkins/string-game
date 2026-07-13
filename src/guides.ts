@@ -67,30 +67,15 @@ export function scaleTargets(mode: Exclude<GuideMode, "off">): number[] {
   return t;
 }
 
-const guideStopCache = new Map<GuideMode, number[]>();
-
-/** Acoustic stop positions (fractions from the nut, ascending) of the guide
- * lines drawn across the fingerboard: one line per scale degree, like a
- * learner's finger tapes. The lines mark where the note *speaks* — the
- * bridge-side edge of the fingertip's contact patch — so a snapped finger
- * ends with its centre one FINGER_RADIUS behind the line and its edge on it,
- * exactly as a fingertip sits against tape. The unison is skipped (the nut
- * itself marks the open string), and — unlike the snap, which carries on to
- * MAX_STOP_NODE — the guides mark the fingerboard only. */
-export function guideStops(mode: Exclude<GuideMode, "off">): number[] {
-  let g = guideStopCache.get(mode);
-  if (g) return g;
-  const degrees = scaleCents(mode);
-  g = [];
-  outer: for (let octave = 0; ; octave++) {
-    for (const c of degrees) {
-      const cents = octave * 1200 + c;
-      if (cents === 0) continue;
-      const stop = 1 - Math.pow(2, -cents / 1200);
-      if (stop > FINGERBOARD_END) break outer;
-      g.push(stop);
-    }
-  }
-  guideStopCache.set(mode, g);
-  return g;
+/** Positions (fractions from the nut, ascending) of the guide lines drawn
+ * across the fingerboard: one line per scale degree, like a learner's finger
+ * tapes. A violinist centres the fingertip on the tape, so each line marks
+ * where the *middle of the finger* goes — one FINGER_RADIUS nut-ward of the
+ * degree's acoustic stop (the patch's bridge-side edge, where the note
+ * speaks). That is exactly the snap targets, so a snapped finger sits
+ * dead-centre on its line: the guides ARE the on-board targets, with the
+ * unison dropped (the nut itself marks the open string) and — unlike the
+ * snap, which carries on to MAX_STOP_NODE — clipped at the board's end. */
+export function guidePositions(mode: Exclude<GuideMode, "off">): number[] {
+  return scaleTargets(mode).filter((t) => t > 0 && t <= FINGERBOARD_END);
 }

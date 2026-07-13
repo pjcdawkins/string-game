@@ -51,9 +51,12 @@ export const MAX_STOP_NODE = 0.94;
  * speaking length ≈ a 5 mm fingertip contact radius. */
 export const FINGER_RADIUS = 0.015;
 
-/** Acoustic stopping node (fraction from the nut) for a fingertip whose centre
- * is at `center`: the bridge-side edge of the contact patch. Floored at 0 — at
- * or above the nut the string simply speaks open. */
+/** Acoustic stopping node (fraction from the nut) for a fingertip whose
+ * centre is at `center` and is pressed FIRMLY: the bridge-side edge of the
+ * flattened contact patch. (A light Touch-mode brush instead damps the string
+ * under the finger's middle — the centre itself; see fingerNode in
+ * audio/dsp/StringSim.ts.) Floored at 0 — at or above the nut the string
+ * simply speaks open. */
 export function fingerStop(center: number): number {
   return Math.max(0, center + FINGER_RADIUS);
 }
