@@ -4,7 +4,7 @@
  * two can never drift apart: a marker dot and the position the finger snaps
  * to are by construction the same node.
  *
- * Nodes are the interior points k/n (n = 2..6, k coprime to n — a shared
+ * Nodes are the interior points k/n (n = 2..8, k coprime to n — a shared
  * factor would repeat a lower harmonic's node) of the vibrating string, i.e.
  * fractions of nut→bridge for an open string, and of stop→bridge when the
  * markers are drawn relative to a firm stop. The set spans the WHOLE
@@ -21,7 +21,7 @@ export interface HarmonicNode {
 
 export const HARMONIC_NODES: readonly HarmonicNode[] = (() => {
   const byPos = new Map<number, number>(); // position -> lowest harmonic number
-  for (let n = 2; n <= 6; n++) {
+  for (let n = 2; n <= 8; n++) {
     for (let k = 1; k < n; k++) {
       if (gcd(k, n) !== 1) continue;
       const p = k / n;

@@ -81,9 +81,9 @@ describe("guide scales", () => {
 
   it("aims the touch targets dead on the nodes (a light touch damps under the finger's middle)", () => {
     const t = nodeTargets();
-    // lowest node is the 1/6 flageolet, highest the 5/6
-    expect(t[0]).toBeCloseTo(1 / 6, 9);
-    expect(t[t.length - 1]).toBeCloseTo(5 / 6, 9);
+    // lowest node is the 1/8 flageolet, highest the 7/8
+    expect(t[0]).toBeCloseTo(1 / 8, 9);
+    expect(t[t.length - 1]).toBeCloseTo(7 / 8, 9);
     expect(t).toContain(0.5);
   });
 });
