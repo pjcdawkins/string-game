@@ -84,15 +84,18 @@ impossible until the bowing finger lifted.
   toggling `state.markers`, the harmonic-node dots drawn by
   `src/scene/scene.ts` over the whole vibrating length — nut (or firm stop)
   to bridge, past the fingerboard's end, from the shared node set in
-  `src/harmonics.ts` — *Snap* is a select (Off / Chromatic / Major / Minor;
-  chromatic is the default)
-  lightly magnetising a pressed finger onto a scale rooted on the open string
-  (major/minor in quarter-comma meantone, chromatic in 12-EDO — see
-  `src/input/snap.ts`), *Snap to nodes* is a checkbox (also on by default)
-  doing the same for a
+  `src/harmonics.ts` — *Guides* is a select (Off / Chromatic / Major /
+  Minor; chromatic is the default) ruling subtle fret-like lines across the
+  fingerboard only, one per degree of a scale rooted on the open string
+  (major/minor in quarter-comma meantone, chromatic in 12-EDO — the shared
+  scale set in `src/guides.ts`), *Snap to guides* is a checkbox (on by
+  default) lightly magnetising a pressed finger onto that same scale (see
+  `src/input/snap.ts`; the snap alone carries on past the board's end),
+  *Snap to nodes* is a checkbox (also on by default) doing the same for a
   Touch-mode finger and the natural-harmonic nodes, and *GitHub repo* (with
-  the GitHub mark) links out to the source. The two snap rows swap roles with
-  the finger mode — the select grays out in Touch mode, the node toggle in
+  the GitHub mark) links out to the source. The Guides select is always
+  live; the two snap rows swap roles with the finger mode — *Snap to guides*
+  grays out in Touch mode (and whenever Guides is Off), the node toggle in
   Press mode. A future About entry belongs here too.
 - **Left-hand touch gestures** (`src/input/interactions.ts`) — a tap on the
   board stops the nearest string lane (touching another string moves the

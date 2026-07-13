@@ -72,6 +72,7 @@ function frame(now: number): void {
   });
 
   updateTools();
+  view.setGuides(state.guides);
   view.setNodeMarkersVisible(state.markers);
   // node markers follow a firm stop: harmonics of the vibrating portion, which
   // begins at the fingertip's bridge-side edge (the terminating node)

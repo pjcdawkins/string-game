@@ -24,7 +24,8 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
-import { FINGERBOARD_END, state } from "../state";
+import { FINGERBOARD_END, GuideMode, state } from "../state";
+import { guideStops } from "../guides";
 import { HARMONIC_NODES } from "../harmonics";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
@@ -37,6 +38,20 @@ export const STRING_TOP = 2.1;
 export const STRING_BOT = -1.62;
 export const STRING_LEN = STRING_TOP - STRING_BOT;
 export const BOARD_SURFACE_Z = -0.08;
+
+// Fingerboard footprint, shared by the board fill and the guide lines ruled
+// across it. Widths follow the reference photograph: ≈24 mm across at the
+// nut and ≈42 mm at the bridge end (1 world unit ≈ 88 mm), so the board
+// reads as slim as the real one against the body.
+const BOARD_TOP_Y = STRING_TOP + 0.08; // the board starts a little above the nut
+const BOARD_HALF_W_TOP = 0.137;
+const BOARD_HALF_W_END = 0.24;
+
+// Guide lines (☰ menu "Guides"): subtle fret-like markers on the board only,
+// visual analogues of a learner's finger tapes. Light gray, faint enough to
+// sit in the default view without shouting — the ebony stays ebony.
+const GUIDE_COLOR = 0xbdbdbd;
+const GUIDE_OPACITY = 0.3;
 
 // The bow is drawn at the true proportion of a full-size bow to a full-size
 // violin: a violin's speaking string is ~328 mm and a bow's playing hair
@@ -148,6 +163,18 @@ export class SceneView {
   bowMeshScale = 1;
 
   private nodeMarkers = new THREE.Group();
+  // fret-like guide lines across the board: 1-px hairlines (LineBasicMaterial
+  // ignores linewidth everywhere that matters), one LineSegments draw call
+  private guideLines = new THREE.LineSegments(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({
+      color: GUIDE_COLOR,
+      transparent: true,
+      opacity: GUIDE_OPACITY,
+      depthWrite: false,
+    })
+  );
+  private guideMode: GuideMode | null = null;
   private fingerContact: THREE.Mesh;
   private fatLineMats: LineMaterial[] = [];
   // the four strings at rest, one per lane; the selected lane's idle line is
@@ -240,6 +267,11 @@ export class SceneView {
     this.buildBridge();
     this.buildStrings();
     this.buildNodeMarkers();
+    // guide lines lie flat on the board, under the strings and every marker;
+    // setGuides() fills the geometry in when a mode is first selected
+    this.guideLines.position.z = BOARD_SURFACE_Z - 0.005;
+    this.guideLines.visible = false;
+    this.instrument.add(this.guideLines);
   }
 
   /** The four strings at rest: faint polylines, one per lane, fanning out
@@ -370,22 +402,20 @@ export class SceneView {
     return g;
   }
 
-  /** Fingerboard (tapered, rounded end — a single flat ebony fill) and nut.
-   * Widths follow the reference photograph: ≈24 mm across at the nut and
-   * ≈42 mm at the bridge end (1 world unit ≈ 88 mm), so the board reads as
-   * slim as the real one against the body. */
+  /** Fingerboard (tapered, rounded end — a single flat ebony fill, sized by
+   * the BOARD_* constants above) and nut. */
   private buildBoardAndNut(): void {
-    const boardTopY = STRING_TOP + 0.08;
+    const boardTopY = BOARD_TOP_Y;
     const boardEndY = this.sToY(FINGERBOARD_END);
 
     const bs = new THREE.Shape();
-    bs.moveTo(-0.137, boardTopY);
-    bs.lineTo(0.137, boardTopY);
+    bs.moveTo(-BOARD_HALF_W_TOP, boardTopY);
+    bs.lineTo(BOARD_HALF_W_TOP, boardTopY);
     // the end is a nearly straight horizontal edge (a real board's end is
     // squared off, not the strongly convex arc it had before) with only the
     // faintest sag in the middle
-    bs.lineTo(0.24, boardEndY);
-    bs.quadraticCurveTo(0, boardEndY - 0.015, -0.24, boardEndY);
+    bs.lineTo(BOARD_HALF_W_END, boardEndY);
+    bs.quadraticCurveTo(0, boardEndY - 0.015, -BOARD_HALF_W_END, boardEndY);
     bs.closePath();
     const board = new THREE.Mesh(new THREE.ShapeGeometry(bs, 10), this.flat(WOOD.board));
     board.position.z = BOARD_SURFACE_Z - 0.01;
@@ -508,6 +538,33 @@ export class SceneView {
 
   setNodeMarkersVisible(visible: boolean): void {
     this.nodeMarkers.visible = visible;
+  }
+
+  /** Show the guide scale as faint full-width lines across the fingerboard
+   * (☰ menu "Guides"). Each line sits at a degree's acoustic stop — where the
+   * note speaks, like a fret or a learner's tape — from the shared scale in
+   * guides.ts, so a line and its snap target can never drift. The guides are
+   * the same for every string (degrees are fractions of the speaking length,
+   * whatever the open pitch) and stay rooted on the nut regardless of any
+   * stop, so the geometry only rebuilds when the mode changes. */
+  setGuides(mode: GuideMode): void {
+    if (mode === this.guideMode) return;
+    this.guideMode = mode;
+    this.guideLines.visible = mode !== "off";
+    if (mode === "off") return;
+    const boardEndY = this.sToY(FINGERBOARD_END);
+    const pos: number[] = [];
+    for (const stop of guideStops(mode)) {
+      const y = this.sToY(stop);
+      // full width of the tapering board at this height
+      const hw =
+        BOARD_HALF_W_TOP +
+        ((BOARD_HALF_W_END - BOARD_HALF_W_TOP) * (BOARD_TOP_Y - y)) / (BOARD_TOP_Y - boardEndY);
+      pos.push(-hw, y, 0, hw, y, 0);
+    }
+    this.guideLines.geometry.dispose();
+    this.guideLines.geometry = new THREE.BufferGeometry();
+    this.guideLines.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
   }
 
   showFingerContact(s: number, strength: number): void {

@@ -3,19 +3,20 @@ import {
   MEANTONE_FIFTH_CENTS,
   scaleCents,
   scaleTargets,
-  nodeTargets,
-  snapPosition,
-} from "../src/input/snap";
-import { FINGER_RADIUS, MAX_STOP_NODE, state } from "../src/state";
+  guideStops,
+} from "../src/guides";
+import { nodeTargets, snapPosition } from "../src/input/snap";
+import { FINGER_RADIUS, FINGERBOARD_END, MAX_STOP_NODE, state } from "../src/state";
 
 /** Cents above the open string sounded by a fingertip centred at `p`. */
 function centerToCents(p: number): number {
   return -1200 * Math.log2(1 - (p + FINGER_RADIUS));
 }
 
-describe("snap scales", () => {
-  it("snaps chromatically — and onto nodes in Touch mode — out of the box", () => {
-    expect(state.snap).toBe("chromatic");
+describe("guide scales", () => {
+  it("shows chromatic guides, snapped to — and onto nodes in Touch mode — out of the box", () => {
+    expect(state.guides).toBe("chromatic");
+    expect(state.snap).toBe(true);
     expect(state.snapNodes).toBe(true);
   });
 
@@ -58,6 +59,23 @@ describe("snap scales", () => {
       // an octave above the open string is a degree of every scale
       const octave = t.map(centerToCents).map((c) => Math.abs(c - 1200));
       expect(Math.min(...octave)).toBeLessThan(1e-6);
+    }
+  });
+
+  it("rules a guide line at each snap target's stop, on the board only", () => {
+    for (const mode of ["major", "minor", "chromatic"] as const) {
+      const g = guideStops(mode);
+      const stops = scaleTargets(mode).map((t) => t + FINGER_RADIUS);
+      // no line at the nut (the unison), ascending, none past the board's end
+      expect(g[0]).toBeGreaterThan(0.02);
+      for (let i = 1; i < g.length; i++) expect(g[i]).toBeGreaterThan(g[i - 1]);
+      expect(g[g.length - 1]).toBeLessThanOrEqual(FINGERBOARD_END);
+      // every guide marks exactly where some snap target's note speaks…
+      for (const stop of g) {
+        expect(Math.min(...stops.map((s) => Math.abs(s - stop)))).toBeLessThan(1e-9);
+      }
+      // …and every on-board target (bar the unison) gets its guide
+      expect(g).toHaveLength(stops.filter((s) => s > 1e-9 && s <= FINGERBOARD_END).length);
     }
   });
 
