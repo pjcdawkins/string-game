@@ -25,7 +25,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
 import { FINGERBOARD_END, GuideMode, state } from "../state";
-import { guideStops } from "../guides";
+import { guidePositions } from "../guides";
 import { HARMONIC_NODES } from "../harmonics";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
 import { currentTheme, onThemeChange, SceneTheme } from "./theme";
@@ -541,9 +541,10 @@ export class SceneView {
   }
 
   /** Show the guide scale as faint full-width lines across the fingerboard
-   * (☰ menu "Guides"). Each line sits at a degree's acoustic stop — where the
-   * note speaks, like a fret or a learner's tape — from the shared scale in
-   * guides.ts, so a line and its snap target can never drift. The guides are
+   * (☰ menu "Guides"). Each line marks where the *middle of the finger*
+   * goes — like a learner's tape, a radius nut-ward of where the note
+   * speaks — and IS the snap target from the shared scale in guides.ts, so
+   * a snapped finger sits dead-centre on its line. The guides are
    * the same for every string (degrees are fractions of the speaking length,
    * whatever the open pitch) and stay rooted on the nut regardless of any
    * stop, so the geometry only rebuilds when the mode changes. */
@@ -554,8 +555,8 @@ export class SceneView {
     if (mode === "off") return;
     const boardEndY = this.sToY(FINGERBOARD_END);
     const pos: number[] = [];
-    for (const stop of guideStops(mode)) {
-      const y = this.sToY(stop);
+    for (const p of guidePositions(mode)) {
+      const y = this.sToY(p);
       // full width of the tapering board at this height
       const hw =
         BOARD_HALF_W_TOP +

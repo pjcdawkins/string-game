@@ -59,9 +59,11 @@ npm run build    # production build (worklet bundles to a self-contained file)
   frets), one at each degree of a scale rooted on the open string: a
   chromatic scale in plain 12-EDO (the default), or each string's own major
   or minor scale, tuned in quarter-comma meantone as befits a violin (pure
-  5/4 thirds). *Off* clears the board. Each line marks where the note
-  *speaks* — the bridge-side edge of the fingertip's contact patch — so a
-  finger sits just behind its line, as against a learner's tape.
+  5/4 thirds). *Off* clears the board. As with a learner's tape, you centre
+  the fingertip *on* the line: each line sits one finger radius nut-ward of
+  where its note speaks (a firm press stops the string at the bridge-side
+  edge of the fingertip's contact patch, not under its middle), and a
+  snapped finger lands dead-centre on its line.
 - **Snap to guides**: a toggle beneath the select (on by default, so notes
   land true out of the box) lightly magnetises the stopping finger onto the
   guides' scale — continuing past the board's end, where the guides stop but
@@ -73,7 +75,9 @@ npm run build    # production build (worklet bundles to a self-contained file)
 - **Harmonics**: switch the left hand to *Touch* mode and brush a node
   (½, ⅓, ¼ … — with a firm stop down they are drawn relative to the stopped
   length) — the model kills every partial without a node there, just like a
-  real flageolet.
+  real flageolet. Unlike a firm stop, a light touch damps the string under
+  the *middle* of the finger, so you centre the fingertip right on a node
+  marker to make its harmonic speak.
 - **Play from the keyboard** (desktop): hands sit like on the instrument.
   Right hand — `→` is a down bow, `←` an up bow at a fixed singing speed
   (a full length takes ~3.5 s, the same medium band as an unhurried pointer

@@ -391,15 +391,19 @@ export class Hud {
     } else {
       this.slipEl.textContent = "";
     }
-    // note under the finger, or a guide for the hovered position
+    // note under the finger, or a guide for the hovered position. The finger
+    // acts on the string at its patch's bridge-side edge when pressed but
+    // under its middle for a Touch-mode brush (see fingerNode in StringSim)
+    const at = (center: number) =>
+      state.leftMode === "touch" ? Math.max(0, center) : fingerStop(center);
     const f0 = STRINGS[state.stringIdx].spec.f0;
     if (state.fingerOn) {
-      const n = freqToNote(f0 / (1 - fingerStop(state.fingerPos)));
+      const n = freqToNote(f0 / (1 - at(state.fingerPos)));
       if (n) this.posNoteEl.textContent = `stop: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else if (this.hoverS !== null && this.hoverS > 0.01) {
       // guide on the *hovered* lane: a touch there would catch that string
       const hf0 = STRINGS[this.hoverLane].spec.f0;
-      const n = freqToNote(hf0 / (1 - fingerStop(this.hoverS)));
+      const n = freqToNote(hf0 / (1 - at(this.hoverS)));
       if (n) this.posNoteEl.textContent = `here: ${n.name} ${n.cents >= 0 ? "+" : ""}${n.cents}¢`;
     } else {
       this.posNoteEl.innerHTML = "&nbsp;";

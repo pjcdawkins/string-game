@@ -194,7 +194,9 @@ describe("StringSim", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.25, loss: 0.3, stiffness: 0.05, nonlinearity: 0 });
     sim.fingerOn = true;
-    sim.fingerPosition = 0.5 - FINGER_RADIUS; // node at the midpoint
+    // a light touch damps under the finger's *middle* (unlike a firm stop,
+    // which speaks from the patch edge), so centre the fingertip on the node
+    sim.fingerPosition = 0.5;
     sim.fingerPressure = 0.12; // light harmonic touch
     sim.bowPosition = 0.88;
     sim.pluck(0.7, 1.0);

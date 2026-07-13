@@ -13,16 +13,17 @@
  * guides, though: they stop at the fingerboard's end, while the snap targets
  * carry on as far as the string can be stopped.
  */
-import { state, FINGER_RADIUS } from "../state";
+import { state } from "../state";
 import { scaleTargets } from "../guides";
 import { HARMONIC_NODES } from "../harmonics";
 
 /** Snap targets for Touch mode: the natural-harmonic nodes (HARMONIC_NODES —
  * the very set the node markers draw), as fingertip centres, over the whole
- * string from the nut toward the bridge. The acoustic touch point sits a
- * FINGER_RADIUS bridge-ward of the centre, so these too aim the centre a
- * radius short of the node — the flageolet then speaks dead on. */
-const NODE_TARGETS = HARMONIC_NODES.map(({ p }) => p - FINGER_RADIUS);
+ * string from the nut toward the bridge. A light touch damps the string
+ * under the *middle* of the finger (unlike a firm press, which stops it at
+ * the patch's bridge-side edge), so the centre aims dead on the node — a
+ * finger snapped onto a marker dot sounds its flageolet. */
+const NODE_TARGETS = HARMONIC_NODES.map(({ p }) => p);
 
 export function nodeTargets(): number[] {
   return NODE_TARGETS;

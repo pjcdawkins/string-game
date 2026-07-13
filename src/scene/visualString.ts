@@ -229,10 +229,18 @@ export class VisualString {
 
   update(dt: number, inp: VisualInputs): void {
     const firmStop = inp.fingerOn && inp.fingerPressure > 0.55;
-    // the string is terminated / node-damped at the bridge-side edge of the
-    // fleshy fingertip, a radius past its centre (fingerPos); the finger itself
-    // (its depression well, below) still sits at the centre
-    const node = Math.min(MAX_STOP_NODE, Math.max(0, inp.fingerPos + FINGER_RADIUS));
+    // The finger acts on the string up to a radius past its centre
+    // (fingerPos), the offset scaling with pressure — a firm press
+    // terminates the string at the bridge-side edge of the flattened fleshy
+    // fingertip, a light harmonic touch damps it under the finger's
+    // *middle*. The very formula of fingerNode() in the audio model, so the
+    // drawn termination tracks the audible node even through the pressure
+    // ramp of a landing finger. The finger itself (its depression well,
+    // below) always sits at the centre.
+    const node = Math.min(
+      MAX_STOP_NODE,
+      Math.max(0, inp.fingerPos + FINGER_RADIUS * Math.min(1, Math.max(0, inp.fingerPressure)))
+    );
     const L0 = firmStop ? node : 0;
     const harmonicAt =
       inp.fingerOn && inp.fingerPressure > 0.02 && inp.fingerPressure <= 0.55
