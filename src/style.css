@@ -211,9 +211,10 @@ body {
   color: var(--fg-strong);
 }
 
-/* Snap rows: a native select chooses the scale a pressed finger snaps to;
-   whichever of the pair doesn't apply to the current finger mode grays out
-   (the scale select in Touch mode, the node toggle in Press mode) */
+/* Guides & snap rows: a native select chooses the scale ruled onto the
+   fingerboard (always live); of the snap toggles beneath it, whichever
+   doesn't apply to the current finger mode grays out ("Snap to guides" in
+   Touch mode — or whenever the guides are off — "Snap to nodes" in Press) */
 .menu-item.select-row {
   cursor: default;
 }
@@ -227,7 +228,7 @@ body {
   cursor: default;
 }
 
-.snap-sel {
+.scale-sel {
   background: var(--seg-bg);
   color: var(--fg);
   border: 1px solid var(--seg-border);

@@ -2,10 +2,11 @@ import type { StringSpec } from "./audio/dsp/StringSim";
 
 export type Tool = "bow" | "pick" | "finger";
 export type LeftMode = "press" | "touch";
-/** Scale the stopping finger is lightly snapped onto (see input/snap.ts):
- * major/minor are tuned in quarter-comma meantone relative to the open
- * string, chromatic in 12-EDO. */
-export type SnapMode = "off" | "major" | "minor" | "chromatic";
+/** Scale drawn as subtle fret-like guide lines on the fingerboard — and,
+ * with "Snap to guides" on, the scale a pressed finger is lightly snapped
+ * onto (see guides.ts / input/snap.ts): major/minor are tuned in
+ * quarter-comma meantone relative to the open string, chromatic in 12-EDO. */
+export type GuideMode = "off" | "major" | "minor" | "chromatic";
 
 export interface ViolinString {
   name: string;
@@ -75,7 +76,8 @@ export interface AppState {
   fingerPos: number; // 0..1 from nut
   fingerPressure: number;
   markers: boolean;
-  snap: SnapMode; // scale snapping for a pressed finger
+  guides: GuideMode; // fret-like guide lines on the fingerboard (the snap's scale too)
+  snap: boolean; // snap a pressed finger onto the guides
   snapNodes: boolean; // harmonic-node snapping for a Touch-mode finger
   slowMo: number; // visual slow-motion factor (Hz of visual fundamental)
   meter: AudioMeter;
@@ -93,8 +95,9 @@ export const state: AppState = {
   fingerPos: 0.3,
   fingerPressure: 0,
   markers: false,
-  snap: "chromatic", // gentle semitone snapping out of the box; Off in the ☰ menu
-  snapNodes: true, // and Touch-mode fingers settle onto the harmonic nodes
+  guides: "chromatic", // subtle semitone guides out of the box; Off in the ☰ menu
+  snap: true, // and a pressed finger gently settles onto them
+  snapNodes: true, // as Touch-mode fingers settle onto the harmonic nodes
   slowMo: 2.4,
   meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
   detectedFreq: 0,
