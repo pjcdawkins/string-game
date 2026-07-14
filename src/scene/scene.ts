@@ -24,7 +24,7 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { VisualString } from "./visualString";
 import { makeTools, ToolSet, BOW_HAIR_SPAN } from "./tools";
-import { FINGERBOARD_END, GuideMode, state } from "../state";
+import { FINGERBOARD_END, FINGER_RADIUS, GuideMode, STRINGS, state } from "../state";
 import { guidePositions } from "../guides";
 import { HARMONIC_NODES } from "../harmonics";
 import { laneX, N_LANES, LANE_LINEWIDTH } from "./lanes";
@@ -49,9 +49,17 @@ const BOARD_HALF_W_END = 0.24;
 
 // Guide lines (☰ menu "Guides"): subtle fret-like markers on the board only,
 // visual analogues of a learner's finger tapes. Light gray, faint enough to
-// sit in the default view without shouting — the ebony stays ebony.
+// sit in the default view without shouting — the ebony stays ebony. Lines
+// falling on notes that would be BLACK keys on a piano are drawn lighter
+// (GUIDE_BLACK_FRACTION of the contrast), so the "white" notes read a touch
+// more clearly — which black/white a degree is depends on the open string, so
+// the geometry rebuilds when the string changes as well as the mode.
 const GUIDE_COLOR = 0xbdbdbd;
 const GUIDE_OPACITY = 0.3;
+const GUIDE_BLACK_FRACTION = 0.6;
+const GUIDE_OPACITY_BLACK = GUIDE_OPACITY * GUIDE_BLACK_FRACTION;
+// Pitch classes (semitones from C) that are black keys on a piano.
+const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10]);
 
 // The bow is drawn at the true proportion of a full-size bow to a full-size
 // violin: a violin's speaking string is ~328 mm and a bow's playing hair
@@ -164,17 +172,13 @@ export class SceneView {
 
   private nodeMarkers = new THREE.Group();
   // fret-like guide lines across the board: 1-px hairlines (LineBasicMaterial
-  // ignores linewidth everywhere that matters), one LineSegments draw call
-  private guideLines = new THREE.LineSegments(
-    new THREE.BufferGeometry(),
-    new THREE.LineBasicMaterial({
-      color: GUIDE_COLOR,
-      transparent: true,
-      opacity: GUIDE_OPACITY,
-      depthWrite: false,
-    })
-  );
+  // ignores linewidth everywhere that matters). Two draw calls — the "white"
+  // notes at full contrast and the "black" notes lighter (see GUIDE_* above);
+  // a single LineSegments can't vary opacity per line.
+  private guideLinesWhite = guideLineSegments(GUIDE_OPACITY);
+  private guideLinesBlack = guideLineSegments(GUIDE_OPACITY_BLACK);
   private guideMode: GuideMode | null = null;
+  private guideStringIdx = -1;
   private fingerContact: THREE.Mesh;
   private fatLineMats: LineMaterial[] = [];
   // the four strings at rest, one per lane; the selected lane's idle line is
@@ -269,9 +273,11 @@ export class SceneView {
     this.buildNodeMarkers();
     // guide lines lie flat on the board, under the strings and every marker;
     // setGuides() fills the geometry in when a mode is first selected
-    this.guideLines.position.z = BOARD_SURFACE_Z - 0.005;
-    this.guideLines.visible = false;
-    this.instrument.add(this.guideLines);
+    for (const g of [this.guideLinesWhite, this.guideLinesBlack]) {
+      g.position.z = BOARD_SURFACE_Z - 0.005;
+      g.visible = false;
+      this.instrument.add(g);
+    }
   }
 
   /** The four strings at rest: faint polylines, one per lane, fanning out
@@ -504,7 +510,7 @@ export class SceneView {
     for (const { p, n } of HARMONIC_NODES) {
       const c = new THREE.Color().setHSL(0.52 + (n - 2) * 0.07, 0.8, 0.6);
       const dot = new THREE.Mesh(
-        new THREE.CircleGeometry(0.035, 20),
+        new THREE.CircleGeometry(0.025, 20),
         new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85 })
       );
       dot.userData.p = p;
@@ -545,27 +551,32 @@ export class SceneView {
    * goes — like a learner's tape, a radius nut-ward of where the note
    * speaks — and IS the snap target from the shared scale in guides.ts, so
    * a snapped finger sits dead-centre on its line. The guides are
-   * the same for every string (degrees are fractions of the speaking length,
-   * whatever the open pitch) and stay rooted on the nut regardless of any
-   * stop, so the geometry only rebuilds when the mode changes. */
-  setGuides(mode: GuideMode): void {
-    if (mode === this.guideMode) return;
+   * the same *shape* for every string (degrees are fractions of the speaking
+   * length, whatever the open pitch) and stay rooted on the nut regardless of
+   * any stop — but which degrees are "black" notes depends on the open string,
+   * so the geometry rebuilds when the mode or the string changes. */
+  setGuides(mode: GuideMode, stringIdx: number): void {
+    if (mode === this.guideMode && stringIdx === this.guideStringIdx) return;
     this.guideMode = mode;
-    this.guideLines.visible = mode !== "off";
-    if (mode === "off") return;
+    this.guideStringIdx = stringIdx;
+    const on = mode !== "off";
+    this.guideLinesWhite.visible = on;
+    this.guideLinesBlack.visible = on;
+    if (!on) return;
     const boardEndY = this.sToY(FINGERBOARD_END);
-    const pos: number[] = [];
+    const openPc = pitchClass(STRINGS[stringIdx].spec.f0);
+    const white: number[] = [];
+    const black: number[] = [];
     for (const p of guidePositions(mode)) {
       const y = this.sToY(p);
       // full width of the tapering board at this height
       const hw =
         BOARD_HALF_W_TOP +
         ((BOARD_HALF_W_END - BOARD_HALF_W_TOP) * (BOARD_TOP_Y - y)) / (BOARD_TOP_Y - boardEndY);
-      pos.push(-hw, y, 0, hw, y, 0);
+      (isBlackDegree(p, openPc) ? black : white).push(-hw, y, 0, hw, y, 0);
     }
-    this.guideLines.geometry.dispose();
-    this.guideLines.geometry = new THREE.BufferGeometry();
-    this.guideLines.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    setLineSegPositions(this.guideLinesWhite, white);
+    setLineSegPositions(this.guideLinesBlack, black);
   }
 
   showFingerContact(s: number, strength: number): void {
@@ -886,6 +897,44 @@ function roundedRect(w: number, h: number, r: number): THREE.Shape {
   sh.lineTo(x, y + r);
   sh.quadraticCurveTo(x, y, x + r, y);
   return sh;
+}
+
+/** An empty set of fret-like guide hairlines at the given opacity; setGuides()
+ * fills in the geometry. */
+function guideLineSegments(opacity: number): THREE.LineSegments {
+  return new THREE.LineSegments(
+    new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({
+      color: GUIDE_COLOR,
+      transparent: true,
+      opacity,
+      depthWrite: false,
+    })
+  );
+}
+
+/** Replace a LineSegments object's positions (each pair of xyz triples is one
+ * segment). */
+function setLineSegPositions(seg: THREE.LineSegments, pos: number[]): void {
+  seg.geometry.dispose();
+  seg.geometry = new THREE.BufferGeometry();
+  seg.geometry.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+}
+
+/** Pitch class (0 = C … 11 = B) of a frequency, to the nearest semitone. */
+function pitchClass(freq: number): number {
+  const midi = Math.round(69 + 12 * Math.log2(freq / 440));
+  return ((midi % 12) + 12) % 12;
+}
+
+/** Whether the guide line whose fingertip centre sits at `centerPos` sounds a
+ * note that would be a black key on a piano, given the open string's pitch
+ * class. The note it speaks is one FINGER_RADIUS bridge-ward of the centre
+ * (see fingerStop / centsToCenter), rounded to the nearest semitone. */
+function isBlackDegree(centerPos: number, openPc: number): boolean {
+  const stop = centerPos + FINGER_RADIUS;
+  const semis = Math.round((-1200 * Math.log2(1 - stop)) / 100);
+  return BLACK_PITCH_CLASSES.has(((openPc + semis) % 12 + 12) % 12);
 }
 
 /** Drop consecutive duplicates (curve joints repeat their endpoints), which

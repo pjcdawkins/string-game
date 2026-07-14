@@ -6,9 +6,10 @@
  * and the drag may carry the finger past the board's end toward the bridge.
  * Everything else is the right hand — below the board, or reaching in from the
  * flanks to either side, where a lone touch can bow or pizz sul tasto without a
- * stop. Tapping a latched finger leaves it latched; it lifts when flicked
- * sideways off its string, and a tap above the nut or in the top-left corner of
- * the play area lifts the hand too. Multi-touch works: one finger holds a stop
+ * stop. Tapping a latched finger re-places it (just like tapping the empty
+ * string there, so it may shift slightly onto the snap target); it lifts when
+ * flicked sideways off its string, and a tap above the nut or in the top-left
+ * corner of the play area lifts the hand too. Multi-touch works: one finger holds a stop
  * while another bows, and a second touch on the board clearly to the bridge
  * side of a held stop is the right hand playing over the board (sul tasto /
  * pizz).
@@ -276,10 +277,13 @@ export class Interactions {
       const lane = this.catchLane(c);
       this.leftOnFinger =
         state.fingerOn && lane === state.stringIdx && Math.abs(c.s - state.fingerPos) < 0.035;
-      if (!this.leftOnFinger) {
-        if (lane !== state.stringIdx) this.selectString(lane);
-        this.placeFingerAt(c.s);
-      }
+      // A tap on the already-held finger behaves like a tap on the empty string
+      // in that region: it re-places (re-articulates) the finger at the tap
+      // point, so the finger may shift slightly — onto the snap target. The
+      // flick-to-lift and drag-to-glissando gestures below still key off
+      // leftOnFinger (a plain tap just leaves the finger latched where it lands).
+      if (lane !== state.stringIdx) this.selectString(lane);
+      this.placeFingerAt(c.s);
       return;
     }
 
@@ -437,7 +441,9 @@ export class Interactions {
   }
 
   private moveFinger(s: number): void {
-    state.fingerPos = clamp(snapFinger(s), FINGER_MIN, FINGER_DRAG_MAX);
+    // a drag is a glissando: the gentler, smoother snap so the slide sweeps the
+    // string rather than dragging note to note (see snapFinger)
+    state.fingerPos = clamp(snapFinger(s, true), FINGER_MIN, FINGER_DRAG_MAX);
     this.fingerGlideTarget = null; // a pointer drag takes over from any glide
     notify();
   }
