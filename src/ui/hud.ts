@@ -1,5 +1,5 @@
 /** DOM heads-up display: tool/string pickers, technique controls, tuner. */
-import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode, GuideMode } from "../state";
+import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode, GuideMode, MarkersMode } from "../state";
 import { engine } from "../audio/engine";
 
 /** localStorage flag: the intro help has been dismissed once already. */
@@ -55,7 +55,11 @@ export class Hud {
         <button class="seg close-x" id="menuClose" aria-label="Close menu">✕</button>
       </div>
       <button class="seg menu-item" id="menuHelp"><span class="menu-label">How to play…</span></button>
-      <button class="seg menu-item toggle" id="menuNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Node markers</span><span class="checkbox" aria-hidden="true">✓</span></button>
+      <div class="seg menu-item select-row" id="menuNodes"><label class="menu-label" for="nodesSel">Node markers</label><select id="nodesSel" class="scale-sel">
+        <option value="off">Off</option>
+        <option value="touch">Touch mode</option>
+        <option value="always">Always</option>
+      </select></div>
       <div class="seg menu-item select-row" id="menuGuides"><label class="menu-label" for="guideSel">Guides</label><select id="guideSel" class="scale-sel">
         <option value="off">Off</option>
         <option value="chromatic">Chromatic</option>
@@ -222,9 +226,12 @@ export class Hud {
       setMenu(false);
       help.classList.remove("hidden");
     });
-    // a toggle keeps the menu open so the tick is seen flipping
-    tap($("#menuNodes"), () => {
-      state.markers = !state.markers;
+    // Node markers: a native select (no tap() — that would preventDefault the
+    // pointerdown that opens its dropdown), like Guides below.
+    const nodesSel = $<HTMLSelectElement>("#nodesSel");
+    nodesSel.addEventListener("change", () => {
+      state.markers = nodesSel.value as MarkersMode;
+      nodesSel.blur(); // hand the keys back to playing
       notify();
     });
     // Guides: a native select (no tap() — that would preventDefault the very
@@ -327,9 +334,8 @@ export class Hud {
       b.classList.toggle("on", Number(b.dataset.str) === state.stringIdx)
     );
     (this.root.querySelector("#force") as HTMLInputElement).value = String(state.bowForce);
-    const nodes = this.root.querySelector("#menuNodes") as HTMLButtonElement;
-    nodes.classList.toggle("on", state.markers);
-    nodes.setAttribute("aria-checked", String(state.markers));
+    const nodesSel = this.root.querySelector("#nodesSel") as HTMLSelectElement;
+    nodesSel.value = state.markers;
     // the Guides select is always live (the lines draw in either finger
     // mode); the two snap rows swap roles with the finger mode — guide
     // snapping works under a pressed finger (and needs guides to exist),

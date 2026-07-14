@@ -29,26 +29,41 @@ export function nodeTargets(): number[] {
   return NODE_TARGETS;
 }
 
-// Widest capture window to either side of a target (fraction of the string).
+// The magnet has two strengths, because placing a finger and sliding it want
+// opposite things (see snapFinger): a TAP should land firmly ON the note, so
+// it reaches wider and pulls deeper; a GLISSANDO should stay smooth, so it
+// reaches a touch less far and pulls gently, lingering on notes without
+// dragging on the slide. Each strength is a (window, ease) pair.
+//
+// Window — widest capture to either side of a target (fraction of the string).
 // Near the nut a meantone whole tone spans ~0.105 of the string, so an
 // uncapped half-way window would snap almost everything; capping it leaves a
 // free-glide stretch between low notes while high positions — where the notes
 // crowd closer than the cap — hand over seamlessly at the midpoints.
+//
+// Ease — residual curve inside the window: offset' = offset·(|offset|/window)^EASE.
+// Continuous at the window edge (offset' = offset), zero at the target, and in
+// between the finger keeps ~this fraction of its distance; a bigger ease deepens
+// the pull toward the note.
+const TAP_WINDOW = 0.056; // capped at the note midpoints, so widest in low positions
+const TAP_EASE = 2.8; // firm landing: a placed finger settles onto the degree
+const GLISS_WINDOW = 0.044;
+const GLISS_EASE = 1.7; // gentle: a slide sweeps the string, only lightly lingering
+
+// Neutral defaults for snapPosition (used when no strength is passed, e.g. in
+// tests): the mid-point of the two strengths tuned above.
 const SNAP_WINDOW_MAX = 0.0495;
-// Residual curve inside the window: offset' = offset·(|offset|/window)^EASE.
-// Continuous at the window edge (offset' = offset), zero at the target, and
-// in between the finger keeps ~this fraction of its distance — light enough
-// to slide through, firm enough that landing near a note lands ON it.
-// (Both constants were tuned ~10% stickier after play-testing: the window cap
-// up from 0.045 widens the magnet's reach in the low positions where the cap
-// governs, and the ease up from 2 deepens the in-window pull everywhere,
-// including the high positions whose windows the note midpoints limit.)
 const SNAP_EASE = 2.2;
 
 /** Remap a fingertip-centre position by the light snap toward the nearest of
- * `targets` (sorted ascending). Positions outside every capture window pass
- * through unchanged. */
-export function snapPosition(p: number, targets: number[]): number {
+ * `targets` (sorted ascending), with the given capture `window` and `ease`.
+ * Positions outside every capture window pass through unchanged. */
+export function snapPosition(
+  p: number,
+  targets: number[],
+  window = SNAP_WINDOW_MAX,
+  ease = SNAP_EASE
+): number {
   if (targets.length === 0) return p;
   // nearest target (they're sorted; the list is small, so scan)
   let i = 0;
@@ -59,20 +74,23 @@ export function snapPosition(p: number, targets: number[]): number {
   const d = p - t;
   // window: to the halfway point toward the neighbour on this side, capped
   const nb = d >= 0 ? targets[i + 1] : targets[i - 1];
-  const w = Math.min(SNAP_WINDOW_MAX, nb === undefined ? Infinity : Math.abs(nb - t) / 2);
+  const w = Math.min(window, nb === undefined ? Infinity : Math.abs(nb - t) / 2);
   if (w <= 0 || Math.abs(d) >= w) return p;
-  return t + d * Math.pow(Math.abs(d) / w, SNAP_EASE);
+  return t + d * Math.pow(Math.abs(d) / w, ease);
 }
 
 /** The snap in force for the current left-hand mode: guide snapping under a
  * pressed finger, node snapping for a harmonic touch (each with its own
  * setting), or the identity when the relevant setting is off — including
- * when there are no guides to snap to. */
-export function snapFinger(p: number): number {
+ * when there are no guides to snap to. `gliss` picks the gentler, smoother
+ * magnet used while sliding, over the firmer one used to place (tap) a finger. */
+export function snapFinger(p: number, gliss = false): number {
+  const window = gliss ? GLISS_WINDOW : TAP_WINDOW;
+  const ease = gliss ? GLISS_EASE : TAP_EASE;
   if (state.leftMode === "touch") {
-    return state.snapNodes ? snapPosition(p, nodeTargets()) : p;
+    return state.snapNodes ? snapPosition(p, nodeTargets(), window, ease) : p;
   }
   return state.snap && state.guides !== "off"
-    ? snapPosition(p, scaleTargets(state.guides))
+    ? snapPosition(p, scaleTargets(state.guides), window, ease)
     : p;
 }

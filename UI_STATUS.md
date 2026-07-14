@@ -80,17 +80,20 @@ impossible until the bowing finger lifted.
 - **☰ menu** (top-right) — a floating sidebar drawer (over a dimming scrim;
   press the ✕, the scrim, `Esc`, or outside it to close). *How to play…* opens
   the help overlay (also auto-opens on first visit, and `?` reopens it),
-  *Node markers* is a checkbox row (filled tick + highlighted row when on)
-  toggling `state.markers`, the harmonic-node dots drawn by
-  `src/scene/scene.ts` over the whole vibrating length — nut (or firm stop)
-  to bridge, past the fingerboard's end, from the shared node set in
-  `src/harmonics.ts` — *Guides* is a select (Off / Chromatic / Major /
-  Minor; chromatic is the default) ruling subtle fret-like lines across the
-  fingerboard only, one per degree of a scale rooted on the open string
-  (major/minor in quarter-comma meantone, chromatic in 12-EDO — the shared
-  scale set in `src/guides.ts`), *Snap to guides* is a checkbox (on by
-  default) lightly magnetising a pressed finger onto that same scale (see
-  `src/input/snap.ts`; the snap alone carries on past the board's end),
+  *Node markers* is a select (Off / Touch mode / Always; Touch mode is the
+  default) setting `state.markers`, controlling when the harmonic-node dots
+  drawn by `src/scene/scene.ts` show — never, only in Touch mode, or always —
+  over the whole vibrating length — nut (or firm stop) to bridge, past the
+  fingerboard's end, from the shared node set in `src/harmonics.ts` — *Guides*
+  is a select (Off / Chromatic / Major / Minor; chromatic is the default)
+  ruling subtle fret-like lines across the fingerboard only, one per degree of
+  a scale rooted on the open string (major/minor in quarter-comma meantone,
+  chromatic in 12-EDO — the shared scale set in `src/guides.ts`; lines on notes
+  that would be black keys on a piano are drawn lighter, and the guides hide
+  altogether in Touch mode where the nodes take over), *Snap to guides* is a
+  checkbox (on by default) lightly magnetising a pressed finger onto that same
+  scale (see `src/input/snap.ts`; a tap snaps more firmly than a glissando, and
+  the snap alone carries on past the board's end),
   *Snap to nodes* is a checkbox (also on by default) doing the same for a
   Touch-mode finger and the natural-harmonic nodes, and *GitHub repo* (with
   the GitHub mark) links out to the source. The Guides select is always
@@ -100,7 +103,9 @@ impossible until the bowing finger lifted.
 - **Left-hand touch gestures** (`src/input/interactions.ts`) — a tap on the
   board stops the nearest string lane (touching another string moves the
   finger, and the bow, there); a drag glissandos; a tap on the latched finger
-  leaves it latched, while flicking it sideways off its string lifts it; a tap
+  re-places it, just like a tap on the empty string in that region (so it may
+  shift slightly onto the snap target), while flicking it sideways off its
+  string lifts it; a tap
   in the top-left corner of the play area lifts the hand, and a tap at the nut
   lifts it *and* selects the tapped lane — that string, open.
 - **Keyboard shortcuts** (`src/input/keyboard.ts`) — arrows bow (`→` down

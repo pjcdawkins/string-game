@@ -7,6 +7,9 @@ export type LeftMode = "press" | "touch";
  * onto (see guides.ts / input/snap.ts): major/minor are tuned in
  * quarter-comma meantone relative to the open string, chromatic in 12-EDO. */
 export type GuideMode = "off" | "major" | "minor" | "chromatic";
+/** When the harmonic-node markers are drawn: never, only in Touch mode (where
+ * they matter — a light touch on a node sounds its flageolet), or always. */
+export type MarkersMode = "off" | "touch" | "always";
 
 export interface ViolinString {
   name: string;
@@ -78,7 +81,7 @@ export interface AppState {
   fingerOn: boolean;
   fingerPos: number; // 0..1 from nut
   fingerPressure: number;
-  markers: boolean;
+  markers: MarkersMode; // when the harmonic-node markers show (see MarkersMode)
   guides: GuideMode; // fret-like guide lines on the fingerboard (the snap's scale too)
   snap: boolean; // snap a pressed finger onto the guides
   snapNodes: boolean; // harmonic-node snapping for a Touch-mode finger
@@ -97,7 +100,7 @@ export const state: AppState = {
   fingerOn: false,
   fingerPos: 0.3,
   fingerPressure: 0,
-  markers: false,
+  markers: "touch", // node markers show in Touch mode, hidden while pressing
   guides: "chromatic", // subtle semitone guides out of the box; Off in the ☰ menu
   snap: true, // and a pressed finger gently settles onto them
   snapNodes: true, // as Touch-mode fingers settle onto the harmonic nodes

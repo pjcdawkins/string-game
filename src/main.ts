@@ -72,8 +72,14 @@ function frame(now: number): void {
   });
 
   updateTools();
-  view.setGuides(state.guides);
-  view.setNodeMarkersVisible(state.markers);
+  // Touch mode hides the guides (the harmonic nodes are what matters there);
+  // they return when pressing again. The scale still shows for both hands
+  // otherwise. Guides depend on the string too (black-note lines are lighter).
+  view.setGuides(state.leftMode === "touch" ? "off" : state.guides, state.stringIdx);
+  // node markers: off, only in Touch mode, or always (see MarkersMode)
+  view.setNodeMarkersVisible(
+    state.markers === "always" || (state.markers === "touch" && state.leftMode === "touch")
+  );
   // node markers follow a firm stop: harmonics of the vibrating portion, which
   // begins at the fingertip's bridge-side edge (the terminating node)
   view.updateNodeMarkers(
