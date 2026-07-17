@@ -18,7 +18,7 @@ import { SceneView, STRING_LEN, BRIDGE_RISE } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
 import { laneX, N_LANES } from "../scene/lanes";
 import { engine } from "../audio/engine";
-import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop, STRINGS } from "../state";
+import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop } from "../state";
 import { snapFinger } from "./snap";
 import type { GrabState } from "../scene/visualString";
 
@@ -419,7 +419,7 @@ export class Interactions {
    * the HUD picker and the keyboard letters do. */
   private selectString(idx: number): void {
     state.stringIdx = idx;
-    void engine.ensureStarted().then(() => engine.setString(STRINGS[idx].spec));
+    void engine.ensureStarted().then(() => engine.selectString(idx));
     notify();
   }
 

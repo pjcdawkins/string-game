@@ -20,12 +20,18 @@ export interface ViolinString {
 }
 
 /** The set of strings, indexed left to right as seen on the instrument
- * (lowest first) — the same order as the visual lanes in scene/lanes.ts. */
+ * (lowest first) — the same order as the visual lanes in scene/lanes.ts.
+ * Tuned in exact 3:2 fifths from A440, as a violinist tunes by ear — not in
+ * 12-EDO (which would put E5 at 659.25, D4 at 293.66, G3 at 196.0). Pure
+ * fifths make cross-string partial coincidences exact (open A's 3rd partial
+ * IS open E's 2nd, 1320 Hz), which is what lets the sympathetic strings
+ * genuinely ring; tempered fifths would leave every coincidence ~2 cents
+ * off, beating instead of blooming. */
 export const STRINGS: ViolinString[] = [
-  { name: "G3", numeral: "IV", spec: { f0: 196.0, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 } },
-  { name: "D4", numeral: "III", spec: { f0: 293.66, darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25 } },
+  { name: "G3", numeral: "IV", spec: { f0: 440 * (2 / 3) * (2 / 3), darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 } },
+  { name: "D4", numeral: "III", spec: { f0: 440 * (2 / 3), darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25 } },
   { name: "A4", numeral: "II", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15 } },
-  { name: "E5", numeral: "I", spec: { f0: 659.25, darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06 } },
+  { name: "E5", numeral: "I", spec: { f0: 440 * (3 / 2), darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06 } },
 ];
 
 /** Fraction of the string length (from the nut) covered by the fingerboard.

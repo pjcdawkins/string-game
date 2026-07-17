@@ -7,7 +7,7 @@ import { Keyboard } from "./input/keyboard";
 import { engine } from "./audio/engine";
 import { detectPitch } from "./audio/pitch";
 import { Hud } from "./ui/hud";
-import { state, STRINGS, fingerStop, FINGER_RADIUS } from "./state";
+import { state, fingerStop, FINGER_RADIUS } from "./state";
 import "./style.css";
 
 const canvas = document.getElementById("c") as HTMLCanvasElement;
@@ -47,7 +47,7 @@ function frame(now: number): void {
 
   if (engine.started && !stringInitialised) {
     stringInitialised = true;
-    engine.setString(STRINGS[state.stringIdx].spec);
+    engine.selectString(state.stringIdx);
   }
 
   view.setActiveString(state.stringIdx);

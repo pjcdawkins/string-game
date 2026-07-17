@@ -281,7 +281,7 @@ export class Keyboard {
     const next = Math.max(0, Math.min(STRINGS.length - 1, idx));
     if (next === state.stringIdx) return;
     state.stringIdx = next;
-    void engine.ensureStarted().then(() => engine.setString(STRINGS[next].spec));
+    void engine.ensureStarted().then(() => engine.selectString(next));
     notify();
   }
 }

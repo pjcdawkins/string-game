@@ -83,6 +83,73 @@ const PLUCK_LF_REF_HZ = 660;
 const PLUCK_LF_TILT = 0.5;
 const PLUCK_LF_MAX = 2.0;
 
+/** Violin-ish modal body resonances: [freq Hz, Q, gain]. */
+const BODY_MODES: ReadonlyArray<[number, number, number]> = [
+  [275, 9, 1.5], // "breathing" A0 mode
+  [460, 8, 1.2],
+  [550, 11, 1.0],
+  [700, 7, 0.9],
+  [1000, 7, 0.8],
+  [1400, 8, 0.7],
+  [2600, 6, 0.85],
+  [3400, 7, 0.5],
+];
+
+/**
+ * Bridge force -> ear: DC blocking, the modal body-filter bank, dry/wet mix,
+ * master gain, a gentle safety saturation, and 512-sample RMS metering of
+ * the result. The ONE output chain for both the solo StringSim path (tests,
+ * offline harnesses) and the whole instrument (ViolinSim, which feeds it the
+ * summed bridge force of all four strings) — so a tweak to the mix or
+ * saturation cannot diverge between the two.
+ */
+export class BodyOutput {
+  bodyMix = 0.75; // 0 = raw string, 1 = full body filter
+  masterGain = 0.9;
+
+  private dc = new DCBlocker();
+  private body: BiquadBP[] = [];
+  private rmsAcc = 0;
+  private rmsVal = 0;
+  private rmsCount = 0;
+
+  constructor(sampleRate: number) {
+    for (const [f, q, g] of BODY_MODES) {
+      const bq = new BiquadBP();
+      bq.set(f, q, g, sampleRate);
+      this.body.push(bq);
+    }
+  }
+
+  /** One sample: bridge force in, speaker sample out. */
+  process(force: number): number {
+    const dry = this.dc.process(force);
+    let wet = 0;
+    for (let i = 0; i < this.body.length; i++) wet += this.body[i].process(dry);
+    let y = this.masterGain * ((1 - this.bodyMix) * dry + this.bodyMix * (0.32 * dry + wet));
+    // gentle safety saturation
+    y = Math.tanh(1.4 * y) * 0.72;
+
+    this.rmsAcc += y * y;
+    this.rmsCount++;
+    if (this.rmsCount >= 512) {
+      this.rmsVal = Math.sqrt(this.rmsAcc / this.rmsCount);
+      this.rmsAcc = 0;
+      this.rmsCount = 0;
+    }
+    return y;
+  }
+
+  get rms(): number {
+    return this.rmsVal;
+  }
+
+  clear(): void {
+    this.dc.clear();
+    for (const b of this.body) b.clear();
+  }
+}
+
 export class StringSim {
   readonly fs: number;
 
@@ -96,6 +163,14 @@ export class StringSim {
   // negative when the finger slides up onto the nut). The terminating/damping
   // node sits up to one FINGER_RADIUS toward the bridge — see fingerNode().
   fingerPressure = 0; // 0 = off, ~0.1 = harmonic touch, 1 = firm stop
+  /** True when a bow or plucking implement rides at bowPosition (a solo
+   * string always: the contact-point colour applies to plucks and to the
+   * ring after a bow lift alike). ViolinSim clears it on unplayed strings —
+   * nothing touches them, so their bridge filter must stay at the string's
+   * neutral darkness rather than follow the player's bow as it moves over a
+   * DIFFERENT string, which would otherwise alter (and, via the filter's
+   * phase delay, subtly retune) a freely ringing string's decay. */
+  contact = true;
   bodyMix = 0.75; // 0 = raw string, 1 = full body filter
   masterGain = 0.9;
 
@@ -125,11 +200,10 @@ export class StringSim {
   private bridgeLP = new OnePoleLP();
   private disp1 = new AllpassDispersion();
   private disp2 = new AllpassDispersion();
-  private dc = new DCBlocker();
   private nutCoeff = 0.997;
 
-  // body filter: a handful of violin-ish modal resonances
-  private body: BiquadBP[] = [];
+  // bridge force -> body filter -> ear, for the solo (uncoupled) path
+  private output: BodyOutput;
 
   // pluck pulse state
   private pluckSamplesLeft = 0;
@@ -137,16 +211,32 @@ export class StringSim {
   private pluckAmp = 0;
   private pluckPhase = 0;
 
-  // metering
-  private rmsAcc = 0;
-  private rmsVal = 0;
-  private rmsCount = 0;
+  // metering (rms lives in the BodyOutput; slip is bow-junction-local)
   private slipAcc = 0;
   private slipVal = 0;
+  private slipCount = 0;
 
   // slow EMA of squared string amplitude, drives tension-modulation detune
   private amp2 = 0;
   private amp2Coeff = 0;
+
+  // block-level targets computed by beginBlock()
+  private tgtA = 0;
+  private tgtB = 0;
+  private tgtC = 0;
+  private tgtRf = 0;
+  private tgtVel = 0;
+  private tgtForce = 0;
+  private vcKnee = 0.015;
+
+  // per-sample intermediates carried from tickBridgeRead() to tickComplete()
+  private sAtNut = 0;
+  private sAFng = 0;
+  private sBFng = 0;
+  private sBBow = 0;
+  private sCBow = 0;
+  private sAtBridge = 0;
+  private sBridgeR = 0;
 
   constructor(sampleRate: number, minF0 = 60) {
     this.fs = sampleRate;
@@ -167,21 +257,7 @@ export class StringSim {
     this.bowForceSm = new Smoother(0, sampleRate * 0.004);
     this.amp2Coeff = 1 - Math.exp(-1 / (0.03 * sampleRate)); // ~30 ms tracker
 
-    const modes: Array<[number, number, number]> = [
-      [275, 9, 1.5], // "breathing" A0 mode
-      [460, 8, 1.2],
-      [550, 11, 1.0],
-      [700, 7, 0.9],
-      [1000, 7, 0.8],
-      [1400, 8, 0.7],
-      [2600, 6, 0.85],
-      [3400, 7, 0.5],
-    ];
-    for (const [f, q, g] of modes) {
-      const bq = new BiquadBP();
-      bq.set(f, q, g, sampleRate);
-      this.body.push(bq);
-    }
+    this.output = new BodyOutput(sampleRate);
 
     this.setString(this.spec);
     // start delays at their targets to avoid an initial glide
@@ -245,8 +321,7 @@ export class StringSim {
     this.bridgeLP.clear();
     this.disp1.clear();
     this.disp2.clear();
-    this.dc.clear();
-    for (const b of this.body) b.clear();
+    this.output.clear();
     this.pluckSamplesLeft = 0;
     this.amp2 = 0;
   }
@@ -257,7 +332,7 @@ export class StringSim {
     const vibLen = this.effectiveRf() > 4 ? this.dB.value + this.dC.value : total;
     const roundTrip = 2 * vibLen + comp;
     return {
-      rms: this.rmsVal,
+      rms: this.output.rms,
       slipRatio: this.slipVal,
       freq: this.fs / Math.max(4, roundTrip),
       bowing: this.bowOn,
@@ -305,9 +380,17 @@ export class StringSim {
   private delayTargets(): [number, number, number] {
     const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
     // tension modulation: vibration amplitude stretches the string slightly,
-    // raising the pitch — shorten all segments by the same factor
-    // only amplitudes beyond ordinary playing stretch the string audibly
-    const excess = Math.max(0, Math.min(0.045, this.amp2) - 0.012);
+    // raising the pitch — shorten all segments by the same factor.
+    // Only amplitudes beyond ordinary playing stretch the string audibly:
+    // measured bridge-wave amp² is ~0.11 for a gentle sustained stroke and
+    // ~0.17–0.21 driven hard, so the knee sits just under the former and the
+    // window is scaled to keep the old ceiling (nl × 0.033, ~+20 cents on the
+    // G) for the hardest strokes. (The previous knee/cap of 0.012/0.045 sat
+    // entirely BELOW ordinary levels, so every bowed note — however gentle —
+    // carried the full detune: always ~9–20 cents sharp of nominal, which
+    // also kept the played note off the open strings' sympathetic resonances
+    // whenever the bow was moving.)
+    const excess = 0.165 * Math.max(0, Math.min(0.3, this.amp2) - 0.1);
     const detune = 1 + this.spec.nonlinearity * excess;
     const oneWay = this.fs / (2 * this.spec.f0 * detune);
     const [pf, pb] = this.clampedPositions();
@@ -347,112 +430,151 @@ export class StringSim {
     return [dA, dB, dC];
   }
 
-  /** Render `out.length` mono samples. */
-  process(out: Float32Array): void {
-    const beta = 1 - this.clampedPositions()[1]; // bow-bridge distance fraction
+  /** Compute the per-block control targets. Call once before a run of
+   * tickBridgeRead()/tickComplete() pairs (process() does this itself). */
+  beginBlock(): void {
+    if (this.contact) {
+      const beta = 1 - this.clampedPositions()[1]; // bow-bridge distance fraction
 
-    // contact-point colour: near the bridge the Helmholtz corner stays sharp
-    // (less Cremer rounding) and the bridge passes more upper partials; over
-    // the fingerboard the tone rounds off and darkens
-    const vc = 0.015 + 0.19 * beta; // friction-curve knee
-    this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.45 + 2.1 * beta));
+      // contact-point colour: near the bridge the Helmholtz corner stays sharp
+      // (less Cremer rounding) and the bridge passes more upper partials; over
+      // the fingerboard the tone rounds off and darkens
+      this.vcKnee = 0.015 + 0.19 * beta; // friction-curve knee
+      this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.45 + 2.1 * beta));
+    } else {
+      // untouched string: plain termination at the string's own darkness
+      this.bridgeLP.a = 0.12 + 0.5 * this.spec.darkness;
+    }
 
     const [tA, tB, tC] = this.delayTargets();
-    const rfTarget = this.effectiveRf();
-    const bowVelTarget = this.bowOn ? this.bowVelocity : 0;
-    const bowForceTarget = this.bowOn ? this.bowForce : 0;
+    this.tgtA = tA;
+    this.tgtB = tB;
+    this.tgtC = tC;
+    this.tgtRf = this.effectiveRf();
+    this.tgtVel = this.bowOn ? this.bowVelocity : 0;
+    this.tgtForce = this.bowOn ? this.bowForce : 0;
+  }
 
+  /** Phase 1 of one sample: advance the delay smoothers, read the travelling
+   * waves off the lines and push the wave arriving at the bridge through the
+   * termination's loss filter. Returns that loss-filtered wave — the signal
+   * this string hands to the bridge. A shared bridge junction (ViolinSim)
+   * collects it from every string before any reflection is written back;
+   * tickComplete() must follow exactly once per call. */
+  tickBridgeRead(): number {
+    const dA = this.dA.tick(this.tgtA);
+    const dB = this.dB.tick(this.tgtB);
+    const dC = this.dC.tick(this.tgtC);
+
+    // --- waves arriving at each end/junction
+    this.sAtNut = this.aL.read(dA);
+    this.sAFng = this.aR.read(dA);
+    this.sBFng = this.bL.read(dB);
+    this.sBBow = this.bR.read(dB);
+    this.sCBow = this.cL.read(dC);
+    const atBridge = this.cR.read(dC);
+    this.sAtBridge = atBridge;
+
+    // amplitude tracker for the tension-modulation detune
+    this.amp2 += this.amp2Coeff * (atBridge * atBridge - this.amp2);
+
+    this.sBridgeR = this.bridgeLP.process(atBridge);
+    return this.sBridgeR;
+  }
+
+  /** Phase 2 of one sample: junctions, excitation, and the delay-line writes.
+   * `bridgeIn` is the wave the shared bridge junction transmits INTO this
+   * string from its siblings (0 when the string stands alone). */
+  tickComplete(bridgeIn: number): void {
+    const rf = this.rfSm.tick(this.tgtRf);
+    const vBow = this.bowVelSm.tick(this.tgtVel);
+    // small force noise gives the bow its breathy texture
+    const fb = this.bowForceSm.tick(this.tgtForce) * (1 + 0.08 * (Math.random() - 0.5));
+
+    // --- nut reflection
+    const nutOut = -this.nutCoeff * this.sAtNut;
+
+    // --- bridge reflection (loss + stiffness) plus cross-string transmission
+    const bridgeOut = -this.disp2.process(this.disp1.process(this.sBridgeR)) + bridgeIn;
+
+    // --- finger junction (damper of resistance rf, Z = 1 both sides)
+    const tCoef = 2 / (2 + rf);
+    const vF = tCoef * (this.sAFng + this.sBFng);
+    const fngToB = vF - this.sBFng;
+    const fngToA = vF - this.sAFng;
+
+    // --- bow junction: stick-slip friction
+    const bBow = this.sBBow;
+    const cBow = this.sCBow;
+    const vh = bBow + cBow; // free string velocity at the bow point
+    let vJ = vh;
+    let slipping = 0;
+    if (fb > 1e-4) {
+      const k = 0.5 * fb; // F/(2Z)
+      const d = vBow - vh;
+      const ad = Math.abs(d);
+      if (ad <= k * MU_S) {
+        vJ = vBow; // stick: string moves with the bow
+      } else {
+        // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJ|
+        const B = this.vcKnee - ad + k * MU_D;
+        const C = this.vcKnee * (k * MU_S - ad); // < 0 here => one positive root
+        const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
+        vJ = vBow - Math.sign(d) * s;
+        slipping = 1;
+      }
+    }
+    let bowToC = vJ - cBow;
+    let bowToB = vJ - bBow;
+
+    // --- pluck force injection (raised cosine pulse)
+    if (this.pluckSamplesLeft > 0) {
+      const ph = this.pluckPhase / this.pluckLen;
+      const p = this.pluckAmp * 0.5 * (1 - Math.cos(2 * Math.PI * ph));
+      bowToC += p;
+      bowToB += p;
+      this.pluckPhase++;
+      this.pluckSamplesLeft--;
+    }
+
+    // --- advance delay lines
+    this.aR.write(nutOut);
+    this.aL.write(fngToA);
+    this.bR.write(fngToB);
+    this.bL.write(bowToB);
+    this.cR.write(bowToC);
+    this.cL.write(bridgeOut);
+
+    this.slipAcc += slipping;
+    this.slipCount++;
+    if (this.slipCount >= 512) {
+      this.slipVal = this.slipAcc / this.slipCount;
+      this.slipAcc = 0;
+      this.slipCount = 0;
+    }
+  }
+
+  /** The raw wave that arrived at the bridge this sample (the string's
+   * contribution to the total bridge force) — valid after tickBridgeRead(). */
+  get bridgeForce(): number {
+    return this.sAtBridge;
+  }
+
+  /** Slow (~30 ms) envelope of the bridge-wave amplitude — how strongly the
+   * string is vibrating right now, independent of the output chain. */
+  amplitude(): number {
+    return Math.sqrt(Math.max(0, this.amp2));
+  }
+
+  /** Render `out.length` mono samples (single string, own body filter). */
+  process(out: Float32Array): void {
+    this.beginBlock();
+    this.output.bodyMix = this.bodyMix;
+    this.output.masterGain = this.masterGain;
     for (let n = 0; n < out.length; n++) {
-      const dA = this.dA.tick(tA);
-      const dB = this.dB.tick(tB);
-      const dC = this.dC.tick(tC);
-      const rf = this.rfSm.tick(rfTarget);
-      const vBow = this.bowVelSm.tick(bowVelTarget);
-      // small force noise gives the bow its breathy texture
-      const fb = this.bowForceSm.tick(bowForceTarget) * (1 + 0.08 * (Math.random() - 0.5));
-
-      // --- waves arriving at each end/junction
-      const atNut = this.aL.read(dA);
-      const aFng = this.aR.read(dA);
-      const bFng = this.bL.read(dB);
-      const bBow = this.bR.read(dB);
-      const cBow = this.cL.read(dC);
-      const atBridge = this.cR.read(dC);
-
-      // amplitude tracker for the tension-modulation detune
-      this.amp2 += this.amp2Coeff * (atBridge * atBridge - this.amp2);
-
-      // --- nut reflection
-      const nutOut = -this.nutCoeff * atNut;
-
-      // --- bridge reflection (loss + stiffness), output tap
-      const bridgeOut = -this.disp2.process(this.disp1.process(this.bridgeLP.process(atBridge)));
-
-      // --- finger junction (damper of resistance rf, Z = 1 both sides)
-      const tCoef = 2 / (2 + rf);
-      const vF = tCoef * (aFng + bFng);
-      const fngToB = vF - bFng;
-      const fngToA = vF - aFng;
-
-      // --- bow junction: stick-slip friction
-      const vh = bBow + cBow; // free string velocity at the bow point
-      let vJ = vh;
-      let slipping = 0;
-      if (fb > 1e-4) {
-        const k = 0.5 * fb; // F/(2Z)
-        const d = vBow - vh;
-        const ad = Math.abs(d);
-        if (ad <= k * MU_S) {
-          vJ = vBow; // stick: string moves with the bow
-        } else {
-          // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJ|
-          const B = vc - ad + k * MU_D;
-          const C = vc * (k * MU_S - ad); // < 0 here => one positive root
-          const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
-          vJ = vBow - Math.sign(d) * s;
-          slipping = 1;
-        }
-      }
-      let bowToC = vJ - cBow;
-      let bowToB = vJ - bBow;
-
-      // --- pluck force injection (raised cosine pulse)
-      if (this.pluckSamplesLeft > 0) {
-        const ph = this.pluckPhase / this.pluckLen;
-        const p = this.pluckAmp * 0.5 * (1 - Math.cos(2 * Math.PI * ph));
-        bowToC += p;
-        bowToB += p;
-        this.pluckPhase++;
-        this.pluckSamplesLeft--;
-      }
-
-      // --- advance delay lines
-      this.aR.write(nutOut);
-      this.aL.write(fngToA);
-      this.bR.write(fngToB);
-      this.bL.write(bowToB);
-      this.cR.write(bowToC);
-      this.cL.write(bridgeOut);
-
-      // --- output: bridge force -> body filter
-      const dry = this.dc.process(atBridge);
-      let wet = 0;
-      for (let i = 0; i < this.body.length; i++) wet += this.body[i].process(dry);
-      let y = this.masterGain * ((1 - this.bodyMix) * dry + this.bodyMix * (0.32 * dry + wet));
-      // gentle safety saturation
-      y = Math.tanh(1.4 * y) * 0.72;
-      out[n] = y;
-
-      this.rmsAcc += y * y;
-      this.slipAcc += slipping;
-      this.rmsCount++;
-      if (this.rmsCount >= 512) {
-        this.rmsVal = Math.sqrt(this.rmsAcc / this.rmsCount);
-        this.slipVal = this.slipAcc / this.rmsCount;
-        this.rmsAcc = 0;
-        this.slipAcc = 0;
-        this.rmsCount = 0;
-      }
+      this.tickBridgeRead();
+      this.tickComplete(0);
+      out[n] = this.output.process(this.sAtBridge);
     }
   }
 }

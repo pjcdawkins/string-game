@@ -11,9 +11,11 @@ All four strings are drawn down the centre of the viewport (nut at the top,
 bridge near the bottom), fanning apart slightly toward the bridge as on a
 real setup and back in again below it, running off-screen toward the
 out-of-view tailpiece — G, D, A, E left to right, i.e. IV..I in classical
-numbering (`src/scene/lanes.ts`). One string *sounds* at a time — the selected
-string draws at full contrast and vibrates over the three faint idle ones —
-but the left hand moves between strings directly: a touch on the board catches
+numbering (`src/scene/lanes.ts`). One string is *played* at a time — the
+selected string draws at full contrast and vibrates over the three faint
+unselected ones — though in the audio model all four sound continuously,
+coupled at a shared bridge (sympathetic resonance, ring-over on switches).
+The left hand moves between strings directly: a touch on the board catches
 the nearest lane (the current string wins near-ties), switching the sounding
 string and bringing the bow with it. The HUD picker and the G/D/A/E keys still
 switch strings too.

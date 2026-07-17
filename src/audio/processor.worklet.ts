@@ -1,11 +1,14 @@
 /**
- * Thin AudioWorklet wrapper around the pure-TS StringSim model.
+ * Thin AudioWorklet wrapper around the pure-TS ViolinSim model (four strings
+ * coupled at a shared bridge; the bow/finger controls act on the selected
+ * string while the others ride along sympathetically).
  * Continuous controls arrive as k-rate AudioParams (smoothed further inside
- * the sim); discrete events (plucks, string changes) arrive via the port.
+ * the sim); discrete events (plucks, string selection) arrive via the port.
  * The processor periodically posts state (rms / slip / freq) back for the
  * visualisation.
  */
-import { StringSim } from "./dsp/StringSim";
+import { ViolinSim } from "./dsp/ViolinSim";
+import { STRINGS } from "../state";
 
 class StringProcessor extends AudioWorkletProcessor {
   static get parameterDescriptors() {
@@ -20,7 +23,13 @@ class StringProcessor extends AudioWorkletProcessor {
     ] as const;
   }
 
-  private sim = new StringSim(sampleRate);
+  // played index 2 = the A string, matching the app's initial selection
+  // (main.ts sends a selectString on startup regardless)
+  private sim = new ViolinSim(
+    sampleRate,
+    STRINGS.map((s) => s.spec),
+    2
+  );
   private framesSinceState = 0;
 
   constructor() {
@@ -31,9 +40,9 @@ class StringProcessor extends AudioWorkletProcessor {
         case "pluck":
           this.sim.pluck(m.force, m.widthMs, m.periodFrac);
           break;
-        case "setString":
-          this.sim.setString(m.spec);
-          this.sim.reset();
+        case "selectString":
+          // no reset: the string just left keeps ringing sympathetically
+          this.sim.selectString(m.index);
           break;
         case "mute":
           this.sim.reset();
