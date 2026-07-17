@@ -4,7 +4,7 @@
  * imperative API used by the input layer and HUD.
  */
 import workletUrl from "./processor.worklet.ts?worker&url";
-import type { StringSpec } from "./dsp/StringSim";
+import { STRINGS } from "../state";
 import type { AudioMeter } from "../state";
 
 /** Reverb tail length in seconds. Short enough to read as "room", not "hall". */
@@ -238,9 +238,12 @@ export class Engine {
     this.node.port.postMessage({ type: "pluck", force, widthMs, periodFrac });
   }
 
-  setString(spec: StringSpec): void {
-    this.node?.port.postMessage({ type: "setString", spec });
-    this.meter.freq = spec.f0;
+  /** Move the bow/finger to another string. The strings all keep sounding —
+   * the one just left rings on and decays naturally in the worklet's coupled
+   * four-string model — so this is a selection, not a preset swap. */
+  selectString(index: number): void {
+    this.node?.port.postMessage({ type: "selectString", index });
+    this.meter.freq = STRINGS[index].spec.f0;
   }
 
   mute(): void {

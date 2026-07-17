@@ -43,7 +43,7 @@ npm run build    # production build (worklet bundles to a self-contained file)
   reaches (as far as a bow-width from the bridge). The tap catches whichever
   string lane it is nearest, so touching a different string moves the finger —
   and with it the bow, which always plays the finger's string — over to it:
-  all four strings are playable by touch alone, though only one sounds at a
+  all four strings are playable by touch alone, though the bow drives one at a
   time. Tapping a latched finger leaves it latched; to lift it, flick it
   sideways off its string, tap the top-left corner of the play area (or above
   the nut — where the tap also selects the lane it lands on: every string is
@@ -54,6 +54,15 @@ npm run build    # production build (worklet bundles to a self-contained file)
   with another — a second touch on the board, bridge-side of the stop, plays
   over the board (*sul tasto*). The bow and plucks always stay on the bridge
   side of a stopped finger — the nut-side portion of the string is not modelled.
+- **Hear the other strings ring**: all four strings are always alive,
+  terminated on one shared bridge, and the bridge couples them — play a note
+  whose partials coincide with another string's (stop E on the A string, or
+  just play the open A and listen for the D and E) and that string blooms
+  sympathetically, gently, exactly as on the instrument; a semitone off and
+  it stays silent. The halo rings on after the note stops. The open strings
+  are tuned in pure 3:2 fifths from A440 — as a violinist tunes, not 12-EDO —
+  which is what makes the cross-string coincidences exact. Switching strings
+  no longer silences anything: the string you leave decays naturally.
 - **Guides**: the ☰ menu's *Guides* select rules subtle light-gray, fret-like
   lines across the fingerboard (only there — visual markers, not physical
   frets), one at each degree of a scale rooted on the open string: a
@@ -203,12 +212,16 @@ string that visibly depresses onto the fingerboard under the finger.
 - Dev mode serves the worklet as an ES module with imports, which Chromium
   supports; the production build emits a self-contained worklet file that
   works in all worklet-capable browsers.
-- One string *sounds* at a time (the picker, the G/D/A/E keys, or a left-hand
-  touch on another string's lane swap presets). No torsional waves, no
-  finite-width bow-hair ribbon, no two-point finger model yet — see ideas
-  below.
-- Ideas next: four strings + sympathetic coupling, recorded-impulse body
-  convolution, bow tilt/hair width, pizz damping (palm mute), practice games.
+- All four strings run all the time, coupled at a shared bridge junction
+  (sympathetic resonance, ring-over across string switches, one body driven
+  by the total bridge force — see the notes in `src/audio/dsp/ViolinSim.ts`).
+  The bow and the single left-hand finger act on the selected string; the
+  others ride along as open strings. No torsional waves, no finite-width
+  bow-hair ribbon, no two-point finger model yet — see ideas below.
+- Ideas next: recorded-impulse body convolution, bow tilt/hair width, pizz
+  damping (palm mute), fingers on the unplayed strings (retuning their
+  sympathetic pitches, as a real stopped string's sympathy moves), practice
+  games.
 - On bow-attack reliability (why attacks are enveloped the way they are, and
   the model upgrades — torsional waves, thermal friction, finite bow width —
   that would make attacks as responsive as a real violin's), see

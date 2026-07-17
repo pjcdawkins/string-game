@@ -1,5 +1,49 @@
 # Model notes: bow-attack reliability, and where to take the model next
 
+## Sympathetic strings: the coupled bridge (added later than the notes below)
+
+All four strings now run continuously as full waveguides terminated on ONE
+bridge junction (`src/audio/dsp/ViolinSim.ts`); the worklet hosts the whole
+instrument and `selectString` just moves the bow/finger. Design notes:
+
+- **Two-way, physically derived coupling.** With velocity waves and Z = 1
+  per string, a bridge of admittance Y_B gives v_B = Γ·Σv_k⁺ and reflections
+  v_k⁻ = v_B − v_k⁺. Each string keeps its own termination filter (the
+  (1−H_k) shortfall per bounce IS the energy the bridge takes), and the
+  junction adds the cross-transmission γ·Σ_{j≠k} H_j(v_j⁺). γ = 0.0015:
+  the receiving string's Q amplifies an on-coincidence drive by
+  1/(1−ρ) ≈ 130–160, so the unison halo lands ~13% of the played note
+  (−17.5 dB) — and the coupled loop-gain penalty, (N−1)·γ, keeps the system
+  comfortably passive.
+- **Pure-fifth tuning** (state.ts): open strings at exact 3:2 fifths from
+  A440. In 12-EDO every cross-string coincidence is ~2 cents off — outside
+  the receiving mode's half-power bandwidth (≈1/Q ≈ 7–10 cents), so
+  coincidences beat instead of blooming. Pure fifths make them exact.
+- **Tension-modulation recalibration** (StringSim.delayTargets). Measured
+  bridge-wave amp² is ~0.11 for the gentlest sustained stroke and ~0.17–0.21
+  driven hard; the old detune window (knee 0.012, cap 0.045) sat entirely
+  below that, so EVERY bowed note carried the full detune — 9–20 cents sharp
+  of nominal, which parked the played note off the open strings' resonances
+  whenever the bow moved (sympathy only appeared after bow-off, weakly). The
+  window is now knee 0.1, cap 0.3, scaled to preserve the old ceiling
+  (nl × 0.033) for genuinely hard strokes. Side effect worth knowing:
+  ordinary bowing is now in tune with the nominal pitch; pressing hard still
+  pulls sharp — and audibly chokes the sympathy as it detunes, which is real.
+- **Measurement method** (mirrors the attack-tuning method below): drive
+  ViolinSim in Node, ramped attack, read each string's 30 ms bridge-wave
+  envelope (`StringSim.amplitude()`) during the stroke and again ~0.3 s after
+  bow-off — the bow's force noise puts a broadband forced floor (γ-scaled)
+  on every sympathizer while bowing, but it dies within a few round trips of
+  bow-off while resonantly accumulated energy rings on. Levels at γ=0.0015:
+  stopped-E5-on-A unison rings the open E at 4.5–5× the semitone-detuned
+  control (both during and after); a plucked open A rings the D (shared
+  880 Hz partial) at ~16× the G's floor. `test/violinsim.test.ts` pins these.
+- **Not modelled yet:** the unplayed strings are always open (a latched
+  finger only stops the played string), and the bridge junction still
+  reflects each string through its own filter rather than one true bridge
+  admittance — a shared Y_B(ω) with the body's input impedance would be the
+  next step toward wolf-note territory.
+
 Working notes from tuning the keyboard-stroke attack (PR #12), kept here
 because the measurements and the option space outlive that PR. The core
 question: why does this model need a slower, more choreographed attack than

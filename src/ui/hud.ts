@@ -187,7 +187,7 @@ export class Hud {
         // finger lifts (a left-hand touch on another lane keeps the stop
         // instead — that's the way to change string with the finger down)
         state.fingerOn = false;
-        void engine.ensureStarted().then(() => engine.setString(STRINGS[state.stringIdx].spec));
+        void engine.ensureStarted().then(() => engine.selectString(state.stringIdx));
         notify();
       })
     );
