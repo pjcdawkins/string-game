@@ -109,6 +109,14 @@ export class StringSim {
   // negative when the finger slides up onto the nut). The terminating/damping
   // node sits up to one FINGER_RADIUS toward the bridge — see fingerNode().
   fingerPressure = 0; // 0 = off, ~0.1 = harmonic touch, 1 = firm stop
+  /** True when a bow or plucking implement rides at bowPosition (a solo
+   * string always: the contact-point colour applies to plucks and to the
+   * ring after a bow lift alike). ViolinSim clears it on unplayed strings —
+   * nothing touches them, so their bridge filter must stay at the string's
+   * neutral darkness rather than follow the player's bow as it moves over a
+   * DIFFERENT string, which would otherwise alter (and, via the filter's
+   * phase delay, subtly retune) a freely ringing string's decay. */
+  contact = true;
   bodyMix = 0.75; // 0 = raw string, 1 = full body filter
   masterGain = 0.9;
 
@@ -380,13 +388,18 @@ export class StringSim {
   /** Compute the per-block control targets. Call once before a run of
    * tickBridgeRead()/tickComplete() pairs (process() does this itself). */
   beginBlock(): void {
-    const beta = 1 - this.clampedPositions()[1]; // bow-bridge distance fraction
+    if (this.contact) {
+      const beta = 1 - this.clampedPositions()[1]; // bow-bridge distance fraction
 
-    // contact-point colour: near the bridge the Helmholtz corner stays sharp
-    // (less Cremer rounding) and the bridge passes more upper partials; over
-    // the fingerboard the tone rounds off and darkens
-    this.vcKnee = 0.015 + 0.19 * beta; // friction-curve knee
-    this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.45 + 2.1 * beta));
+      // contact-point colour: near the bridge the Helmholtz corner stays sharp
+      // (less Cremer rounding) and the bridge passes more upper partials; over
+      // the fingerboard the tone rounds off and darkens
+      this.vcKnee = 0.015 + 0.19 * beta; // friction-curve knee
+      this.bridgeLP.a = Math.min(0.6, (0.12 + 0.5 * this.spec.darkness) * (0.45 + 2.1 * beta));
+    } else {
+      // untouched string: plain termination at the string's own darkness
+      this.bridgeLP.a = 0.12 + 0.5 * this.spec.darkness;
+    }
 
     const [tA, tB, tC] = this.delayTargets();
     this.tgtA = tA;

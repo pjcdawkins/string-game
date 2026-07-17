@@ -139,6 +139,53 @@ describe("ViolinSim (four strings coupled at the bridge)", () => {
     expect(rms(after, 0.05, 0.3)).toBeGreaterThan(1e-4);
   });
 
+  it("moving bow/finger over the played string leaves a ringing string untouched", () => {
+    // regression (review finding): unplayed strings used to inherit the
+    // played string's bow/finger positions, so its bridge filter — and, via
+    // the filter's phase delay, its tuning — followed the player's hand.
+    // A freely ringing string's sound must not depend on where the bow
+    // hovers over a DIFFERENT (silent) string.
+    // track the A string's OWN bridge wave (the played E string is fair game
+    // — the player's hand really is at it, and it genuinely carries a little
+    // sympathetic energy), sampled once per block: phase-sensitive, so a
+    // retune drifts the series apart within a fraction of a second.
+    const run = (wander: boolean): Float64Array => {
+      const v = makeViolin(A);
+      v.bowPosition = 0.85;
+      v.pluck(0.8, 1.2);
+      render(v, 0.3);
+      v.selectString(E);
+      const blocks = Math.floor((0.6 * FS) / 128);
+      const trace = new Float64Array(blocks);
+      const out = new Float32Array(128);
+      for (let i = 0; i < blocks; i++) {
+        if (wander) {
+          const ph = i / blocks;
+          v.bowPosition = 0.6 + 0.37 * ph; // sweep tasto -> ponticello
+          v.fingerPosition = 0.1 + 0.5 * ph;
+          v.fingerPressure = 1; // finger hovering, not pressed (fingerOn off)
+        }
+        v.process(out);
+        trace[i] = v.strings[A].bridgeForce;
+      }
+      return trace;
+    };
+    const still = run(false);
+    const wandering = run(true);
+    // the old bug detuned the ringing A by ~0.1% (the bridge filter's phase
+    // delay follows its cutoff), drifting the traces to O(1) relative
+    // difference. What remains is the genuine second-order (γ²) coupling —
+    // A's ring reaches the played E, whose recolouring feeds back to A.
+    let diff = 0;
+    let ref = 0;
+    for (let i = 0; i < still.length; i++) {
+      diff += (still[i] - wandering[i]) ** 2;
+      ref += still[i] ** 2;
+    }
+    expect(ref).toBeGreaterThan(0); // the A string is genuinely ringing
+    expect(Math.sqrt(diff / ref)).toBeLessThan(0.02);
+  });
+
   it("stays finite and bounded under hard playing (coupling is passive)", () => {
     const v = makeViolin(G);
     v.bowOn = true;

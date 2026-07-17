@@ -133,14 +133,26 @@ export class ViolinSim {
     const n = sims.length;
     for (let k = 0; k < n; k++) {
       const s = sims[k];
-      const isPlayed = k === this.played;
-      s.bowOn = isPlayed && this.bowOn;
-      s.bowVelocity = this.bowVelocity;
-      s.bowForce = this.bowForce;
-      s.bowPosition = this.bowPosition;
-      s.fingerOn = isPlayed && this.fingerOn;
-      s.fingerPosition = this.fingerPosition;
-      s.fingerPressure = this.fingerPressure;
+      if (k === this.played) {
+        s.contact = true;
+        s.bowOn = this.bowOn;
+        s.bowVelocity = this.bowVelocity;
+        s.bowForce = this.bowForce;
+        s.bowPosition = this.bowPosition;
+        s.fingerOn = this.fingerOn;
+        s.fingerPosition = this.fingerPosition;
+        s.fingerPressure = this.fingerPressure;
+      } else {
+        // nothing touches an unplayed string: no bow, no finger — and no
+        // inherited geometry either. Positions keep their last values (the
+        // transparent finger junction makes them acoustically moot), and
+        // contact=false pins the bridge filter to the string's neutral
+        // darkness so the played string's bow can't colour or retune a
+        // string that is merely ringing.
+        s.contact = false;
+        s.bowOn = false;
+        s.fingerOn = false;
+      }
       s.beginBlock();
     }
 
