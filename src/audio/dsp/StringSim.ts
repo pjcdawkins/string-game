@@ -83,9 +83,8 @@ const PLUCK_LF_REF_HZ = 660;
 const PLUCK_LF_TILT = 0.5;
 const PLUCK_LF_MAX = 2.0;
 
-/** Violin-ish modal body resonances: [freq Hz, Q, gain]. Shared between the
- * single-string output stage here and the whole-instrument one in ViolinSim. */
-export const BODY_MODES: ReadonlyArray<[number, number, number]> = [
+/** Violin-ish modal body resonances: [freq Hz, Q, gain]. */
+const BODY_MODES: ReadonlyArray<[number, number, number]> = [
   [275, 9, 1.5], // "breathing" A0 mode
   [460, 8, 1.2],
   [550, 11, 1.0],
@@ -95,6 +94,61 @@ export const BODY_MODES: ReadonlyArray<[number, number, number]> = [
   [2600, 6, 0.85],
   [3400, 7, 0.5],
 ];
+
+/**
+ * Bridge force -> ear: DC blocking, the modal body-filter bank, dry/wet mix,
+ * master gain, a gentle safety saturation, and 512-sample RMS metering of
+ * the result. The ONE output chain for both the solo StringSim path (tests,
+ * offline harnesses) and the whole instrument (ViolinSim, which feeds it the
+ * summed bridge force of all four strings) — so a tweak to the mix or
+ * saturation cannot diverge between the two.
+ */
+export class BodyOutput {
+  bodyMix = 0.75; // 0 = raw string, 1 = full body filter
+  masterGain = 0.9;
+
+  private dc = new DCBlocker();
+  private body: BiquadBP[] = [];
+  private rmsAcc = 0;
+  private rmsVal = 0;
+  private rmsCount = 0;
+
+  constructor(sampleRate: number) {
+    for (const [f, q, g] of BODY_MODES) {
+      const bq = new BiquadBP();
+      bq.set(f, q, g, sampleRate);
+      this.body.push(bq);
+    }
+  }
+
+  /** One sample: bridge force in, speaker sample out. */
+  process(force: number): number {
+    const dry = this.dc.process(force);
+    let wet = 0;
+    for (let i = 0; i < this.body.length; i++) wet += this.body[i].process(dry);
+    let y = this.masterGain * ((1 - this.bodyMix) * dry + this.bodyMix * (0.32 * dry + wet));
+    // gentle safety saturation
+    y = Math.tanh(1.4 * y) * 0.72;
+
+    this.rmsAcc += y * y;
+    this.rmsCount++;
+    if (this.rmsCount >= 512) {
+      this.rmsVal = Math.sqrt(this.rmsAcc / this.rmsCount);
+      this.rmsAcc = 0;
+      this.rmsCount = 0;
+    }
+    return y;
+  }
+
+  get rms(): number {
+    return this.rmsVal;
+  }
+
+  clear(): void {
+    this.dc.clear();
+    for (const b of this.body) b.clear();
+  }
+}
 
 export class StringSim {
   readonly fs: number;
@@ -146,11 +200,10 @@ export class StringSim {
   private bridgeLP = new OnePoleLP();
   private disp1 = new AllpassDispersion();
   private disp2 = new AllpassDispersion();
-  private dc = new DCBlocker();
   private nutCoeff = 0.997;
 
-  // body filter: a handful of violin-ish modal resonances
-  private body: BiquadBP[] = [];
+  // bridge force -> body filter -> ear, for the solo (uncoupled) path
+  private output: BodyOutput;
 
   // pluck pulse state
   private pluckSamplesLeft = 0;
@@ -158,10 +211,7 @@ export class StringSim {
   private pluckAmp = 0;
   private pluckPhase = 0;
 
-  // metering
-  private rmsAcc = 0;
-  private rmsVal = 0;
-  private rmsCount = 0;
+  // metering (rms lives in the BodyOutput; slip is bow-junction-local)
   private slipAcc = 0;
   private slipVal = 0;
   private slipCount = 0;
@@ -207,11 +257,7 @@ export class StringSim {
     this.bowForceSm = new Smoother(0, sampleRate * 0.004);
     this.amp2Coeff = 1 - Math.exp(-1 / (0.03 * sampleRate)); // ~30 ms tracker
 
-    for (const [f, q, g] of BODY_MODES) {
-      const bq = new BiquadBP();
-      bq.set(f, q, g, sampleRate);
-      this.body.push(bq);
-    }
+    this.output = new BodyOutput(sampleRate);
 
     this.setString(this.spec);
     // start delays at their targets to avoid an initial glide
@@ -275,8 +321,7 @@ export class StringSim {
     this.bridgeLP.clear();
     this.disp1.clear();
     this.disp2.clear();
-    this.dc.clear();
-    for (const b of this.body) b.clear();
+    this.output.clear();
     this.pluckSamplesLeft = 0;
     this.amp2 = 0;
   }
@@ -287,7 +332,7 @@ export class StringSim {
     const vibLen = this.effectiveRf() > 4 ? this.dB.value + this.dC.value : total;
     const roundTrip = 2 * vibLen + comp;
     return {
-      rms: this.rmsVal,
+      rms: this.output.rms,
       slipRatio: this.slipVal,
       freq: this.fs / Math.max(4, roundTrip),
       bowing: this.bowOn,
@@ -524,26 +569,12 @@ export class StringSim {
   /** Render `out.length` mono samples (single string, own body filter). */
   process(out: Float32Array): void {
     this.beginBlock();
+    this.output.bodyMix = this.bodyMix;
+    this.output.masterGain = this.masterGain;
     for (let n = 0; n < out.length; n++) {
       this.tickBridgeRead();
       this.tickComplete(0);
-
-      // --- output: bridge force -> body filter
-      const dry = this.dc.process(this.sAtBridge);
-      let wet = 0;
-      for (let i = 0; i < this.body.length; i++) wet += this.body[i].process(dry);
-      let y = this.masterGain * ((1 - this.bodyMix) * dry + this.bodyMix * (0.32 * dry + wet));
-      // gentle safety saturation
-      y = Math.tanh(1.4 * y) * 0.72;
-      out[n] = y;
-
-      this.rmsAcc += y * y;
-      this.rmsCount++;
-      if (this.rmsCount >= 512) {
-        this.rmsVal = Math.sqrt(this.rmsAcc / this.rmsCount);
-        this.rmsAcc = 0;
-        this.rmsCount = 0;
-      }
+      out[n] = this.output.process(this.sAtBridge);
     }
   }
 }

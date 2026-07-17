@@ -38,9 +38,8 @@
  * note stops; slightly detuned near-coincidences beat instead of blooming.
  */
 
-import { BODY_MODES, StringSim } from "./StringSim";
+import { BodyOutput, StringSim } from "./StringSim";
 import type { SimState, StringSpec } from "./StringSim";
-import { BiquadBP, DCBlocker } from "./filters";
 
 /**
  * Bridge cross-transmission γ: the fraction of each string's loss-filtered
@@ -71,17 +70,12 @@ export class ViolinSim {
 
   private played: number;
 
-  // shared body: one bridge drives one top plate
-  private dc = new DCBlocker();
-  private body: BiquadBP[] = [];
+  // shared body: one bridge drives one top plate (the same output chain the
+  // solo StringSim path uses — see BodyOutput)
+  private output: BodyOutput;
 
   // per-sample scratch for the junction (no allocation in process())
   private rWave: Float64Array;
-
-  // metering of the mixed output
-  private rmsAcc = 0;
-  private rmsVal = 0;
-  private rmsCount = 0;
 
   constructor(sampleRate: number, specs: StringSpec[], playedIdx = 0) {
     this.strings = specs.map((spec) => {
@@ -91,11 +85,7 @@ export class ViolinSim {
     });
     this.played = Math.min(this.strings.length - 1, Math.max(0, playedIdx));
     this.rWave = new Float64Array(this.strings.length);
-    for (const [f, q, g] of BODY_MODES) {
-      const bq = new BiquadBP();
-      bq.set(f, q, g, sampleRate);
-      this.body.push(bq);
-    }
+    this.output = new BodyOutput(sampleRate);
   }
 
   /** Move the bow/finger to another string. Nothing is reset: the string
@@ -116,14 +106,13 @@ export class ViolinSim {
   /** Instantly silence the whole instrument. */
   reset(): void {
     for (const s of this.strings) s.reset();
-    this.dc.clear();
-    for (const b of this.body) b.clear();
+    this.output.clear();
   }
 
   getState(): SimState {
     // pitch/slip/bowing describe the played string; level describes the mix
     const st = this.strings[this.played].getState();
-    st.rms = this.rmsVal;
+    st.rms = this.output.rms;
     return st;
   }
 
@@ -156,6 +145,9 @@ export class ViolinSim {
       s.beginBlock();
     }
 
+    this.output.bodyMix = this.bodyMix;
+    this.output.masterGain = this.masterGain;
+
     const r = this.rWave;
     for (let i = 0; i < out.length; i++) {
       // gather every string's loss-filtered incoming bridge wave first…
@@ -172,22 +164,8 @@ export class ViolinSim {
         force += sims[k].bridgeForce;
       }
 
-      // --- output: total bridge force -> shared body filter
-      // (same chain as StringSim's single-string output stage)
-      const dry = this.dc.process(force);
-      let wet = 0;
-      for (let b = 0; b < this.body.length; b++) wet += this.body[b].process(dry);
-      let y = this.masterGain * ((1 - this.bodyMix) * dry + this.bodyMix * (0.32 * dry + wet));
-      y = Math.tanh(1.4 * y) * 0.72;
-      out[i] = y;
-
-      this.rmsAcc += y * y;
-      this.rmsCount++;
-      if (this.rmsCount >= 512) {
-        this.rmsVal = Math.sqrt(this.rmsAcc / this.rmsCount);
-        this.rmsAcc = 0;
-        this.rmsCount = 0;
-      }
+      // --- output: total bridge force -> the shared body/output chain
+      out[i] = this.output.process(force);
     }
   }
 }
