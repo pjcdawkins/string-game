@@ -15,6 +15,12 @@ numbering (`src/scene/lanes.ts`). One string is *played* at a time — the
 selected string draws at full contrast and vibrates over the three faint
 unselected ones — though in the audio model all four sound continuously,
 coupled at a shared bridge (sympathetic resonance, ring-over on switches).
+That coupling shows, subtly: an unselected string that is ringing — driven
+sympathetically, or still decaying after the player left it — draws slightly
+brighter than the idle gray (whiter on the dark theme, deeper on light), the
+contrast in proportion to its live amplitude (`updateStringLevels` in
+`src/scene/scene.ts`, fed per-string envelopes from the audio model), while
+the played string keeps the wave rendering and blue glow to itself.
 The left hand moves between strings directly: a touch on the board catches
 the nearest lane (the current string wins near-ties), switching the sounding
 string and bringing the bow with it. The HUD picker and the G/D/A/E keys still

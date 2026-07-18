@@ -70,7 +70,7 @@ class StringProcessor extends AudioWorkletProcessor {
     this.framesSinceState += out.length;
     if (this.framesSinceState >= 512) {
       this.framesSinceState = 0;
-      this.port.postMessage({ type: "state", ...sim.getState() });
+      this.port.postMessage({ type: "state", ...sim.getState(), levels: sim.stringAmplitudes() });
     }
     return true;
   }

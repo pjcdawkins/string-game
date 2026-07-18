@@ -75,6 +75,10 @@ export interface AudioMeter {
   slipRatio: number;
   freq: number;
   bowing: boolean;
+  /** Per-string vibration amplitude (indexed like STRINGS): how strongly each
+   * string is moving right now, played or not — sympathetic resonance and
+   * ring-on after leaving a string included. */
+  stringLevels: number[];
 }
 
 export interface AppState {
@@ -111,7 +115,7 @@ export const state: AppState = {
   snap: true, // and a pressed finger gently settles onto them
   snapNodes: true, // as Touch-mode fingers settle onto the harmonic nodes
   slowMo: 2.4,
-  meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false },
+  meter: { rms: 0, slipRatio: 0, freq: 440, bowing: false, stringLevels: [0, 0, 0, 0] },
   detectedFreq: 0,
 };
 

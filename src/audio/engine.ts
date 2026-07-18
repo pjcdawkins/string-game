@@ -41,7 +41,7 @@ export class Engine {
   private starting: Promise<void> | null = null;
   private unlockHandlersInstalled = false;
 
-  meter: AudioMeter = { rms: 0, slipRatio: 0, freq: 440, bowing: false };
+  meter: AudioMeter = { rms: 0, slipRatio: 0, freq: 440, bowing: false, stringLevels: [0, 0, 0, 0] };
 
   async ensureStarted(): Promise<void> {
     if (this.node) {
@@ -181,6 +181,7 @@ export class Engine {
             slipRatio: e.data.slipRatio,
             freq: e.data.freq,
             bowing: e.data.bowing,
+            stringLevels: e.data.levels ?? this.meter.stringLevels,
           };
         }
       };

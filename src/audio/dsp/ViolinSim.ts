@@ -116,6 +116,14 @@ export class ViolinSim {
     return st;
   }
 
+  /** Per-string vibration amplitudes (each StringSim's slow bridge-wave
+   * envelope), indexed like `strings`. Feeds the visualisation: an unplayed
+   * string ringing — sympathetically, or decaying after the bow left it —
+   * brightens in proportion. */
+  stringAmplitudes(): number[] {
+    return this.strings.map((s) => s.amplitude());
+  }
+
   /** Render `out.length` mono samples of the whole instrument. */
   process(out: Float32Array): void {
     const sims = this.strings;

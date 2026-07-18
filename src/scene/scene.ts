@@ -61,6 +61,27 @@ const GUIDE_OPACITY_BLACK = GUIDE_OPACITY * GUIDE_BLACK_FRACTION;
 // Pitch classes (semitones from C) that are black keys on a piano.
 const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10]);
 
+// Sympathetic-resonance shimmer: an idle string that is ringing — driven
+// sympathetically through the shared bridge, or still decaying after the
+// player left it — draws slightly brighter than the idle gray (whiter on the
+// dark theme, deeper on light — see resonantString in ./theme.ts), the
+// contrast in proportion to its live amplitude. Deliberately subtle: even a
+// full bloom stays well below the played string, which keeps the wave
+// visualisation and the blue glow to itself. The amplitude scale comes from
+// the audio model (StringSim.amplitude()): a strong open-string unison ring
+// measures ≈0.03, the broadband bow-noise floor on non-coincident strings
+// ≈0.005, so the floor keeps ordinary bowing from lighting all three
+// neighbours while a genuine coincidence clearly blooms.
+const SYMP_AMP_FLOOR = 0.002;
+const SYMP_AMP_FULL = 0.03;
+// at full bloom: how far the colour shifts toward the resonant tint, and how
+// much opacity is added on top of the theme's idle value
+const SYMP_COLOR_MIX = 0.8;
+const SYMP_OPACITY_BOOST = 0.35;
+// smoothing rate (per second) toward the target shimmer — fast enough to
+// follow a bloom, slow enough not to flicker with the 512-sample meter
+const SYMP_SMOOTH = 8;
+
 // The bow is drawn at the true proportion of a full-size bow to a full-size
 // violin: a violin's speaking string is ~328 mm and a bow's playing hair
 // ~650 mm, so the hair is very nearly 2× the string length. STRING_LEN is that
@@ -185,6 +206,11 @@ export class SceneView {
   // hidden and the live VisualString vibrates over the others in its place
   private idleStrings: Line2[] = [];
   private idleStringMats: LineMaterial[] = [];
+  // smoothed sympathetic shimmer per lane (0 = idle gray, 1 = full bloom)
+  private sympMix = [0, 0, 0, 0];
+  private theme: SceneTheme = currentTheme();
+  private idleColor = new THREE.Color();
+  private resonantColor = new THREE.Color();
   private afterLength!: Line2; // the selected string below the bridge
   private activeString = -1;
 
@@ -232,6 +258,9 @@ export class SceneView {
 
   /** Everything the system colour scheme changes at runtime. */
   private applyTheme(t: SceneTheme): void {
+    this.theme = t;
+    this.idleColor.set(t.string);
+    this.resonantColor.set(t.resonantString);
     this.renderer.setClearColor(t.bg);
     this.visual.setTheme(t);
     for (const m of this.idleStringMats) {
@@ -339,6 +368,24 @@ export class SceneView {
   /** Lateral world-x of the active string at position `s` along it. */
   activeLaneX(s: number): number {
     return laneX(this.activeString, s);
+  }
+
+  /** Feed the idle strings their live vibration amplitudes (see the SYMP_*
+   * notes above): a ringing string brightens toward the theme's resonant
+   * tint, proportionally to how strongly it is moving. The active lane's
+   * material is updated too — its idle line is hidden while selected, but
+   * this way a string left ringing by a switch shows its ring-down the
+   * moment its line reappears. */
+  updateStringLevels(levels: number[], dt: number): void {
+    const k = Math.min(1, dt * SYMP_SMOOTH);
+    for (let i = 0; i < this.idleStringMats.length; i++) {
+      const amp = levels[i] ?? 0;
+      const target = Math.min(1, Math.max(0, (amp - SYMP_AMP_FLOOR) / (SYMP_AMP_FULL - SYMP_AMP_FLOOR)));
+      this.sympMix[i] += (target - this.sympMix[i]) * k;
+      const m = this.idleStringMats[i];
+      m.color.copy(this.idleColor).lerp(this.resonantColor, this.sympMix[i] * SYMP_COLOR_MIX);
+      m.opacity = this.theme.idleStringOpacity + this.sympMix[i] * SYMP_OPACITY_BOOST;
+    }
   }
 
   /** Violin top plate (upper/lower bouts, deep C-bout with protruding
