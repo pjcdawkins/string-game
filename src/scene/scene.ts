@@ -70,10 +70,13 @@ const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10]);
 // full bloom stays well below the played string, which keeps the wave
 // visualisation and the blue glow to itself. The amplitude scale comes from
 // the audio model (StringSim.amplitude()): a strong open-string unison ring
-// measures ≈0.03, the broadband bow-noise floor on non-coincident strings
-// ≈0.005, so the floor keeps ordinary bowing from lighting all three
-// neighbours while a genuine coincidence clearly blooms.
-const SYMP_AMP_FLOOR = 0.002;
+// measures ≈0.03, and the broadband bow-noise floor on non-coincident
+// strings ≈0.005 for a moderate stroke — the floor sits just above that, so
+// ordinary bowing leaves the neighbours dark while a genuine coincidence
+// clearly blooms. (The noise floor scales with bow force, so a very hard
+// stroke may still faintly stir all three — which is physically real: the
+// bridge genuinely shakes them.)
+const SYMP_AMP_FLOOR = 0.006;
 const SYMP_AMP_FULL = 0.03;
 // at full bloom: how far the colour shifts toward the resonant tint, and how
 // much opacity is added on top of the theme's idle value
