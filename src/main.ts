@@ -71,6 +71,10 @@ function frame(now: number): void {
     slowMoHz: state.slowMo,
   });
 
+  // idle strings shimmer with their live amplitude (sympathetic resonance,
+  // and the ring-down of a string the player just left)
+  view.updateStringLevels(state.meter.stringLevels, dt);
+
   updateTools();
   // Touch mode hides the guides (the harmonic nodes are what matters there);
   // they return when pressing again. The scale still shows for both hands

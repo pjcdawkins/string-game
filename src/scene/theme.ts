@@ -18,6 +18,13 @@ export interface SceneTheme {
   /** Opacity of the three idle (unselected) strings — the selected string
    * draws at full contrast over them. */
   idleStringOpacity: number;
+  /** Colour an idle string shifts toward while it rings (sympathetic
+   * resonance / ring-on). Whiter than the idle gray in BOTH themes: the
+   * strings always lie over the ebony board and the amber top plate — never
+   * the page background — so brightening gains contrast regardless of the
+   * colour scheme (unlike the glow, whose additive halo does interact with
+   * the background). */
+  resonantString: number;
   /** HSL lightness of the vibration glow (hue is set live by the string). */
   glowLightness: number;
   /** Scale on the glow opacity envelope. */
@@ -30,6 +37,7 @@ export const DARK: SceneTheme = {
   bg: 0x0b0e14,
   string: 0xdde3ee,
   idleStringOpacity: 0.3,
+  resonantString: 0xffffff,
   glowLightness: 0.62,
   glowOpacity: 1,
   additiveGlow: true,
@@ -42,6 +50,7 @@ export const LIGHT: SceneTheme = {
   // disappeared against the fingerboard it actually lies over)
   string: 0xaab4c4,
   idleStringOpacity: 0.45,
+  resonantString: 0xffffff,
   bg: 0xece8df,
   glowLightness: 0.5,
   glowOpacity: 0.85,
