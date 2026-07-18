@@ -63,9 +63,10 @@ const BLACK_PITCH_CLASSES = new Set([1, 3, 6, 8, 10]);
 
 // Sympathetic-resonance shimmer: an idle string that is ringing — driven
 // sympathetically through the shared bridge, or still decaying after the
-// player left it — draws slightly brighter than the idle gray (whiter on the
-// dark theme, deeper on light — see resonantString in ./theme.ts), the
-// contrast in proportion to its live amplitude. Deliberately subtle: even a
+// player left it — draws slightly whiter than the idle gray (in both themes:
+// the strings lie over the ebony board and amber plate, never the page
+// background — see resonantString in ./theme.ts), the contrast in
+// proportion to its live amplitude. Deliberately subtle: even a
 // full bloom stays well below the played string, which keeps the wave
 // visualisation and the blue glow to itself. The amplitude scale comes from
 // the audio model (StringSim.amplitude()): a strong open-string unison ring

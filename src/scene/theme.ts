@@ -19,9 +19,11 @@ export interface SceneTheme {
    * draws at full contrast over them. */
   idleStringOpacity: number;
   /** Colour an idle string shifts toward while it rings (sympathetic
-   * resonance / ring-on): whiter than the idle gray on dark, but on the light
-   * background whiter would *lose* contrast, so there it deepens instead —
-   * the same reversal the glow treatment makes. */
+   * resonance / ring-on). Whiter than the idle gray in BOTH themes: the
+   * strings always lie over the ebony board and the amber top plate — never
+   * the page background — so brightening gains contrast regardless of the
+   * colour scheme (unlike the glow, whose additive halo does interact with
+   * the background). */
   resonantString: number;
   /** HSL lightness of the vibration glow (hue is set live by the string). */
   glowLightness: number;
@@ -48,7 +50,7 @@ export const LIGHT: SceneTheme = {
   // disappeared against the fingerboard it actually lies over)
   string: 0xaab4c4,
   idleStringOpacity: 0.45,
-  resonantString: 0x76839a,
+  resonantString: 0xffffff,
   bg: 0xece8df,
   glowLightness: 0.5,
   glowOpacity: 0.85,
