@@ -182,12 +182,24 @@ res = await keyboardBowUntil(659.3);
 if (Math.abs(res.freq - 659.3) > 659.3 * 0.04)
   fail(`chorded fifth pitch off: ${res.freq.toFixed(1)} Hz (expected ~659.3)`);
 else ok(`chorded fifth (4+3) at ${res.freq.toFixed(1)} Hz`);
-// releasing every digit leaves the finger latched (it does not lift); 0/Esc lift
+// releasing every digit leaves the finger latched (it does not lift); 0/Esc
+// lift. The keyups land milliseconds apart, like a hand letting go of a
+// chord: the release grace period must keep the first keyup from re-placing
+// the finger at the remaining digit, so the latch stays at the full chord.
 await page.keyboard.up("Digit3");
 await page.keyboard.up("Digit4");
-res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
+await page.waitForTimeout(250); // wait out the chord-release grace period
+res = await page.evaluate(() => ({
+  fingerOn: window.__debug.state.fingerOn,
+  pos: window.__debug.state.fingerPos,
+  fr: window.__debug.FINGER_RADIUS,
+}));
 if (!res.fingerOn) fail("finger lifted on key release (should latch)");
 else ok("finger latched after releasing its keys");
+const chordStop = 1 - Math.pow(2, -7 / 12) - res.fr;
+if (Math.abs(res.pos - chordStop) > 0.01)
+  fail(`chord release latched at ${res.pos.toFixed(3)}, not the chord's stop ${chordStop.toFixed(3)}`);
+else ok(`chord release stayed latched at the chord's stop (${res.pos.toFixed(3)})`);
 await page.keyboard.press("Escape");
 res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
 if (res.fingerOn) fail("Esc did not lift the latched finger");
