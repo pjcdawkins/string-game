@@ -35,8 +35,8 @@ export class Hud {
         `<button class="seg str" data-str="${i}" title="${s.numeral} string">${s.name[0]}<sub>${s.name.slice(1)}</sub></button>`
     ).join("");
     return `
+    <div class="wordmark" aria-hidden="true">String Game<div class="wordmark-rule"></div></div>
     <div class="panel top-left">
-      <div class="title">Bowed String <span class="sub">physical model</span></div>
       <div class="row seg-group" id="strings">
         <span class="lbl">String</span>${stringBtns}
       </div>
@@ -51,10 +51,12 @@ export class Hud {
     <div class="menu-scrim hidden" id="menuScrim"></div>
     <div class="panel sidebar hidden" id="menu" role="menu" aria-label="Menu">
       <div class="sidebar-head">
-        <span class="sidebar-title">Menu</span>
+        <span class="sidebar-brand">String Game</span>
         <button class="seg close-x" id="menuClose" aria-label="Close menu">✕</button>
       </div>
+      <div class="sidebar-divider"><div class="sidebar-diamond"></div></div>
       <button class="seg menu-item" id="menuHelp"><span class="menu-label">How to play…</span></button>
+      <div class="menu-section-label">Practice aids</div>
       <div class="seg menu-item select-row" id="menuNodes"><label class="menu-label" for="nodesSel">Node markers</label><select id="nodesSel" class="scale-sel">
         <option value="off">Off</option>
         <option value="touch">Touch mode</option>
@@ -68,7 +70,10 @@ export class Hud {
       </select></div>
       <button class="seg menu-item toggle" id="menuSnap" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Snap to guides</span><span class="checkbox" aria-hidden="true">✓</span></button>
       <button class="seg menu-item toggle" id="menuSnapNodes" role="menuitemcheckbox" aria-checked="false"><span class="menu-label">Snap to nodes</span><span class="checkbox" aria-hidden="true">✓</span></button>
-      <a class="seg menu-item menu-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer"><span class="menu-label">${GITHUB_ICON}GitHub repo</span><span class="ext" aria-hidden="true">↗</span></a>
+      <div class="sidebar-spacer"></div>
+      <div class="sidebar-divider"><div class="sidebar-diamond"></div></div>
+      <div class="attribution">By Patrick Dawkins</div>
+      <a class="gh-link" id="menuGithub" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer">${GITHUB_ICON}Source on GitHub <span class="ext" aria-hidden="true">↗</span></a>
     </div>
     <div class="panel tuner">
       <div class="note" id="note">&nbsp;</div>
@@ -92,7 +97,10 @@ export class Hud {
     <div class="overlay hidden" id="help">
       <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <div class="card-head">
-          <h2 id="helpTitle">How to play</h2>
+          <div class="card-title">
+            <span class="card-brand">String Game<div class="wordmark-rule"></div></span>
+            <h2 id="helpTitle">How to play</h2>
+          </div>
           <button class="seg close-x" id="closeHelpX" aria-label="Close help">✕</button>
         </div>
         <div class="card-body">

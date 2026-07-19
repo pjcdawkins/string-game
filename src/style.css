@@ -9,25 +9,28 @@
   --bg: #0b0e14;
   --fg: #cdd6e4;
   --fg-strong: #eaf2ff;
-  --panel-bg: rgba(14, 18, 28, 0.78);
+  --panel-bg: rgba(14, 18, 28, 0.88);
   --panel-border: rgba(140, 160, 200, 0.14);
   --seg-bg: rgba(70, 85, 115, 0.25);
   --seg-border: rgba(140, 160, 200, 0.18);
   --seg-hover-bg: rgba(90, 110, 150, 0.35);
-  --seg-on-bg: rgba(86, 156, 255, 0.3);
-  --seg-on-border: rgba(120, 180, 255, 0.6);
+  --seg-on-bg: rgba(255, 170, 70, 0.22);
+  --seg-on-border: rgba(255, 190, 110, 0.45);
   --accent-bg: rgba(255, 170, 70, 0.22);
   --accent-border: rgba(255, 190, 110, 0.45);
   --card-bg: #131826;
   --overlay-bg: rgba(5, 8, 14, 0.72);
   --kbd-bg: rgba(255, 255, 255, 0.12);
   --needle: #fff;
-  --range-accent: #6aa6ff;
+  --range-accent: #e6a25a;
   --cents-off: #7a4040;
   --cents-in: #3f6b46;
   --good: #7fd98a;
   --warn: #e6c96e;
   --bad: #ef8367;
+  --label-amber: rgba(207, 162, 104, 0.8);
+  --wordmark-rule: rgba(230, 176, 106, 0.6);
+  --sidebar-diamond: rgba(207, 162, 104, 0.7);
 }
 
 @media (prefers-color-scheme: light) {
@@ -35,26 +38,29 @@
     color-scheme: light;
     --bg: #ece8df;
     --fg: #3a4150;
-    --fg-strong: #1a2f55;
-    --panel-bg: rgba(252, 251, 247, 0.8);
-    --panel-border: rgba(70, 85, 110, 0.18);
-    --seg-bg: rgba(70, 85, 115, 0.08);
-    --seg-border: rgba(70, 85, 110, 0.24);
-    --seg-hover-bg: rgba(70, 85, 115, 0.16);
-    --seg-on-bg: rgba(40, 110, 220, 0.14);
-    --seg-on-border: rgba(40, 110, 220, 0.5);
-    --accent-bg: rgba(210, 130, 30, 0.16);
-    --accent-border: rgba(190, 115, 30, 0.5);
+    --fg-strong: #241d12;
+    --panel-bg: rgba(252, 251, 247, 0.92);
+    --panel-border: rgba(107, 90, 60, 0.25);
+    --seg-bg: rgba(70, 85, 115, 0.07);
+    --seg-border: rgba(107, 90, 60, 0.28);
+    --seg-hover-bg: rgba(70, 85, 115, 0.14);
+    --seg-on-bg: rgba(210, 130, 30, 0.18);
+    --seg-on-border: rgba(190, 115, 30, 0.55);
+    --accent-bg: rgba(210, 130, 30, 0.18);
+    --accent-border: rgba(190, 115, 30, 0.55);
     --card-bg: #fbfaf6;
     --overlay-bg: rgba(64, 61, 54, 0.45);
     --kbd-bg: rgba(0, 0, 0, 0.08);
     --needle: #1c222e;
-    --range-accent: #2f6fd0;
+    --range-accent: #b0762a;
     --cents-off: #d9a3a3;
     --cents-in: #96c49f;
     --good: #2c8a44;
     --warn: #9c7a14;
     --bad: #c2502e;
+    --label-amber: #8a6a3a;
+    --wordmark-rule: rgba(138, 106, 58, 0.7);
+    --sidebar-diamond: #8a6a3a;
   }
 }
 
@@ -92,33 +98,60 @@ body {
   background: var(--panel-bg);
   backdrop-filter: blur(8px);
   border: 1px solid var(--panel-border);
-  border-radius: 12px;
+  border-radius: 10px;
   padding: 10px 12px;
 }
 
-.top-left {
+/* bare floating wordmark — no panel background — sits above the pickers */
+.wordmark {
+  position: fixed;
   top: 12px;
+  left: 12px;
+  padding: 8px 10px;
+  font-family: 'Spectral', serif;
+  font-weight: 500;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--fg-strong);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.wordmark-rule {
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--wordmark-rule), transparent);
+  margin-top: 8px;
+}
+
+.top-left {
+  top: 72px;
   left: 12px;
 }
 
 /* ☰ menu: meta controls (help, display toggles) under one small button in
-   the conventional corner, above the tuner in the stacking order */
-.menu-btn {
+   the conventional corner, above the tuner in the stacking order. The
+   selector carries the `.seg` class too so its panel background/border win
+   over the base `.seg` rule (which is defined later in the file) — otherwise
+   the button falls back to the duller, translucent seg fill. */
+.seg.menu-btn {
   position: fixed;
   top: 12px;
   right: 12px;
   z-index: 6;
+  min-width: 40px;
+  min-height: 40px;
   padding: 7px 12px;
   font-size: 15px;
   line-height: 1.2;
-  /* match the translucent panels rather than the grey seg buttons that sit
-     *on* the panels — it reads as furniture of the same family as the tuner */
+  /* match panel corners (not the smaller seg radius) and panel bg */
+  border-radius: 10px;
   background: var(--panel-bg);
   border-color: var(--panel-border);
   backdrop-filter: blur(8px);
 }
 
-.menu-btn:hover {
+.seg.menu-btn:hover {
   background: var(--panel-bg);
   border-color: var(--seg-on-border);
 }
@@ -131,13 +164,13 @@ body {
   right: 0;
   bottom: 0;
   z-index: 8;
-  width: 264px;
+  width: 280px;
   max-width: 82vw;
-  border-radius: 14px 0 0 14px;
+  border-radius: 10px 0 0 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 14px;
+  padding: 18px 16px 14px;
   overflow-y: auto;
 }
 
@@ -164,13 +197,82 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
-.sidebar-title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+.sidebar-brand {
+  font-family: 'Spectral', serif;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* decorative rule with a small rotated diamond in the centre */
+.sidebar-divider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 2px;
+  pointer-events: none;
+}
+
+.sidebar-divider::before,
+.sidebar-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--panel-border);
+}
+
+.sidebar-diamond {
+  width: 4px;
+  height: 4px;
+  transform: rotate(45deg);
+  background: var(--sidebar-diamond);
+  flex: none;
+}
+
+.menu-section-label {
+  font-size: 8.5px;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  color: var(--label-amber);
+  margin: 6px 2px 2px;
+}
+
+/* expands to fill remaining space, pushing attribution to the bottom */
+.sidebar-spacer {
+  flex: 1;
+}
+
+.attribution {
+  font-family: 'Spectral', serif;
+  font-style: italic;
+  font-size: 14.5px;
+  color: var(--fg);
+  padding: 0 2px;
+}
+
+.gh-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 0 2px;
+  color: var(--fg);
+  opacity: 0.75;
+  text-decoration: none;
+  font-size: 12.5px;
+  pointer-events: auto;
+}
+
+.gh-link:hover {
+  opacity: 1;
+}
+
+.gh-link .ext {
+  opacity: 0.6;
+  font-size: 11px;
 }
 
 .menu-item {
@@ -260,18 +362,6 @@ body {
   opacity: 0.85;
 }
 
-.title {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.4px;
-  margin-bottom: 8px;
-}
-
-.title .sub {
-  font-weight: 400;
-  opacity: 0.55;
-  font-size: 12px;
-}
 
 .row {
   display: flex;
@@ -282,9 +372,11 @@ body {
 }
 
 .lbl {
-  font-size: 11px;
-  opacity: 0.6;
-  margin-right: 2px;
+  font-size: 9px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--label-amber);
+  margin-right: 4px;
 }
 
 .seg {
@@ -295,7 +387,7 @@ body {
   background: var(--seg-bg);
   color: var(--fg);
   border: 1px solid var(--seg-border);
-  border-radius: 8px;
+  border-radius: 7px;
   padding: 6px 10px;
   font-size: 13px;
   cursor: pointer;
@@ -345,9 +437,10 @@ body {
 }
 
 .tuner .note {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.1;
+  font-family: 'Spectral', serif;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.05;
 }
 
 .cents-bar {
@@ -399,6 +492,11 @@ body {
 .tuner-row .slip {
   min-width: 54px;
   text-align: right;
+}
+
+.slip {
+  font-family: 'Spectral', serif;
+  font-style: italic;
 }
 
 .slip.good {
@@ -475,7 +573,6 @@ body {
   padding: 12px 20px;
   font: inherit;
   font-size: 16px;
-  font-weight: 600;
   color: var(--fg);
   white-space: nowrap;
   /* a soft pulse so the button reads as the thing to press, not furniture */
@@ -548,14 +645,38 @@ body {
 
 .card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px 10px 26px;
 }
 
+/* help header: the branded wordmark over a "How to play" subtitle, echoing
+   the floating corner wordmark (Spectral serif + hairline amber rule) */
+.card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-brand {
+  font-family: 'Spectral', serif;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--fg-strong);
+}
+
+.card-brand .wordmark-rule {
+  margin-top: 6px;
+}
+
 .card h2 {
-  font-size: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--label-amber);
 }
 
 .close-x {
@@ -614,15 +735,27 @@ body {
   .seg {
     padding: 8px 9px;
     font-size: 13px;
+    min-height: 44px;
+  }
+
+  /* wordmark: move to micro bottom-left on mobile; no hairline rule */
+  .wordmark {
+    top: auto;
+    bottom: 10px;
+    left: 10px;
+    padding: 0;
+    font-size: 15px;
+    color: var(--fg);
+    opacity: 0.55;
+  }
+  .wordmark-rule {
+    display: none;
   }
 
   /* left gutter: string picker + left-hand technique, stacked */
   .top-left {
     top: 8px;
     left: 6px;
-  }
-  .top-left .title {
-    display: none;
   }
   .top-left .lbl {
     display: none;
@@ -638,10 +771,16 @@ body {
     margin-top: 0;
   }
 
-  /* ☰ button in the top-right corner; its drawer stays a full-height sidebar */
-  .menu-btn {
+  /* ☰ button in the top-right corner: 44×44 touch target */
+  .seg.menu-btn {
     top: 8px;
     right: 6px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .pos-note {
     font-size: 10px;
@@ -652,7 +791,9 @@ body {
      a bow stroke started over it still reaches the string; the Hz readout is
      dropped to keep the pill slim. */
   .tuner {
-    top: 48px;
+    /* clear of the ☰ button above (its 44px height + 8px top ends at 52px),
+       so the two panels never overlap on a narrow screen */
+    top: 60px;
     right: 6px;
     left: auto;
     bottom: auto;

@@ -2,10 +2,9 @@
  * Light/dark scene palettes following the system colour scheme
  * (`prefers-color-scheme`). The instrument's wood tones are shared between
  * themes — they read well on both backgrounds — so a theme only carries the
- * background, the string colour and the glow treatment. The glow is additive
- * in the dark theme (a halo of light) but additive blending is invisible on
- * a light background, so the light theme switches to normal blending with a
- * deeper colour.
+ * background and the string colours. The glow is no longer theme-dependent:
+ * it always uses additive blending at a constant lightness (see
+ * `GLOW_LIGHTNESS` in `visualString.ts`), so it carries no field here.
  *
  * The CSS side of the same switch lives in `src/style.css` (`--bg` must match
  * `bg` here so the HUD and the WebGL clear colour agree).
@@ -22,14 +21,8 @@ export interface SceneTheme {
    * resonance / ring-on). Whiter than the idle gray in BOTH themes: the
    * strings always lie over the ebony board and the amber top plate — never
    * the page background — so brightening gains contrast regardless of the
-   * colour scheme (unlike the glow, whose additive halo does interact with
-   * the background). */
+   * colour scheme. */
   resonantString: number;
-  /** HSL lightness of the vibration glow (hue is set live by the string). */
-  glowLightness: number;
-  /** Scale on the glow opacity envelope. */
-  glowOpacity: number;
-  additiveGlow: boolean;
 }
 
 export const DARK: SceneTheme = {
@@ -38,9 +31,6 @@ export const DARK: SceneTheme = {
   string: 0xdde3ee,
   idleStringOpacity: 0.3,
   resonantString: 0xffffff,
-  glowLightness: 0.62,
-  glowOpacity: 1,
-  additiveGlow: true,
 };
 
 export const LIGHT: SceneTheme = {
@@ -52,9 +42,6 @@ export const LIGHT: SceneTheme = {
   idleStringOpacity: 0.45,
   resonantString: 0xffffff,
   bg: 0xece8df,
-  glowLightness: 0.5,
-  glowOpacity: 0.85,
-  additiveGlow: false,
 };
 
 const query = window.matchMedia?.("(prefers-color-scheme: light)");

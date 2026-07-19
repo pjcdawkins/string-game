@@ -273,7 +273,7 @@ export class SceneView {
     }
     (this.afterLength.material as LineMaterial).color.set(t.string);
     const fc = this.fingerContact.material as THREE.MeshBasicMaterial;
-    fc.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
+    fc.blending = THREE.AdditiveBlending;
     fc.needsUpdate = true;
   }
 

@@ -75,6 +75,10 @@ const SOUNDING_MIN_AMP = 0.0009;
 const GLOW_GAIN_DRIVEN = 10;
 const GLOW_GAIN_FREE = 4.4;
 
+// HSL lightness of the string/finger-contact halo (same in light and dark since
+// the glow always blends additively — see the metadata-redesign unification).
+const GLOW_LIGHTNESS = 0.62;
+
 // driven bowed-flageolet swing is seeded a touch hotter than the corner regime so
 // the standing mode reads clearly; the glow guard must use the same scale or the
 // bow wash-out fix regresses silently (seeded wave and glow amplitude drift apart)
@@ -130,11 +134,6 @@ export class VisualString {
   // between frames can seed the clean standing mode (see pluckVisual)
   private harmMode = 0;
 
-  // theme-dependent glow treatment (see ./theme.ts): additive halo on dark,
-  // normal-blended deeper colour on light (additive is invisible there)
-  private glowLightness = 0.62;
-  private glowOpacityScale = 1;
-
   constructor(yTop: number, yBottom: number) {
     this.yTop = yTop;
     this.yLen = yTop - yBottom;
@@ -182,10 +181,6 @@ export class VisualString {
 
   setTheme(t: SceneTheme): void {
     this.lineMat.color.set(t.string);
-    this.glowLightness = t.glowLightness;
-    this.glowOpacityScale = t.glowOpacity;
-    this.glowMat.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
-    this.glowMat.needsUpdate = true;
   }
 
   private fillStraight(): void {
@@ -345,13 +340,12 @@ export class VisualString {
     this.line.geometry.setPositions(Array.from(this.positions));
     this.glow.geometry.setPositions(Array.from(this.positions));
     // glowAmp already carries its regime's gain (see above)
-    this.glowMat.opacity =
-      Math.min(0.55, this.glowAmp + (grab ? 0.12 : 0)) * this.glowOpacityScale;
+    this.glowMat.opacity = Math.min(0.55, this.glowAmp + (grab ? 0.12 : 0));
     // skip the (full-length, 6px-wide) glow line entirely while inaudible —
     // a real saving on weak GPUs and software renderers
     this.glow.visible = this.glowMat.opacity > 0.01;
     // colour shifts warmer when the tone is raucous/crunchy
-    this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, this.glowLightness);
+    this.glowMat.color.setHSL(raucous ? 0.04 : 0.58, 0.85, GLOW_LIGHTNESS);
   }
 
   /** Write the travelling Helmholtz corner onto the string for this frame. */
