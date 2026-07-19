@@ -56,6 +56,7 @@ export class Hud {
       </div>
       <div class="sidebar-divider"><div class="sidebar-diamond"></div></div>
       <button class="seg menu-item" id="menuHelp"><span class="menu-label">How to play…</span></button>
+      <button class="seg menu-item" id="menuAbout"><span class="menu-label">About…</span></button>
       <div class="menu-section-label">Practice aids</div>
       <div class="seg menu-item select-row" id="menuNodes"><label class="menu-label" for="nodesSel">Node markers</label><select id="nodesSel" class="scale-sel">
         <option value="off">Off</option>
@@ -156,6 +157,55 @@ export class Hud {
           <button class="seg accent" id="closeHelp">Close</button>
         </div>
       </div>
+    </div>
+    <div class="overlay hidden" id="about">
+      <div class="card" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+        <div class="card-head">
+          <div class="card-title">
+            <span class="card-brand">String Game<div class="wordmark-rule"></div></span>
+            <h2 id="aboutTitle">About</h2>
+          </div>
+          <button class="seg close-x" id="closeAboutX" aria-label="Close about">✕</button>
+        </div>
+        <div class="card-body">
+        <h3>What it's for</h3>
+        <p><b>String Game</b> is a violin's four strings — not recordings of them, but a
+        live physical simulation — put under your fingers in the browser. It tries to be
+        three things at once.</p>
+        <p><b>A toy</b>: bowing, plucking, and skating around is its own reward. The
+        string doesn't mind wrong notes — the scratches, whistles, and growls are half
+        the fun, and every one of them is the physics answering what you did.</p>
+        <p><b>A learning tool</b>: harmonics at the nodes, <i>sul&nbsp;tasto</i> versus
+        <i>sul&nbsp;ponticello</i>, the crunch of too much bow pressure, strings ringing
+        in sympathy, pure fifths against equal temperament — all of it is real behaviour
+        of the model, not a canned effect, so you can isolate and replay things that are
+        hard to demonstrate on the real instrument.</p>
+        <p><b>An instrument</b>: underneath, this is a physically modelled synthesiser.
+        Played deliberately — by gesture, multi-touch, or the keyboard — it phrases,
+        swells, slides, and speaks like a bowed string, because the same physics is
+        doing the work.</p>
+        <h3>How it works</h3>
+        <p>Every sample of sound is computed live, on your device, by a physical model
+        of the string: waves travel along it and reflect at the nut and the bridge. The
+        bow is a stick–slip friction simulation — the hair grips the string, drags it
+        aside, and lets it slip back hundreds of times a second — which is why bow speed
+        and pressure behave (and misbehave) like the real thing. One simulated fingertip
+        covers the whole left hand: pressed firmly it stops the string; brushing lightly
+        it silences every vibration without a node under it, leaving a harmonic.</p>
+        <p>All four strings are always sounding, and they end on one shared bridge that
+        couples them — play a note whose overtones line up with another string's and
+        that string blooms in sympathy. The force the strings exert on the bridge then
+        drives a set of violin-body resonances, and that is what reaches your ears.</p>
+        <p>The string you watch is deliberately not the one you hear: real string
+        motion is far too fast to see, so the display draws a slow-motion caricature —
+        the travelling corner of bowed (Helmholtz) motion, standing waves after a
+        pluck — driven by live measurements from the sound model.</p>
+        </div>
+        <div class="card-foot about-foot">
+          <a class="gh-link" href="https://github.com/pjcdawkins/string-game" target="_blank" rel="noopener noreferrer">${GITHUB_ICON}Full detail on GitHub <span class="ext" aria-hidden="true">↗</span></a>
+          <button class="seg accent" id="closeAbout">Close</button>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -234,6 +284,13 @@ export class Hud {
       setMenu(false);
       help.classList.remove("hidden");
     });
+    // About: same overlay/card treatment as the help, opened from the menu
+    const about = $("#about");
+    const closeAbout = () => about.classList.add("hidden");
+    tap($("#menuAbout"), () => {
+      setMenu(false);
+      about.classList.remove("hidden");
+    });
     // Node markers: a native select (no tap() — that would preventDefault the
     // pointerdown that opens its dropdown), like Guides below.
     const nodesSel = $<HTMLSelectElement>("#nodesSel");
@@ -282,11 +339,17 @@ export class Hud {
 
     tap($("#closeHelp"), closeHelp);
     tap($("#closeHelpX"), closeHelp);
+    tap($("#closeAbout"), closeAbout);
+    tap($("#closeAboutX"), closeAbout);
     // tapping the dimmed backdrop (not the card) also dismisses
     help.addEventListener("pointerdown", (e) => {
       if (e.target === help) closeHelp();
     });
+    about.addEventListener("pointerdown", (e) => {
+      if (e.target === about) closeAbout();
+    });
     const helpOpen = () => !help.classList.contains("hidden");
+    const aboutOpen = () => !about.classList.contains("hidden");
     // Esc or Enter dismiss the dialog; capture phase so the gameplay Esc
     // handler (lift finger) doesn't also fire while the dialog is up, and so
     // Enter doesn't leak into any focused control
@@ -295,6 +358,10 @@ export class Hud {
       (e) => {
         if ((e.key === "Escape" || e.key === "Enter") && helpOpen()) {
           closeHelp();
+          e.stopPropagation();
+          e.preventDefault();
+        } else if ((e.key === "Escape" || e.key === "Enter") && aboutOpen()) {
+          closeAbout();
           e.stopPropagation();
           e.preventDefault();
         } else if (e.key === "Escape" && menuOpen()) {
@@ -307,7 +374,7 @@ export class Hud {
     );
     // ? opens the help dialog (mirrors the menu's "How to play…" item)
     window.addEventListener("keydown", (e) => {
-      if (e.key === "?" && !helpOpen()) help.classList.remove("hidden");
+      if (e.key === "?" && !helpOpen() && !aboutOpen()) help.classList.remove("hidden");
     });
     // auto-open help on the first visit only; the ☰ menu reopens it
     let seen = false;
