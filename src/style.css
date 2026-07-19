@@ -130,8 +130,11 @@ body {
 }
 
 /* ☰ menu: meta controls (help, display toggles) under one small button in
-   the conventional corner, above the tuner in the stacking order */
-.menu-btn {
+   the conventional corner, above the tuner in the stacking order. The
+   selector carries the `.seg` class too so its panel background/border win
+   over the base `.seg` rule (which is defined later in the file) — otherwise
+   the button falls back to the duller, translucent seg fill. */
+.seg.menu-btn {
   position: fixed;
   top: 12px;
   right: 12px;
@@ -148,7 +151,7 @@ body {
   backdrop-filter: blur(8px);
 }
 
-.menu-btn:hover {
+.seg.menu-btn:hover {
   background: var(--panel-bg);
   border-color: var(--seg-on-border);
 }
@@ -643,14 +646,38 @@ body {
 
 .card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px 10px 26px;
 }
 
+/* help header: the branded wordmark over a "How to play" subtitle, echoing
+   the floating corner wordmark (Spectral serif + hairline amber rule) */
+.card-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-brand {
+  font-family: 'Spectral', serif;
+  font-weight: 500;
+  font-size: 26px;
+  line-height: 1;
+  color: var(--fg-strong);
+}
+
+.card-brand .wordmark-rule {
+  margin-top: 6px;
+}
+
 .card h2 {
-  font-size: 18px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1.6px;
+  text-transform: uppercase;
+  color: var(--label-amber);
 }
 
 .close-x {
@@ -746,7 +773,7 @@ body {
   }
 
   /* ☰ button in the top-right corner: 44×44 touch target */
-  .menu-btn {
+  .seg.menu-btn {
     top: 8px;
     right: 6px;
     min-width: 44px;
@@ -765,7 +792,9 @@ body {
      a bow stroke started over it still reaches the string; the Hz readout is
      dropped to keep the pill slim. */
   .tuner {
-    top: 48px;
+    /* clear of the ☰ button above (its 44px height + 8px top ends at 52px),
+       so the two panels never overlap on a narrow screen */
+    top: 60px;
     right: 6px;
     left: auto;
     bottom: auto;

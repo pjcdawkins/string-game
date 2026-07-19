@@ -97,7 +97,10 @@ export class Hud {
     <div class="overlay hidden" id="help">
       <div class="card" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
         <div class="card-head">
-          <h2 id="helpTitle">How to play</h2>
+          <div class="card-title">
+            <span class="card-brand">String Game<div class="wordmark-rule"></div></span>
+            <h2 id="helpTitle">How to play</h2>
+          </div>
           <button class="seg close-x" id="closeHelpX" aria-label="Close help">✕</button>
         </div>
         <div class="card-body">
