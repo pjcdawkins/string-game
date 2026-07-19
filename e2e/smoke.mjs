@@ -186,7 +186,14 @@ else ok(`chorded fifth (4+3) at ${res.freq.toFixed(1)} Hz`);
 // lift. The keyups land milliseconds apart, like a hand letting go of a
 // chord: the release grace period must keep the first keyup from re-placing
 // the finger at the remaining digit, so the latch stays at the full chord.
-await page.keyboard.up("Digit3");
+// Each page.keyboard.up is its own CDP round-trip, which a loaded runner can
+// stretch past the grace window — so dispatch both keyups in one in-page
+// task, pinning them "together" (the app listens on window either way).
+await page.evaluate(() => {
+  window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit3", key: "3" }));
+  window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit4", key: "4" }));
+});
+await page.keyboard.up("Digit3"); // clear Playwright's key state (app-side no-ops)
 await page.keyboard.up("Digit4");
 await page.waitForTimeout(250); // wait out the chord-release grace period
 res = await page.evaluate(() => ({
@@ -204,6 +211,21 @@ await page.keyboard.press("Escape");
 res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
 if (res.fingerOn) fail("Esc did not lift the latched finger");
 else ok("Esc lifted the latched finger");
+// a peel pending from a half-released chord must not survive Esc: without
+// cancelling it, the timer would re-latch the finger Esc just lifted
+await page.evaluate(() => {
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit4", key: "4" }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit3", key: "3" }));
+  window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit3", key: "3" }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape", key: "Escape" }));
+});
+await page.waitForTimeout(200); // past the grace: a stale peel would re-latch
+res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
+if (res.fingerOn) fail("stale peel timer re-latched the finger after Esc");
+else ok("Esc within the grace window keeps the finger lifted");
+await page.evaluate(() => {
+  window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit4", key: "4" }));
+});
 
 // 6. portamento: with Shift held, a pitch change glides instead of jumping
 const fr = await page.evaluate(() => window.__debug.FINGER_RADIUS);

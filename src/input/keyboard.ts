@@ -101,7 +101,9 @@ export class Keyboard {
     }
     // Esc resets to the default hand: Interactions' own Esc listener lifts the
     // left hand (open string); here the right hand returns to an ordinary bow.
+    // A pending peel must not survive the lift and re-latch the finger.
     if (e.code === "Escape") {
+      this.cancelPeel();
       state.tool = "bow";
       state.leftMode = "press";
       notify();
