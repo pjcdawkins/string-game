@@ -226,6 +226,22 @@ else ok("Esc within the grace window keeps the finger lifted");
 await page.evaluate(() => {
   window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit4", key: "4" }));
 });
+// Esc must also forget digits still physically held: otherwise releasing one
+// of them afterwards (others still down) schedules a peel that re-latches
+// the finger Esc lifted
+await page.evaluate(() => {
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit4", key: "4" }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Digit3", key: "3" }));
+  window.dispatchEvent(new KeyboardEvent("keydown", { code: "Escape", key: "Escape" }));
+  window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit3", key: "3" }));
+});
+await page.waitForTimeout(200); // past the grace: a peel of the held 4 would re-latch
+res = await page.evaluate(() => ({ fingerOn: window.__debug.state.fingerOn }));
+if (res.fingerOn) fail("keyup after Esc re-latched the finger (held digits not forgotten)");
+else ok("Esc forgets held digits; a later keyup does not re-latch");
+await page.evaluate(() => {
+  window.dispatchEvent(new KeyboardEvent("keyup", { code: "Digit4", key: "4" }));
+});
 
 // 6. portamento: with Shift held, a pitch change glides instead of jumping
 const fr = await page.evaluate(() => window.__debug.FINGER_RADIUS);
