@@ -2,10 +2,9 @@
  * Light/dark scene palettes following the system colour scheme
  * (`prefers-color-scheme`). The instrument's wood tones are shared between
  * themes — they read well on both backgrounds — so a theme only carries the
- * background, the string colour and the glow treatment. The glow is additive
- * in the dark theme (a halo of light) but additive blending is invisible on
- * a light background, so the light theme switches to normal blending with a
- * deeper colour.
+ * background and the string colours. The glow is no longer theme-dependent:
+ * it always uses additive blending at a constant lightness (see
+ * `GLOW_LIGHTNESS` in `visualString.ts`), so it carries no field here.
  *
  * The CSS side of the same switch lives in `src/style.css` (`--bg` must match
  * `bg` here so the HUD and the WebGL clear colour agree).
