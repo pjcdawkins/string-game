@@ -130,10 +130,8 @@ export class VisualString {
   // between frames can seed the clean standing mode (see pluckVisual)
   private harmMode = 0;
 
-  // theme-dependent glow treatment (see ./theme.ts): additive halo on dark,
-  // normal-blended deeper colour on light (additive is invisible there)
-  private glowLightness = 0.62;
-  private glowOpacityScale = 1;
+  private readonly glowLightness = 0.62;
+  private readonly glowOpacityScale = 1;
 
   constructor(yTop: number, yBottom: number) {
     this.yTop = yTop;
@@ -182,10 +180,6 @@ export class VisualString {
 
   setTheme(t: SceneTheme): void {
     this.lineMat.color.set(t.string);
-    this.glowLightness = t.glowLightness;
-    this.glowOpacityScale = t.glowOpacity;
-    this.glowMat.blending = t.additiveGlow ? THREE.AdditiveBlending : THREE.NormalBlending;
-    this.glowMat.needsUpdate = true;
   }
 
   private fillStraight(): void {

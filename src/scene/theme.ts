@@ -22,14 +22,8 @@ export interface SceneTheme {
    * resonance / ring-on). Whiter than the idle gray in BOTH themes: the
    * strings always lie over the ebony board and the amber top plate — never
    * the page background — so brightening gains contrast regardless of the
-   * colour scheme (unlike the glow, whose additive halo does interact with
-   * the background). */
+   * colour scheme. */
   resonantString: number;
-  /** HSL lightness of the vibration glow (hue is set live by the string). */
-  glowLightness: number;
-  /** Scale on the glow opacity envelope. */
-  glowOpacity: number;
-  additiveGlow: boolean;
 }
 
 export const DARK: SceneTheme = {
@@ -38,9 +32,6 @@ export const DARK: SceneTheme = {
   string: 0xdde3ee,
   idleStringOpacity: 0.3,
   resonantString: 0xffffff,
-  glowLightness: 0.62,
-  glowOpacity: 1,
-  additiveGlow: true,
 };
 
 export const LIGHT: SceneTheme = {
@@ -52,11 +43,6 @@ export const LIGHT: SceneTheme = {
   idleStringOpacity: 0.45,
   resonantString: 0xffffff,
   bg: 0xece8df,
-  // the string always sits over the dark violin body, never the page
-  // background, so additive blending works the same as in dark mode
-  glowLightness: 0.62,
-  glowOpacity: 1,
-  additiveGlow: true,
 };
 
 const query = window.matchMedia?.("(prefers-color-scheme: light)");
