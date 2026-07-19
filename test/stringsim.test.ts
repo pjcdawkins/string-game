@@ -282,4 +282,79 @@ describe("StringSim", () => {
     expectNoNaN(out);
     expect(rms(out, 0.1, 0.3)).toBeLessThan(1e-6);
   });
+
+  describe("lossy torsional shunt at the bow", () => {
+    const base = { f0: 196, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 };
+
+    // A sustained bowed stroke, reaching model speed 0.3 at the given force and
+    // contact, with a gentle 120 ms attack. `spec` carries the torsional value
+    // (or omits it). Returns the raw string signal.
+    const bowedSpec = (spec: object, speed: number, force: number, pos: number, secs = 1.5): Float32Array => {
+      const sim = new StringSim(FS);
+      sim.setString(spec as Parameters<StringSim["setString"]>[0]);
+      sim.bodyMix = 0;
+      sim.bowOn = true;
+      sim.bowPosition = pos;
+      sim.bowForce = force;
+      const out = new Float32Array(Math.round(secs * FS));
+      let t = 0;
+      for (let i = 0; i + 128 <= out.length; i += 128) {
+        t += 128 / FS;
+        sim.bowVelocity = speed * Math.min(1, t / 0.12);
+        sim.process(out.subarray(i, i + 128));
+      }
+      return out;
+    };
+    const bowed = (torsional: number, speed: number, force: number, pos: number, secs = 1.5): Float32Array =>
+      bowedSpec({ ...base, torsional }, speed, force, pos, secs);
+
+    it("torsional = 0 is the pure-transverse bow (same as omitting it)", () => {
+      // the field defaults to 0; with it explicitly 0 the friction path is
+      // unchanged, so an identical stroke matches the no-field case bar the
+      // friction noise
+      const a = rms(bowedSpec({ ...base, torsional: 0 }, 0.3, 0.5, 0.85), 0.6, 1.1);
+      const b = rms(bowedSpec({ ...base }, 0.3, 0.5, 0.85), 0.6, 1.1);
+      expect(Math.abs(a - b) / b).toBeLessThan(0.12);
+    });
+
+    it("sustains Helmholtz at f0 with the shunt engaged", () => {
+      const out = bowed(0.55, 0.3, 0.5, 0.85);
+      expectNoNaN(out);
+      const f = estimatePitch(out, 0.8, 1.4);
+      expect(f).toBeGreaterThan(196 * 0.97);
+      expect(f).toBeLessThan(196 * 1.03);
+      // still a healthy signal — a slip-only loss must not choke the tone
+      const level = rms(out, 0.8, 1.4);
+      expect(level).toBeGreaterThan(0.02);
+      expect(level).toBeLessThan(rms(bowed(0, 0.3, 0.5, 0.85), 0.8, 1.4) * 1.6);
+    });
+
+    it("leaves the stick-dominated extremes intact (slow bow, over-pressure)", () => {
+      // the shunt acts only during slip, so these stick-heavy regimes must
+      // still speak with it fully engaged — not choke to silence
+      const slow = bowed(0.55, 0.06, 0.4, 0.85, 1.6);
+      expectNoNaN(slow);
+      expect(rms(slow, 0.9, 1.5)).toBeGreaterThan(0.02);
+
+      const heavy = bowed(0.55, 0.3, 1.4, 0.85, 1.5); // crushing over-pressure
+      expectNoNaN(heavy);
+      expect(rms(heavy, 0.8, 1.4)).toBeGreaterThan(0.05);
+    });
+
+    it("keeps sul ponticello brighter than sul tasto with the shunt engaged", () => {
+      const bright = (out: Float32Array): number => {
+        let num = 0, den = 0;
+        const a = Math.round(0.8 * FS);
+        for (let i = a + 1; i < out.length; i++) {
+          const d = out[i] - out[i - 1];
+          num += d * d;
+          den += out[i] * out[i];
+        }
+        return num / Math.max(1e-12, den);
+      };
+      const pont = bright(bowed(0.55, 0.22, 0.7, 0.96));
+      const tasto = bright(bowed(0.55, 0.2, 0.32, 0.6));
+      expect(pont).toBeGreaterThan(tasto * 1.6);
+    });
+  });
 });

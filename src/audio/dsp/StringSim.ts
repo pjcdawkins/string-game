@@ -52,6 +52,16 @@ export interface StringSpec {
    * low, floppy strings when driven hard sul tasto. 0 disables the effect.
    */
   nonlinearity: number;
+  /**
+   * Lossy torsional impedance at the bow point, ~0..1 (0, or omitted,
+   * disables it). The bow drives the string *surface*, which twists as well
+   * as translates; on a real string the torsional mode is heavily damped, so
+   * it acts as a resistive loss channel right at the bow that soaks up the
+   * aperiodic transient energy of an attack and widens the Guettler attack
+   * wedge. The value is the torsional admittance as a fraction of the
+   * transverse admittance (1 => equal). See StringSim.tickComplete.
+   */
+  torsional?: number;
 }
 
 export interface SimState {
@@ -180,6 +190,7 @@ export class StringSim {
     loss: 0.4,
     stiffness: 0.2,
     nonlinearity: 0.15,
+    torsional: 0,
   };
 
   // delay lines: right-going (toward bridge) and left-going (toward nut)
@@ -201,6 +212,16 @@ export class StringSim {
   private disp1 = new AllpassDispersion();
   private disp2 = new AllpassDispersion();
   private nutCoeff = 0.997;
+
+  // Lossy torsional shunt at the bow (see setString / tickComplete). During a
+  // slip the bow drives the string surface, which twists as well as translates;
+  // torsHalfInv = 1/(1 + torsional) is the fraction of the slip that reaches
+  // the transverse waveguide, the rest being twist the (heavily damped)
+  // torsional mode dissipates. It is 1 when spec.torsional is 0, recovering the
+  // pure-transverse bow. Applied ONLY in the slip branch: the stick phase — and
+  // with it every sustained, slow-bow, and over-pressed regime — is left
+  // exactly as it was, so those effects are untouched.
+  private torsHalfInv = 1;
 
   // bridge force -> body filter -> ear, for the solo (uncoupled) path
   private output: BodyOutput;
@@ -274,6 +295,10 @@ export class StringSim {
     const c = -0.12 * spec.stiffness;
     this.disp1.c = c;
     this.disp2.c = c;
+    // torsional admittance as a fraction of the transverse admittance; the
+    // transverse share of a slip is then 1/(1 + torsional).
+    const tors = Math.max(0, spec.torsional ?? 0);
+    this.torsHalfInv = 1 / (1 + tors);
   }
 
   getSpec(): StringSpec {
@@ -503,10 +528,23 @@ export class StringSim {
     const fngToB = vF - this.sBFng;
     const fngToA = vF - this.sAFng;
 
-    // --- bow junction: stick-slip friction
+    // --- bow junction: stick-slip friction with a lossy torsional shunt.
+    // The bow rides on the string SURFACE, which twists as well as translates.
+    // Torsion matters during a SLIP: the sudden release spins the string, and
+    // that twist — heavily damped, so treated as a pure loss — carries off part
+    // of the slip instead of launching it all as a transverse wave. So a slip
+    // moves the transverse junction only torsHalfInv = 1/(1 + torsional) of the
+    // way from the incoming (free) velocity toward the solved slip velocity;
+    // the remainder is dissipated in twist. This puts a loss channel right at
+    // the bow point, where an attack's aperiodic junk lives, damping the
+    // spurious double-slip/whistle regimes and widening the Guettler attack
+    // wedge. The STICK phase is deliberately left untouched (vJ = vBow, same
+    // threshold), so sustained tone, slow bows, and over-pressure — all
+    // stick-dominated — keep their existing behaviour; and torsional = 0 makes
+    // torsHalfInv = 1, recovering the pure-transverse junction exactly.
     const bBow = this.sBBow;
     const cBow = this.sCBow;
-    const vh = bBow + cBow; // free string velocity at the bow point
+    const vh = bBow + cBow; // free transverse velocity at the bow point
     let vJ = vh;
     let slipping = 0;
     if (fb > 1e-4) {
@@ -514,13 +552,15 @@ export class StringSim {
       const d = vBow - vh;
       const ad = Math.abs(d);
       if (ad <= k * MU_S) {
-        vJ = vBow; // stick: string moves with the bow
+        vJ = vBow; // stick: string moves with the bow (unchanged)
       } else {
         // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJ|
         const B = this.vcKnee - ad + k * MU_D;
         const C = this.vcKnee * (k * MU_S - ad); // < 0 here => one positive root
         const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
-        vJ = vBow - Math.sign(d) * s;
+        // free transverse target is vBow - sign(d)·s; the torsional shunt keeps
+        // only torsHalfInv of the excursion from vh, dissipating the rest
+        vJ = vh + Math.sign(d) * (ad - s) * this.torsHalfInv;
         slipping = 1;
       }
     }
