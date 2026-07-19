@@ -52,9 +52,11 @@ export const LIGHT: SceneTheme = {
   idleStringOpacity: 0.45,
   resonantString: 0xffffff,
   bg: 0xece8df,
-  glowLightness: 0.5,
-  glowOpacity: 0.85,
-  additiveGlow: false,
+  // the string always sits over the dark violin body, never the page
+  // background, so additive blending works the same as in dark mode
+  glowLightness: 0.62,
+  glowOpacity: 1,
+  additiveGlow: true,
 };
 
 const query = window.matchMedia?.("(prefers-color-scheme: light)");
