@@ -573,7 +573,6 @@ body {
   padding: 12px 20px;
   font: inherit;
   font-size: 16px;
-  font-weight: 600;
   color: var(--fg);
   white-space: nowrap;
   /* a soft pulse so the button reads as the thing to press, not furniture */
