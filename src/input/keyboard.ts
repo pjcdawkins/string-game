@@ -5,7 +5,7 @@
  * digits ADD — 4+3 stops a fifth, 9+3 an octave — so intervals beyond nine
  * semitones are quick to build. Chords peel as fingers lift, but the finger
  * latches: releasing every digit leaves it stopped at the last position (0 or
- * Esc lift it). Holding Shift makes pitch changes portamento — the finger
+ * Esc lift it), and a chord released all at once latches at the full chord. Holding Shift makes pitch changes portamento — the finger
  * glides instead of jumping. The right hand lives on the arrows: → is a down
  * bow, ← an up bow, ↑/↓ slide the contact point toward the nut/bridge, and
  * holding [ / ] eases off / leans into the string (bow pressure). Holding
@@ -47,6 +47,13 @@ STRINGS.forEach((s, i) => {
   STRING_BY_LETTER[s.name[0].toUpperCase()] = i;
 });
 
+/** Releasing a chord of digits "together" really means several keyup events a
+ * few milliseconds apart. Wait this long before treating a lone keyup as
+ * "peel this interval off", so a chord released together latches at the full
+ * chord's position instead of snapping to whichever digit's release happened
+ * to straggle in last. */
+const CHORD_RELEASE_GRACE_MS = 80;
+
 // , / . nudge the auto-bow speed down / up over the model's range.
 const BOW_SPEED_STEP = 0.03;
 const BOW_SPEED_MIN = 0.02;
@@ -55,6 +62,9 @@ const BOW_SPEED_MAX = 0.6;
 export class Keyboard {
   /** Finger keys currently held; their semitone values add up. */
   private heldFingers = new Set<string>();
+  /** Pending "peel the released digit off the chord" from a finger keyup;
+   * cancelled if the rest of the chord releases within the grace period. */
+  private peelTimer: ReturnType<typeof setTimeout> | null = null;
   private heldArrows = new Set<string>();
   private heldBrackets = new Set<string>();
   private shiftHeld = false;
@@ -77,19 +87,26 @@ export class Keyboard {
       if (e.repeat) return;
       void engine.ensureStarted();
       this.shiftHeld = e.shiftKey;
+      this.cancelPeel();
       this.heldFingers.add(e.code);
       this.applyFinger();
       return;
     }
     if (e.code === "Digit0") {
       e.preventDefault();
+      this.cancelPeel();
       this.heldFingers.clear();
       this.input.liftFinger();
       return;
     }
     // Esc resets to the default hand: Interactions' own Esc listener lifts the
     // left hand (open string); here the right hand returns to an ordinary bow.
+    // Neither a pending peel nor digits still physically held may survive the
+    // lift — either would re-latch the finger on a later keyup (0 clears the
+    // held digits for the same reason).
     if (e.code === "Escape") {
+      this.cancelPeel();
+      this.heldFingers.clear();
       state.tool = "bow";
       state.leftMode = "press";
       notify();
@@ -210,8 +227,16 @@ export class Keyboard {
       this.heldFingers.delete(e.code);
       // While other digits are still down the interval peels off; releasing
       // the last one leaves the finger latched where it is (like a mouse
-      // click). 0 or Esc lift it.
-      if (this.heldFingers.size) this.applyFinger();
+      // click). 0 or Esc lift it. The peel waits out a short grace period:
+      // if the remaining digits release within it, the whole chord was let
+      // go together and the finger stays latched at the chord's position.
+      this.cancelPeel();
+      if (this.heldFingers.size) {
+        this.peelTimer = setTimeout(() => {
+          this.peelTimer = null;
+          this.applyFinger();
+        }, CHORD_RELEASE_GRACE_MS);
+      }
       return;
     }
     if (e.code === "Space") {
@@ -231,6 +256,7 @@ export class Keyboard {
   }
 
   private releaseAll(): void {
+    this.cancelPeel();
     if (this.heldFingers.size) this.input.liftFinger();
     this.heldFingers.clear();
     this.heldArrows.clear();
@@ -239,6 +265,13 @@ export class Keyboard {
     state.autoBow = false;
     this.syncArrows();
     this.syncBrackets();
+  }
+
+  private cancelPeel(): void {
+    if (this.peelTimer !== null) {
+      clearTimeout(this.peelTimer);
+      this.peelTimer = null;
+    }
   }
 
   /** Latch the finger onto the equal-tempered position for the sum of all
