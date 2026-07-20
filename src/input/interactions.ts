@@ -18,7 +18,7 @@ import { SceneView, STRING_LEN, BRIDGE_RISE } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
 import { laneX, N_LANES } from "../scene/lanes";
 import { engine } from "../audio/engine";
-import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop } from "../state";
+import { state, notify, FINGERBOARD_END, FINGER_RADIUS, fingerStop, BOW_HAIR_UI_MAX } from "../state";
 import { snapFinger } from "./snap";
 import type { GrabState } from "../scene/visualString";
 
@@ -148,6 +148,10 @@ const KEY_FORCE_RATE = 0.35;
 const FORCE_MIN = 0.05;
 const FORCE_MAX = 1.2;
 
+// ; / ' ramp the bow-hair width (tilt) while held, over the Hair slider's range
+// (a full sweep in ~2.5 s, matching the pressure feel scaled to the range).
+const KEY_HAIR_RATE = 0.03;
+
 // Portamento (Shift + a finger key): exponential approach rate of the finger
 // toward its target position — fast at first, easing in, like a real slide.
 const FINGER_GLIDE_RATE = 8;
@@ -169,6 +173,7 @@ export class Interactions {
   keyBowDir: -1 | 0 | 1 = 0;
   keyContactDir: -1 | 0 | 1 = 0;
   keyForceDir: -1 | 0 | 1 = 0;
+  keyHairDir: -1 | 0 | 1 = 0;
 
   private leftPointer = -1;
   private rightPointer = -1;
@@ -563,6 +568,17 @@ export class Interactions {
         state.bowForce + this.keyForceDir * KEY_FORCE_RATE * dt,
         FORCE_MIN,
         FORCE_MAX
+      );
+      notify();
+    }
+
+    // ; / ' tilt the bow-hair flatter / onto the edge — a bow property, so only
+    // while bowing (the Hair control greys out in the pluck tools)
+    if (this.keyHairDir !== 0 && state.tool === "bow") {
+      state.bowHairWidth = clamp(
+        state.bowHairWidth + this.keyHairDir * KEY_HAIR_RATE * dt,
+        0,
+        BOW_HAIR_UI_MAX
       );
       notify();
     }

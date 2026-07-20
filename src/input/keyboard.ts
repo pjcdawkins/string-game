@@ -8,7 +8,8 @@
  * Esc lift it), and a chord released all at once latches at the full chord. Holding Shift makes pitch changes portamento — the finger
  * glides instead of jumping. The right hand lives on the arrows: → is a down
  * bow, ← an up bow, ↑/↓ slide the contact point toward the nut/bridge, and
- * holding [ / ] eases off / leans into the string (bow pressure). Holding
+ * holding [ / ] eases off / leans into the string (bow pressure), and ; / '
+ * tilt the bow hair onto its edge / flat (bow-hair width). Holding
  * Space sustains an automatic détaché instead (release to stop); the arrows
  * stay fully manual, and override it while held. In the pick/pizz tools the
  * right hand plucks instead: → and ← each pluck (as does Space), ↑/↓ still
@@ -67,6 +68,7 @@ export class Keyboard {
   private peelTimer: ReturnType<typeof setTimeout> | null = null;
   private heldArrows = new Set<string>();
   private heldBrackets = new Set<string>();
+  private heldHair = new Set<string>();
   private shiftHeld = false;
 
   constructor(private input: Interactions) {
@@ -216,6 +218,13 @@ export class Keyboard {
       this.heldBrackets.add(e.code);
       this.syncBrackets();
     }
+    // ; / ' tilt the bow hair onto the edge / flat (bow-hair width), held-ramp
+    if (e.code === "Semicolon" || e.code === "Quote") {
+      e.preventDefault();
+      if (e.repeat) return;
+      this.heldHair.add(e.code);
+      this.syncHair();
+    }
   }
 
   private onKeyUp(e: KeyboardEvent): void {
@@ -253,6 +262,10 @@ export class Keyboard {
       this.heldBrackets.delete(e.code);
       this.syncBrackets();
     }
+    if (e.code === "Semicolon" || e.code === "Quote") {
+      this.heldHair.delete(e.code);
+      this.syncHair();
+    }
   }
 
   private releaseAll(): void {
@@ -261,10 +274,12 @@ export class Keyboard {
     this.heldFingers.clear();
     this.heldArrows.clear();
     this.heldBrackets.clear();
+    this.heldHair.clear();
     this.shiftHeld = false;
     state.autoBow = false;
     this.syncArrows();
     this.syncBrackets();
+    this.syncHair();
   }
 
   private cancelPeel(): void {
@@ -305,6 +320,12 @@ export class Keyboard {
     this.input.keyForceDir = sign(
       (b.has("BracketRight") ? 1 : 0) - (b.has("BracketLeft") ? 1 : 0)
     );
+  }
+
+  private syncHair(): void {
+    const h = this.heldHair;
+    // ' flattens the hair (wider), ; tilts onto the edge (narrower)
+    this.input.keyHairDir = sign((h.has("Quote") ? 1 : 0) - (h.has("Semicolon") ? 1 : 0));
   }
 
   /** Switch to string `idx`, clamped to the ends (no wrap-around), starting

@@ -547,9 +547,17 @@ body {
   white-space: nowrap;
 }
 
-/* Pressure and Tilt stack in the one panel */
+/* Pressure and Hair stack in the one panel */
 .pressure-panel label + label {
   margin-top: 6px;
+}
+
+/* Hair applies only to the bow — dimmed and inert in the pluck tools */
+.pressure-panel label.disabled {
+  opacity: 0.4;
+}
+.pressure-panel label.disabled input[type="range"] {
+  cursor: not-allowed;
 }
 
 .pressure-panel input[type="range"] {
