@@ -696,6 +696,21 @@ body {
   margin-bottom: 10px;
 }
 
+/* small amber section headings inside a card (the About dialog), echoing the
+   menu's uppercase section labels */
+.card h3 {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2.2px;
+  text-transform: uppercase;
+  color: var(--label-amber);
+  margin: 16px 0 8px;
+}
+
+.card h3:first-child {
+  margin-top: 2px;
+}
+
 .card kbd {
   background: var(--kbd-bg);
   border-radius: 4px;
@@ -707,6 +722,18 @@ body {
   display: flex;
   justify-content: flex-end;
   padding: 10px 26px 16px;
+}
+
+/* About footer: the source link sits opposite the Close button */
+.card-foot.about-foot {
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.about-foot .gh-link {
+  margin-top: 0;
+  white-space: nowrap;
 }
 
 /* touch-only devices have no keyboard: drop the desktop key-map section */
