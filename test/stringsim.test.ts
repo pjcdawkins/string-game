@@ -307,14 +307,40 @@ describe("StringSim", () => {
     };
     const bowed = (torsional: number, speed: number, force: number, pos: number, secs = 1.5): Float32Array =>
       bowedSpec({ ...base, torsional }, speed, force, pos, secs);
+    // mean steady RMS over several strokes — the friction noise makes any one
+    // stroke's level vary ~±20%, so the invariants below average it out
+    const meanLevel = (torsional: number, n = 5): number => {
+      let s = 0;
+      for (let i = 0; i < n; i++) s += rms(bowed(torsional, 0.3, 0.5, 0.85), 0.6, 1.1);
+      return s / n;
+    };
 
     it("torsional = 0 is the pure-transverse bow (same as omitting it)", () => {
       // the field defaults to 0; with it explicitly 0 the friction path is
-      // unchanged, so an identical stroke matches the no-field case bar the
-      // friction noise
-      const a = rms(bowedSpec({ ...base, torsional: 0 }, 0.3, 0.5, 0.85), 0.6, 1.1);
-      const b = rms(bowedSpec({ ...base }, 0.3, 0.5, 0.85), 0.6, 1.1);
-      expect(Math.abs(a - b) / b).toBeLessThan(0.12);
+      // byte-for-byte the no-field case. Pin the friction noise to a fixed
+      // sequence so the two strokes are directly comparable, and assert they
+      // are identical (not merely close) — torsional = 0 must change nothing.
+      const orig = Math.random;
+      const seeded = () => {
+        let s = 0x2545f491;
+        return () => {
+          s = (s * 1103515245 + 12345) & 0x7fffffff;
+          return s / 0x7fffffff;
+        };
+      };
+      let withZero: Float32Array;
+      let omitted: Float32Array;
+      try {
+        Math.random = seeded();
+        withZero = bowedSpec({ ...base, torsional: 0 }, 0.3, 0.5, 0.85);
+        Math.random = seeded();
+        omitted = bowedSpec({ ...base }, 0.3, 0.5, 0.85);
+      } finally {
+        Math.random = orig;
+      }
+      let maxDiff = 0;
+      for (let i = 0; i < withZero.length; i++) maxDiff = Math.max(maxDiff, Math.abs(withZero[i] - omitted[i]));
+      expect(maxDiff).toBe(0);
     });
 
     it("sustains Helmholtz at f0 with the shunt engaged", () => {
@@ -323,10 +349,12 @@ describe("StringSim", () => {
       const f = estimatePitch(out, 0.8, 1.4);
       expect(f).toBeGreaterThan(196 * 0.97);
       expect(f).toBeLessThan(196 * 1.03);
-      // still a healthy signal — a slip-only loss must not choke the tone
-      const level = rms(out, 0.8, 1.4);
-      expect(level).toBeGreaterThan(0.02);
-      expect(level).toBeLessThan(rms(bowed(0, 0.3, 0.5, 0.85), 0.8, 1.4) * 1.6);
+      // a slip-only loss must not choke the tone nor pump it up: the mean
+      // shunted level stays a healthy fraction of the pure-transverse one
+      const shunted = meanLevel(0.55);
+      const plain = meanLevel(0);
+      expect(shunted).toBeGreaterThan(plain * 0.6);
+      expect(shunted).toBeLessThan(plain * 1.4);
     });
 
     it("leaves the stick-dominated extremes intact (slow bow, over-pressure)", () => {

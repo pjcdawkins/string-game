@@ -215,13 +215,13 @@ export class StringSim {
 
   // Lossy torsional shunt at the bow (see setString / tickComplete). During a
   // slip the bow drives the string surface, which twists as well as translates;
-  // torsHalfInv = 1/(1 + torsional) is the fraction of the slip that reaches
+  // torsTransFrac = 1/(1 + torsional) is the fraction of the slip that reaches
   // the transverse waveguide, the rest being twist the (heavily damped)
   // torsional mode dissipates. It is 1 when spec.torsional is 0, recovering the
   // pure-transverse bow. Applied ONLY in the slip branch: the stick phase — and
   // with it every sustained, slow-bow, and over-pressed regime — is left
   // exactly as it was, so those effects are untouched.
-  private torsHalfInv = 1;
+  private torsTransFrac = 1;
 
   // bridge force -> body filter -> ear, for the solo (uncoupled) path
   private output: BodyOutput;
@@ -298,7 +298,7 @@ export class StringSim {
     // torsional admittance as a fraction of the transverse admittance; the
     // transverse share of a slip is then 1/(1 + torsional).
     const tors = Math.max(0, spec.torsional ?? 0);
-    this.torsHalfInv = 1 / (1 + tors);
+    this.torsTransFrac = 1 / (1 + tors);
   }
 
   getSpec(): StringSpec {
@@ -533,7 +533,7 @@ export class StringSim {
     // Torsion matters during a SLIP: the sudden release spins the string, and
     // that twist — heavily damped, so treated as a pure loss — carries off part
     // of the slip instead of launching it all as a transverse wave. So a slip
-    // moves the transverse junction only torsHalfInv = 1/(1 + torsional) of the
+    // moves the transverse junction only torsTransFrac = 1/(1 + torsional) of the
     // way from the incoming (free) velocity toward the solved slip velocity;
     // the remainder is dissipated in twist. This puts a loss channel right at
     // the bow point, where an attack's aperiodic junk lives, damping the
@@ -541,7 +541,7 @@ export class StringSim {
     // wedge. The STICK phase is deliberately left untouched (vJ = vBow, same
     // threshold), so sustained tone, slow bows, and over-pressure — all
     // stick-dominated — keep their existing behaviour; and torsional = 0 makes
-    // torsHalfInv = 1, recovering the pure-transverse junction exactly.
+    // torsTransFrac = 1, recovering the pure-transverse junction exactly.
     const bBow = this.sBBow;
     const cBow = this.sCBow;
     const vh = bBow + cBow; // free transverse velocity at the bow point
@@ -559,8 +559,8 @@ export class StringSim {
         const C = this.vcKnee * (k * MU_S - ad); // < 0 here => one positive root
         const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
         // free transverse target is vBow - sign(d)·s; the torsional shunt keeps
-        // only torsHalfInv of the excursion from vh, dissipating the rest
-        vJ = vh + Math.sign(d) * (ad - s) * this.torsHalfInv;
+        // only torsTransFrac of the excursion from vh, dissipating the rest
+        vJ = vh + Math.sign(d) * (ad - s) * this.torsTransFrac;
         slipping = 1;
       }
     }
