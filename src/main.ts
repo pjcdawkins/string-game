@@ -1,5 +1,5 @@
 import { SceneView } from "./scene/scene";
-import { setToolOpacity, BOW_HAIR_TIP, BOW_HAIR_FROG } from "./scene/tools";
+import { setToolOpacity, setBowFlex, BOW_HAIR_TIP, BOW_HAIR_FROG } from "./scene/tools";
 import { Interactions, BOW_MAX, BOW_END, LEFT_CATCH_X, LIFT_ZONE_S } from "./input/interactions";
 import { snapFinger } from "./input/snap";
 import { laneX } from "./scene/lanes";
@@ -75,7 +75,7 @@ function frame(now: number): void {
   // and the ring-down of a string the player just left)
   view.updateStringLevels(state.meter.stringLevels, dt);
 
-  updateTools();
+  updateTools(dt);
   // Touch mode hides the guides (the harmonic nodes are what matters there);
   // they return when pressing again. The scale still shows for both hands
   // otherwise. Guides depend on the string too (black-note lines are lighter).
@@ -117,7 +117,7 @@ function bowGroupX(view: SceneView, bowX: number, s: number): number {
   );
 }
 
-function updateTools(): void {
+function updateTools(dt: number): void {
   const t = view.tools;
   t.bow.visible = false;
   t.pick.visible = false;
@@ -148,8 +148,15 @@ function updateTools(): void {
     const atHover = !engaged && input.keyContactDir === 0 && hoverRight;
     const s = atHover ? Math.max(input.implementMin(), Math.min(BOW_MAX, hover!.s)) : input.bowPos;
     const bx = atHover ? Math.max(-BOW_END, Math.min(BOW_END, hover!.x)) : input.bowX;
-    t.bow.position.set(bowGroupX(view, bx, s), view.sToY(s), engaged ? 0.01 : 0.12);
+    const gx = bowGroupX(view, bx, s);
+    t.bow.position.set(gx, view.sToY(s), engaged ? 0.01 : 0.12);
     setToolOpacity(t.bow, engaged ? 1 : 0.45);
+    // on the string, the stick flexes toward the hair under the applied
+    // weight — deepest under the contact, most when the contact is mid-hair.
+    // The contact in the bow's own coordinates is where the active lane
+    // crosses the hair (backing the group-anchor clamp out of the world x).
+    const contactLocal = (view.activeLaneX(s) - gx) / view.bowMeshScale;
+    setBowFlex(t.bow, engaged ? input.bowPressure01 : 0, contactLocal, dt);
   } else {
     const mesh = state.tool === "pick" ? t.pick : t.rightFinger;
     if (input.grabbed) {
