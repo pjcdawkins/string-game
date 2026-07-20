@@ -13,7 +13,7 @@ string *surface*, which twists as well as translates. During a slip the sudden
 release spins the string; that twist is heavily damped, so we treat it as a
 pure loss that carries off part of the slip instead of launching it all as a
 transverse wave. Concretely, a slip moves the transverse junction only
-`torsHalfInv = 1/(1 + torsional)` of the way from the incoming (free) velocity
+`torsTransFrac = 1/(1 + torsional)` of the way from the incoming (free) velocity
 toward the solved slip velocity — the remainder is dissipated. That is a loss
 channel *right at the bow point*, where an attack's aperiodic junk lives, so it
 damps the spurious double-slip/whistle regimes that a hard attack captures.
