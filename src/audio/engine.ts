@@ -227,6 +227,14 @@ export class Engine {
     this.setParam("bowOn", on ? 1 : 0);
   }
 
+  /** Bow-hair ribbon width (a fraction of the open-string length): the bow's
+   * tilt, from flat hair (wide, stable, rounder) to on-edge (narrow → a point
+   * contact, brighter and more responsive). A property of the bow, so it is set
+   * once rather than per stroke. */
+  setBowHairWidth(width: number): void {
+    this.setParam("bowHairWidth", width);
+  }
+
   setFinger(on: boolean, pos: number, pressure: number): void {
     this.setParam("fingerOn", on ? 1 : 0);
     this.setParam("fingerPosition", pos);

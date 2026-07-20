@@ -33,6 +33,7 @@ import {
   DCBlocker,
   DelayLine,
   OnePoleLP,
+  RibbonAverager,
   Smoother,
 } from "./filters";
 import { FINGER_RADIUS, MAX_STOP_NODE } from "../../state";
@@ -73,6 +74,45 @@ export interface SimState {
 
 const MU_S = 0.8; // static friction coefficient
 const MU_D = 0.3; // dynamic friction coefficient
+
+// Finite bow-hair width. A real bow contacts the string over a ribbon of hair
+// (~8-10 mm) rather than a mathematical point, so the friction at any instant
+// responds to the string velocity *averaged over the contact patch*, not to a
+// single sample of it. The Helmholtz corner takes a finite time to sweep under
+// that patch; averaging over that time rounds the corner the friction curve
+// sees, which spreads (averages) the moment of slip across the patch and
+// suppresses the secondary slip-within-a-period that captures the octave
+// (double-slip). See Pitteroff & Woodhouse, and MODEL_NOTES.md ("Why the model
+// is more capture-prone").
+//
+// The averaging is CENTRE-WEIGHTED (a triangular window, RibbonAverager): the
+// hair presses hardest at the ribbon's middle, and a triangle keeps far more of
+// the bright sul-ponticello partials than a flat boxcar of the same span.
+//
+// The width is a fraction of the OPEN-string length. The patch-crossing time in
+// samples is the time for a transverse wave (speed c = 2·L·f0, constant along
+// the string) to cross that fixed patch: w·(2L)/c = w/(2·f0) seconds =
+// w·fs/(2·f0) samples — independent of where the string is stopped or bowed,
+// because the patch and the wave speed are both fixed. So each string carries
+// one constant window; low strings (slow, long) average over more samples than
+// the high ones, exactly as a fixed-width bow behaves in practice. That span is
+// the triangle's base (2L-1); the RibbonAverager's boxcar half-length L is half
+// of it.
+// Default OFF (point contact): the ribbon averaging softens the low strings'
+// attack a touch and, leaned on hard near the bridge, can tip a low open string
+// into a surface whistle — so the model ships as the original single-point
+// friction and the ribbon is opt-in via bowHairWidth (the "Hair" control), the
+// bow's tilt from edge (0) to flat. ~0.05 is where double-slip suppression
+// becomes audible; MAX_HAIR_SAMPLES caps the safe span above that.
+const BOW_HAIR_WIDTH = 0; // default: point contact (a fraction of the open-string length when set)
+// Ceiling on the patch span (triangular base). The averaging over-rounds the
+// fundamental's own corner and flips the string into a bright, over-smoothed
+// pseudo-flautando once the boxcar half-length reaches 5 — on every string. A
+// span of 7 caps the half-length at 4 (the last well-behaved value), so no
+// bowHairWidth, however large, can push any string over that edge: the low
+// strings saturate here while the shorter/faster high strings never reach it.
+const MAX_HAIR_SAMPLES = 7;
+const MAX_HAIR_HALF = Math.ceil((MAX_HAIR_SAMPLES + 1) / 2); // = 4, boxcar buffer size
 
 // Terminating-node positions (fraction of the string from the nut) over which
 // a stopped finger releases into the open string as it nears the nut. With the
@@ -183,6 +223,12 @@ export class StringSim {
   contact = true;
   bodyMix = 0.75; // 0 = raw string, 1 = full body filter
   masterGain = 0.9;
+  /** Bow-hair ribbon width, as a fraction of the OPEN-string length. Sets the
+   * contact-patch averaging window at the bow junction (see BOW_HAIR_WIDTH).
+   * 0 collapses to a point contact — the classic single-sample friction model.
+   * Constant per instrument in normal use; exposed so a point-vs-ribbon
+   * comparison is testable and a bow can, in principle, be re-haired. */
+  bowHairWidth = BOW_HAIR_WIDTH;
 
   private spec: StringSpec = {
     f0: 220,
@@ -231,6 +277,12 @@ export class StringSim {
   private pluckLen = 0;
   private pluckAmp = 0;
   private pluckPhase = 0;
+
+  // finite bow-hair width: a centre-weighted (triangular) average of the free
+  // bow-point velocity over the contact patch (see BOW_HAIR_WIDTH). A half-
+  // length of 1 collapses to the point-contact model exactly.
+  private ribbon = new RibbonAverager(MAX_HAIR_HALF);
+  private hairHalf = 1;
 
   // metering (rms lives in the BodyOutput; slip is bow-junction-local)
   private slipAcc = 0;
@@ -299,6 +351,18 @@ export class StringSim {
     // transverse share of a slip is then 1/(1 + torsional).
     const tors = Math.max(0, spec.torsional ?? 0);
     this.torsTransFrac = 1 / (1 + tors);
+    this.updateHairWindow();
+  }
+
+  /** Recompute the bow-hair averaging window from bowHairWidth and the open-
+   * string pitch; the patch-crossing span is constant per string regardless of
+   * stopping (see BOW_HAIR_WIDTH). The span is the triangular window's base;
+   * the RibbonAverager's boxcar half-length is half of it. */
+  private updateHairWindow(): void {
+    const span = Math.round((this.bowHairWidth * this.fs) / (2 * this.spec.f0));
+    const base = Math.min(MAX_HAIR_SAMPLES, Math.max(1, span));
+    this.hairHalf = Math.max(1, Math.round((base + 1) / 2));
+    this.ribbon.setHalfLength(this.hairHalf);
   }
 
   getSpec(): StringSpec {
@@ -349,6 +413,7 @@ export class StringSim {
     this.output.clear();
     this.pluckSamplesLeft = 0;
     this.amp2 = 0;
+    this.ribbon.clear();
   }
 
   getState(): SimState {
@@ -458,6 +523,7 @@ export class StringSim {
   /** Compute the per-block control targets. Call once before a run of
    * tickBridgeRead()/tickComplete() pairs (process() does this itself). */
   beginBlock(): void {
+    this.updateHairWindow();
     if (this.contact) {
       const beta = 1 - this.clampedPositions()[1]; // bow-bridge distance fraction
 
@@ -545,21 +611,32 @@ export class StringSim {
     const bBow = this.sBBow;
     const cBow = this.sCBow;
     const vh = bBow + cBow; // free transverse velocity at the bow point
+    // finite bow-hair width: centre-weighted average of the free velocity over
+    // the contact patch. The friction curve reacts to this smeared velocity
+    // (vhBar) rather than the point value, spreading the moment of slip across
+    // the patch (see RibbonAverager); the resulting increment is applied to the
+    // TRUE point velocity vh. A half-length of 1 leaves vhBar = vh (point
+    // contact, the default), recovering the plain torsional junction exactly.
+    const vhBar = this.ribbon.process(vh);
     let vJ = vh;
     let slipping = 0;
     if (fb > 1e-4) {
       const k = 0.5 * fb; // F/(2Z)
-      const d = vBow - vh;
+      const d = vBow - vhBar;
       const ad = Math.abs(d);
       if (ad <= k * MU_S) {
-        vJ = vBow; // stick: string moves with the bow (unchanged)
+        // stick: string moves with the bow (torsion is a slip-only loss). With
+        // a finite patch this rides the averaged velocity, so vJ equals vBow
+        // exactly only at hair width 0 (vhBar = vh).
+        vJ = vh + (vBow - vhBar);
       } else {
-        // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJ|
+        // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJfree|
         const B = this.vcKnee - ad + k * MU_D;
         const C = this.vcKnee * (k * MU_S - ad); // < 0 here => one positive root
         const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
-        // free transverse target is vBow - sign(d)·s; the torsional shunt keeps
-        // only torsTransFrac of the excursion from vh, dissipating the rest
+        // free transverse target is vBow - sign(d)·s, measured against the
+        // patch-averaged velocity; the torsional shunt keeps only torsTransFrac
+        // of that excursion, dissipating the rest as twist.
         vJ = vh + Math.sign(d) * (ad - s) * this.torsTransFrac;
         slipping = 1;
       }

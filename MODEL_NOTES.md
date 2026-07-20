@@ -56,7 +56,63 @@ phase, not the frequency-dependent, travelling-and-reflecting torsional
 waveguide of a real string. That richer model (or the thermal-friction and
 finite-bow-width stabilisers below) is the route to a *larger* effect; this one
 is the cheap, safe first cut the note anticipated.
+## Finite bow-hair width — the "Hair" control (added later than the notes below)
 
+Stabiliser #3 from "Why the model is more capture-prone" below, exposed as a
+player control rather than forced on: the bow can contact the string over a
+*ribbon of hair* instead of a mathematical point (`src/audio/dsp/StringSim.ts`
+bow junction; `RibbonAverager` in `filters.ts`; the "Hair" slider in the HUD is
+the bow's tilt, edge → flat). **It ships OFF (point contact = the original
+model); flattening the hair is opt-in.** Why it's off by default is the
+interesting part — see the trade below.
+
+- **What it does.** The friction curve used to react to the string velocity at
+  a single sample, `vh = bBow + cBow`. With hair width it reacts to that
+  velocity *averaged over the contact patch*. Rounding the corner the friction
+  *sees* spreads the moment of slip across the patch, which starves the brief
+  secondary slip-within-a-period that captures the octave (double-slip).
+- **Centre-weighted, not flat.** A real ribbon presses hardest at its middle, so
+  the weighting is a **triangular** (Bartlett) window, not a boxcar —
+  implemented as two cascaded boxcars (a triangle is the convolution of two
+  rectangles), O(1) per sample. Versus a flat window of the same span the
+  triangle rolls off the highs far more gently (no deep sinc notches), so it
+  keeps much more of the bright sul-ponticello top. This mattered: a flat boxcar
+  at the same width gutted the low strings' ponticello sizzle; the triangle
+  roughly halves that loss.
+- **Where the window comes from.** `bowHairWidth` is the ribbon width as a
+  fraction of the OPEN-string length. The patch-crossing time is
+  `w·(2L)/c = w·fs/(2·f0)` samples — constant per string regardless of stopping,
+  because the patch and the wave speed are both fixed. That span is the
+  triangle's base (`2L−1`); the boxcar half-length is `L`. With `bowHairWidth
+  = 0` (`L = 1`) the average is a pass-through, `vhBar = vh`, and the junction is
+  bit-for-bit the original point contact.
+- **How it stays passive.** The friction force is computed from the patch-
+  averaged relative velocity `vBow − vhBar` and applied to the *true* point
+  velocity: `vJ = vh + (vJbar − vhBar)`, still bounded by the same friction
+  curve — nothing added to the loop's energy budget.
+- **The trade, and why it's off by default.** The suppression only becomes
+  audible once the boxcar half-length reaches **4** (`w ≈ 0.05` on the G): at a
+  firm stop two-thirds up the G, bowed over the fingerboard, a point contact
+  locks the octave (2f holds ~0.69 of the f+2f energy, near deterministically)
+  and half-length 4 pulls it back to ~0.4–0.55. But **half-length 4 is also
+  where the costs bite**, all on the low strings whose window is widest:
+  ponticello darkens, the attack softens, and — leaned on hard near the bridge —
+  a low open string can tip into a surface whistle (the over-smoothed friction
+  loses the fundamental's corner and locks a higher mode; the smoke test's
+  mid-stroke G switch caught exactly this). Half-length 3 (`w ≲ 0.04`) is clean
+  everywhere but barely suppresses. There is no single width that both suppresses
+  well and leaves the low G untouched, so the default is point contact and the
+  slider lets a player flatten the hair when they want the steadier, rounder
+  sound and can live with the trade. `test/stringsim.test.ts` pins the mechanism
+  at `w = 0.06` (point > 0.55, flattened at least 0.08 below).
+- **Guardrail.** `MAX_HAIR_SAMPLES` caps the half-length at 4. Past 5 the
+  over-smoothing becomes pathological on every string (a bright pseudo-flautando,
+  ~0.99 octave), so no slider position, however far, can reach it.
+- **Still the #3 stabiliser.** The model's attack choreography (see below)
+  already lands Helmholtz on ordinary strokes, so there is little double-slip
+  left to remove there; the gains show up in the octave-prone corners
+  (flautando nodes, light fast bow), and the control is really as much a tone
+  colour (edge = focused/bright, flat = round/steady) as a stabiliser.
 ## Sympathetic strings: the coupled bridge (added later than the notes below)
 
 All four strings now run continuously as full waveguides terminated on ONE
@@ -189,6 +245,11 @@ reliability:
    (Smith & Woodhouse), with hysteresis that stabilises attacks.
 3. **Finite bow-hair width.** A ribbon of hair rather than a point contact
    averages slip timing across the contact patch and suppresses double-slip.
+   *Implemented as the opt-in "Hair" control* — see "Finite bow-hair width" at
+   the top. The lowest-impact of the three, as ranked: it trims the octave-prone
+   corners but leaves ordinary strokes (already choreographed into Helmholtz)
+   untouched, and its useful strength coincides with where it starts costing the
+   low strings — so it ships off, as bow tilt the player dials in.
 
 ## Cheaper options, short of new physics
 

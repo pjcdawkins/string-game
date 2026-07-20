@@ -17,6 +17,7 @@ class StringProcessor extends AudioWorkletProcessor {
       { name: "bowVelocity", defaultValue: 0, minValue: -1, maxValue: 1, automationRate: "k-rate" },
       { name: "bowForce", defaultValue: 0.3, minValue: 0, maxValue: 2, automationRate: "k-rate" },
       { name: "bowPosition", defaultValue: 0.88, minValue: 0, maxValue: 1, automationRate: "k-rate" },
+      { name: "bowHairWidth", defaultValue: 0, minValue: 0, maxValue: 0.2, automationRate: "k-rate" },
       { name: "fingerOn", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" },
       { name: "fingerPosition", defaultValue: 0.3, minValue: -0.1, maxValue: 1, automationRate: "k-rate" },
       { name: "fingerPressure", defaultValue: 0, minValue: 0, maxValue: 1, automationRate: "k-rate" },
@@ -62,6 +63,7 @@ class StringProcessor extends AudioWorkletProcessor {
     sim.bowVelocity = parameters.bowVelocity[0];
     sim.bowForce = parameters.bowForce[0];
     sim.bowPosition = parameters.bowPosition[0];
+    sim.bowHairWidth = parameters.bowHairWidth[0];
     sim.fingerOn = parameters.fingerOn[0] > 0.5;
     sim.fingerPosition = parameters.fingerPosition[0];
     sim.fingerPressure = parameters.fingerPressure[0];

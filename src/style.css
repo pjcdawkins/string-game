@@ -547,6 +547,11 @@ body {
   white-space: nowrap;
 }
 
+/* Pressure and Tilt stack in the one panel */
+.pressure-panel label + label {
+  margin-top: 6px;
+}
+
 .pressure-panel input[type="range"] {
   width: 110px;
   accent-color: var(--range-accent);

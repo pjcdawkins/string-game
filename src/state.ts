@@ -94,6 +94,7 @@ export interface AppState {
   leftMode: LeftMode;
   autoBow: boolean;
   bowForce: number; // 0..1.5
+  bowHairWidth: number; // bow tilt: hair-ribbon width as a fraction of open-string length (0 = on edge / point contact)
   autoBowSpeed: number; // 0..0.6
   fingerOn: boolean;
   fingerPos: number; // 0..1 from nut
@@ -113,6 +114,7 @@ export const state: AppState = {
   leftMode: "press",
   autoBow: false,
   bowForce: 0.45,
+  bowHairWidth: 0, // bow-hair width / tilt; 0 = point contact (the original model). Opt-in via the "Hair" slider.
   autoBowSpeed: 0.22,
   fingerOn: false,
   fingerPos: 0.3,

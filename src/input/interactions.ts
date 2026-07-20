@@ -541,6 +541,9 @@ export class Interactions {
     else if (state.fingerOn) this.pressureTarget = 0.13;
     state.fingerPressure = this.fingerPressure;
     engine.setFinger(state.fingerOn, state.fingerPos, this.fingerPressure);
+    // bow-hair width / tilt: a bow property, pushed continuously so a slider
+    // move takes effect whether or not a stroke is in progress
+    engine.setBowHairWidth(state.bowHairWidth);
 
     // a finger sliding up under a held bow/stroke pushes it toward the bridge
     this.bowPos = clamp(this.bowPos, this.implementMin(), BOW_MAX);
