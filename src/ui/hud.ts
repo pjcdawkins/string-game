@@ -356,11 +356,16 @@ export class Hud {
     window.addEventListener(
       "keydown",
       (e) => {
-        if ((e.key === "Escape" || e.key === "Enter") && helpOpen()) {
+        // Enter dismisses a dialog — unless a link inside it has focus, where
+        // Enter must activate the link (the About card's GitHub anchor)
+        const dismiss =
+          e.key === "Escape" ||
+          (e.key === "Enter" && !(document.activeElement instanceof HTMLAnchorElement));
+        if (dismiss && helpOpen()) {
           closeHelp();
           e.stopPropagation();
           e.preventDefault();
-        } else if ((e.key === "Escape" || e.key === "Enter") && aboutOpen()) {
+        } else if (dismiss && aboutOpen()) {
           closeAbout();
           e.stopPropagation();
           e.preventDefault();
