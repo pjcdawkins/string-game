@@ -28,6 +28,31 @@ const BOW = {
   tipPlate: 0xe9e0cc, // ivory
 };
 
+// Pressed onto the string, the stick flexes toward the hair (see setBowFlex):
+// a simply supported beam — the hair's anchor points at the head and the frog
+// hold the stick's ends still — sagging under a point load at the contact.
+// That shape is deepest under the contact itself and greatest when the
+// contact is mid-hair; near the head or the frog the load sits beside a
+// support and the stick barely gives, exactly as on a real bow. FLEX_MAX is
+// the worst-case sag (full pressure, mid-hair), sized to bring the stick's
+// underside (y ≈ 0.04 mid-bow) just short of the hair ribbon's top edge
+// (y = 0.012) — the camber closes until the hair almost touches the wood.
+const FLEX_TIP = -1.56; // support at the head, where the stick outline ends
+const FLEX_FROG = 1.26; // support at the frog's front edge
+const FLEX_SPAN = FLEX_FROG - FLEX_TIP;
+const FLEX_MAX = 0.026;
+
+interface BowFlex {
+  stick: THREE.Mesh;
+  base: Float32Array; // the stick geometry's unflexed vertex positions
+  // meshes riding on the stick between the supports (winding, grip): they
+  // translate with the stick's deflection at their own x
+  riders: { mesh: THREE.Mesh; x: number; y: number }[];
+  pressure: number; // smoothed applied weight, 0..1
+  contact: number; // smoothed contact point, bow-local x
+  flexed: boolean; // geometry currently differs from base
+}
+
 /**
  * Violin bow, lying along x with the hair ribbon through the group origin
  * (y = 0 is the contact line on the string). Frog to the right (+x), tip to
@@ -140,7 +165,60 @@ export function makeBow(): THREE.Group {
   grip.rotation.z = 0.035;
 
   g.add(hairEdge, hair, stick, tipLiner, tipPlate, frog, ferrule, eye, button, buttonRing, winding, grip);
+  const flex: BowFlex = {
+    stick,
+    base: new Float32Array(stick.geometry.getAttribute("position").array),
+    riders: [
+      { mesh: winding, x: winding.position.x, y: winding.position.y },
+      { mesh: grip, x: grip.position.x, y: grip.position.y },
+    ],
+    pressure: 0,
+    contact: 0.5 * (BOW_HAIR_TIP + BOW_HAIR_FROG),
+    flexed: false,
+  };
+  g.userData.flex = flex;
   return g;
+}
+
+/**
+ * Flex the bow's stick under the applied weight (see the FLEX_* notes above).
+ * `pressure` is the bow weight as a 0..1 fraction (0 while the bow is off the
+ * string), `contactX` the string contact point in the bow's own coordinates,
+ * and `dt` drives the easing so a landing or lifting bow settles rather than
+ * pops. Only the stick geometry (and the winding/grip riding on it) deforms;
+ * the head and frog sit at the supports, where the deflection is zero.
+ */
+export function setBowFlex(bow: THREE.Group, pressure: number, contactX: number, dt: number): void {
+  const flex = bow.userData.flex as BowFlex;
+  const target = Math.min(1, Math.max(0, pressure));
+  flex.pressure += (target - flex.pressure) * Math.min(1, dt * 12);
+  // the contact only tracks while pressing, so a lifting bow relaxes in
+  // place instead of sliding its bend toward wherever the ghost hovers next
+  if (target > 0.01) flex.contact += (contactX - flex.contact) * Math.min(1, dt * 18);
+  if (flex.pressure < 1e-3) {
+    if (!flex.flexed) return; // fully relaxed and already drawn that way
+    flex.pressure = 0;
+  }
+
+  const L = FLEX_SPAN;
+  const a = Math.min(Math.max(flex.contact - FLEX_TIP, 0.02 * L), 0.98 * L); // load, from the head support
+  const b = L - a;
+  // point-load deflection of a simply supported beam, normalised by the
+  // mid-span case's maximum (L³/48) so FLEX_MAX is the worst-case sag
+  const amp = (FLEX_MAX * flex.pressure * 48) / (L * L * L);
+  const sag = (x: number): number => {
+    const u = Math.min(Math.max(x - FLEX_TIP, 0), L);
+    return u <= a
+      ? (amp * b * u * (L * L - b * b - u * u)) / (6 * L)
+      : (amp * a * (L - u) * (L * L - a * a - (L - u) * (L - u))) / (6 * L);
+  };
+  const pos = flex.stick.geometry.getAttribute("position") as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setY(i, flex.base[i * 3 + 1] - sag(flex.base[i * 3]));
+  }
+  pos.needsUpdate = true;
+  for (const r of flex.riders) r.mesh.position.y = r.y - sag(r.x);
+  flex.flexed = flex.pressure > 0;
 }
 
 export function makePlectrum(): THREE.Group {

@@ -224,6 +224,18 @@ export class Interactions {
     return this.keyBowDir !== 0 && !this.bowEngaged;
   }
 
+  /** Bow weight actually applied to the string: the shared Pressure setting,
+   * scaled live by pen/touch pressure when the pointer reports it. */
+  private effectiveForce(): number {
+    return this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;
+  }
+
+  /** The applied bow weight as a 0..1 fraction of the Pressure range, read by
+   * the render loop to flex the drawn stick (see tools.setBowFlex). */
+  get bowPressure01(): number {
+    return clamp(this.effectiveForce() / FORCE_MAX, 0, 1);
+  }
+
   /** Where the left-hand zone ends and the implement zone begins: the end of
    * the fingerboard. The whole board belongs to the left hand — a tap anywhere
    * on it stops the string — while the bow and plucking implements live on the
@@ -552,7 +564,7 @@ export class Interactions {
       notify();
     }
 
-    const force = this.pointerForce > 0 ? state.bowForce * (0.3 + 1.5 * this.pointerForce) : state.bowForce;
+    const force = this.effectiveForce();
 
     this.biteTimer += dt;
     const bite = 1 + 0.4 * Math.max(0, 1 - this.biteTimer / 0.25);
