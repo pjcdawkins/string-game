@@ -1,5 +1,62 @@
 # Model notes: bow-attack reliability, and where to take the model next
 
+## Torsional loss at the bow (added later than the notes below)
+
+Implements the top item under "Why the model is more capture-prone" below: a
+simplified lossy torsional impedance at the bow junction. It lives in the
+bow's stick–slip solver in `src/audio/dsp/StringSim.ts` (`tickComplete`), with a
+per-string `torsional` amount in `StringSpec` (default 0 = off) set in
+`state.ts`.
+
+**The physics, and the one design choice that matters.** The bow rides on the
+string *surface*, which twists as well as translates. During a slip the sudden
+release spins the string; that twist is heavily damped, so we treat it as a
+pure loss that carries off part of the slip instead of launching it all as a
+transverse wave. Concretely, a slip moves the transverse junction only
+`torsTransFrac = 1/(1 + torsional)` of the way from the incoming (free) velocity
+toward the solved slip velocity — the remainder is dissipated. That is a loss
+channel *right at the bow point*, where an attack's aperiodic junk lives, so it
+damps the spurious double-slip/whistle regimes that a hard attack captures.
+
+The choice that matters: **the shunt acts only in the slip branch; the stick
+phase is left exactly as it was** (same threshold, `vJ = vBow`). An earlier,
+more "complete" version modelled torsion as an admittance in parallel with the
+transverse waveguide across *both* phases — physically tidier, but it raised the
+stick threshold, so at low bow speed or crushing force the string stuck
+permanently and the note choked to silence (over-pressure and slow bows died).
+Restricting the loss to slip keeps every stick-dominated regime — sustained
+tone, slow bows, over-pressure, the sul-tasto subharmonic — behaving as before,
+because those are stick-heavy and the attack transient is slip-heavy. This is
+where the physical benefit concentrates anyway.
+
+**What it does, measured** (harness scripts drive `StringSim` in Node exactly as
+the attack-tuning method below; classify settled pitch by autocorrelation over
+many stochastic strokes):
+
+- *Widens the attack wedge.* At the hardest attack corner — a stopped note with
+  the finger still landing, fast bow ramp, no bite ("land", the narrowest case
+  documented below) — G-string capture climbs monotonically from ~92% (off) to
+  100% around `torsional` 0.4–0.5 and stays there; the octave-flips it used to
+  throw are gone. The effect is a clean, basin-free rise (unlike the parallel
+  model, which had a nasty non-monotone hole near 0.2). Easier attacks were
+  already reliable, so there the change is neutral — the win is at the edge.
+- *Extremes preserved.* Sul ponticello brightness is unchanged within stroke
+  noise (still ≫ sul tasto); over-pressure still crunches; a very slow bow still
+  speaks; and the extreme-tasto subharmonic (period-doubling on the low strings)
+  survives — if anything the added damping brings it out.
+- *Cost.* A slight rounding of the Helmholtz corner sul tasto (a real
+  Cremer-style effect), and steady level a hair lower — both small.
+
+**Chosen amounts** (`state.ts`): G3 0.55, D4 0.5, A4 0.45, E5 0.4 — more on the
+thicker, wound low strings, which twist more freely relative to their transverse
+impedance. All sit at the top of the useful range found above.
+
+**Still simplified.** This is a broadband resistive loss gated to the slip
+phase, not the frequency-dependent, travelling-and-reflecting torsional
+waveguide of a real string. That richer model (or the thermal-friction and
+finite-bow-width stabilisers below) is the route to a *larger* effect; this one
+is the cheap, safe first cut the note anticipated.
+
 ## Sympathetic strings: the coupled bridge (added later than the notes below)
 
 All four strings now run continuously as full waveguides terminated on ONE
@@ -119,10 +176,13 @@ reliability:
 
 1. **Torsional waves.** The bow excites twist as well as transverse motion,
    and torsion is heavily damped — it acts as a loss channel *at the bow
-   point* that absorbs the aperiodic junk during an attack. Adding even a
-   simplified lossy torsional impedance at the bow junction should widen the
-   attack wedge substantially. Highest-value upgrade if the goal is
-   real-violin responsiveness.
+   point* that absorbs the aperiodic junk during an attack. **Done** (see
+   "Torsional loss at the bow" above): a simplified lossy torsional impedance,
+   gated to the slip phase, closes the octave-flips at the hardest attack
+   corner while leaving the stick-dominated extremes intact. It widens the
+   wedge at the edge rather than "substantially" everywhere — a broadband
+   resistive lump is cruder than real travelling torsional waves — but it was
+   the highest-value upgrade and it landed cleanly.
 2. **Thermal (plastic) friction.** The model uses the classic
    velocity-dependent hyperbolic friction curve, which is known to
    exaggerate spurious regimes; rosin actually behaves thermally

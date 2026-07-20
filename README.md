@@ -216,13 +216,15 @@ string that visibly depresses onto the fingerboard under the finger.
   (sympathetic resonance, ring-over across string switches, one body driven
   by the total bridge force — see the notes in `src/audio/dsp/ViolinSim.ts`).
   The bow and the single left-hand finger act on the selected string; the
-  others ride along as open strings. No torsional waves, no finite-width
-  bow-hair ribbon, no two-point finger model yet — see ideas below.
+  others ride along as open strings. A simplified lossy torsional impedance now
+  damps the bow point during slip (widening the attack wedge; see below); still
+  no finite-width bow-hair ribbon and no two-point finger model — see ideas
+  below.
 - Ideas next: recorded-impulse body convolution, bow tilt/hair width, pizz
   damping (palm mute), fingers on the unplayed strings (retuning their
   sympathetic pitches, as a real stopped string's sympathy moves), practice
   games.
-- On bow-attack reliability (why attacks are enveloped the way they are, and
-  the model upgrades — torsional waves, thermal friction, finite bow width —
-  that would make attacks as responsive as a real violin's), see
-  [MODEL_NOTES.md](MODEL_NOTES.md).
+- On bow-attack reliability (why attacks are enveloped the way they are, the
+  torsional-loss upgrade already in, and the ones still to come — thermal
+  friction, finite bow width — that would make attacks as responsive as a real
+  violin's), see [MODEL_NOTES.md](MODEL_NOTES.md).
