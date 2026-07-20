@@ -57,6 +57,32 @@ waveguide of a real string. That richer model (or the thermal-friction and
 finite-bow-width stabilisers below) is the route to a *larger* effect; this one
 is the cheap, safe first cut the note anticipated.
 
+### Bow-speed gate (applies to both the torsional and thermal wedge)
+
+Both the torsional slip-loss and the thermal softening widen the Helmholtz
+*capture* region — that is precisely what makes an attack lock the fundamental.
+But a wider capture region is only wanted for a bow drawn **across** the string.
+When the bow is instead dragged **along** the string (a vertical drag over the
+fingerboard, near-zero transverse motion), the only transverse velocity the
+model sees is the pointer's residual lateral jitter — and a widened wedge lets
+that jitter capture the string into a spurious, sustained, over-loud pitched
+tone. On a real instrument a bow moving only along the string does not sound the
+string at all (you hear the hair vibrating, not the string). Measured on the low
+G, the two effects roughly *doubled* the string's output at jitter-level bow
+speeds (`|vBow|` ≈ 0.002–0.01) versus with them off — audibly "activating" the
+string during a vertical drag.
+
+Fix: gate both effects by transverse bow speed. A `wedge` factor ramps from 0
+below `WEDGE_V0` (0.005) to 1 at `WEDGE_V1` (0.02) — the torsional transverse
+fraction fades back toward 1 (no twist loss) and the thermal `β` toward 0 (no
+softening) as it closes, so a near-stationary transverse contact reverts to the
+plain velocity curve while any genuine stroke keeps the full wedge. The window
+sits far under real playing speeds (~0.05–0.3, slow bows included) yet above
+jitter, so sustained tone, attacks (the ramp crosses `WEDGE_V1` almost at once)
+and the slow-bow/over-pressure extremes are untouched. Because the gate only
+scales the torsional/thermal *deviations* — both zero when their amounts are zero
+— the `torsional = 0` / `thermal = 0` paths stay byte-for-byte the classic curve.
+
 ## Thermal (plastic) friction (added later than the notes below)
 
 Implements the second item under "Why the model is more capture-prone" below:

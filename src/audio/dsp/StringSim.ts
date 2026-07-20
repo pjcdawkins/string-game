@@ -116,6 +116,23 @@ const THERMAL_TAU_S = 0.0004; // flash-contact cooling time constant (~0.4 ms)
 const THERMAL_KHEAT = 2.0; // frictional-power -> temperature gain
 const THERMAL_BETA = 1.0; // base coefficient-softening sensitivity (scaled by spec.thermal)
 
+// Bow-speed gate for the attack-wedge effects (the torsional slip loss and the
+// thermal softening). Both widen the Helmholtz CAPTURE region — that is what
+// makes an attack lock the fundamental — and both belong to a bow drawn ACROSS
+// the string. When the bow is instead dragged ALONG the string with almost no
+// transverse motion, the tiny residual |vBow| (pointer jitter) is all the model
+// sees, and a widened capture region lets that jitter lock the string into a
+// spurious, sustained, over-loud pitched tone — where a real motionless-across
+// bow leaves the string silent (only the hair sounds). So fade both effects out
+// below WEDGE_V1: a genuine stroke (|vBow| well above it, slow bows included)
+// keeps the full wedge, while a near-stationary transverse contact reverts to
+// the plain friction curve. The window sits far under real playing speeds
+// (~0.05–0.3) yet above jitter, and — because it only scales the torsional/
+// thermal DEVIATIONS, which are zero when those amounts are zero — it leaves the
+// torsional = 0 / thermal = 0 behaviour byte-for-byte unchanged. See MODEL_NOTES.
+const WEDGE_V0 = 0.005; // below this transverse speed: no wedge (plain curve)
+const WEDGE_V1 = 0.02; // at/above this: full torsional + thermal wedge
+
 // Finite bow-hair width. A real bow contacts the string over a ribbon of hair
 // (~8-10 mm) rather than a mathematical point, so the friction at any instant
 // responds to the string velocity *averaged over the contact patch*, not to a
@@ -701,9 +718,20 @@ export class StringSim {
     // plain constant and every downstream test is byte-for-byte the classic
     // curve. The STATIC coefficient muS (the stick threshold) is deliberately
     // left unmodulated — see the note in tickComplete below and MODEL_NOTES.md.
+    // Wedge activation: 0 for a near-stationary transverse contact (bow dragged
+    // along the string), rising to 1 for a genuine stroke, so the torsional and
+    // thermal wedge-widening only engage when the bow is actually moving across
+    // the string (see WEDGE_V0/WEDGE_V1). At wedge = 0 both effects vanish and
+    // the friction is the plain velocity curve, so a vertical drag no longer
+    // captures the string into a sustained tone.
+    const av = Math.abs(vBow);
+    const wedge = av <= WEDGE_V0 ? 0 : av >= WEDGE_V1 ? 1 : (av - WEDGE_V0) / (WEDGE_V1 - WEDGE_V0);
+    // torsional transverse fraction, faded toward 1 (no twist loss) as the wedge
+    // closes; = 1 exactly when spec.torsional is 0, whatever the wedge.
+    const torsFrac = 1 - wedge * (1 - this.torsTransFrac);
     const muS = MU_S;
     let muD = MU_D;
-    if (this.thermalBeta > 0) muD = MU_D / (1 + this.thermalBeta * this.temp);
+    if (this.thermalBeta > 0) muD = MU_D / (1 + this.thermalBeta * wedge * this.temp);
     let vJ = vh;
     let slipping = 0;
     let fExc = 0; // signed transverse velocity excursion vJfree − vh (½ the force)
@@ -727,7 +755,7 @@ export class StringSim {
         // free transverse target is vBow - sign(d)·s, measured against the
         // patch-averaged velocity; the torsional shunt keeps only torsTransFrac
         // of that excursion, dissipating the rest as twist.
-        vJ = vh + sgn * (ad - s) * this.torsTransFrac;
+        vJ = vh + sgn * (ad - s) * torsFrac;
         slipping = 1;
         // Frictional heating (thermal only): power = friction force × sliding
         // speed, both in the patch-averaged sense the decision above used. The

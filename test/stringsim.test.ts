@@ -654,4 +654,54 @@ describe("StringSim", () => {
       expect(on).toBeGreaterThan(0.85); // thermal holds the fundamental
     }, 60000);
   });
+
+  describe("bow-speed gate on the attack wedge", () => {
+    // The torsional slip-loss and thermal softening widen the Helmholtz capture
+    // region — wanted for a bow drawn ACROSS the string, but not for one dragged
+    // ALONG it (a vertical drag), where the only transverse velocity is pointer
+    // jitter. There a widened wedge let that jitter lock the string into a
+    // spurious, over-loud sustained tone. The bow-speed gate fades both effects
+    // out below WEDGE_V1, so at jitter-level speeds the string reverts to the
+    // plain friction curve and no longer "activates".
+    const base = { f0: 196, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 };
+
+    const settledLevel = (spec: object, bowVel: number, pos: number): number => {
+      const sim = new StringSim(FS);
+      sim.setString(spec as Parameters<StringSim["setString"]>[0]);
+      sim.bodyMix = 0;
+      sim.bowOn = true;
+      sim.bowForce = 0.5;
+      sim.bowPosition = pos;
+      sim.bowVelocity = bowVel;
+      const out = new Float32Array(Math.round(2.5 * FS));
+      for (let i = 0; i + 128 <= out.length; i += 128) sim.process(out.subarray(i, i + 128));
+      return rms(out, 1.6, 2.4);
+    };
+
+    it("at jitter-level bow speed the wedge is off (tors+therm ≈ plain curve)", () => {
+      const on = { ...base, torsional: 0.55, thermal: 0.4 };
+      const off = { ...base, torsional: 0, thermal: 0 };
+      // below WEDGE_V0 (0.005) the wedge is fully closed: the two effects add
+      // essentially nothing over the plain curve, so a vertical-drag jitter no
+      // longer speaks louder than it did before torsion/thermal existed.
+      for (const bv of [0.002, 0.004]) {
+        const lvlOn = settledLevel(on, bv, 0.7);
+        const lvlOff = settledLevel(off, bv, 0.7);
+        expect(lvlOn).toBeLessThan(lvlOff * 1.15);
+      }
+    });
+
+    it("a genuine stroke still gets the full wedge (unchanged at playing speed)", () => {
+      // Well above WEDGE_V1 the gate is wide open, so a real détaché is driven
+      // by the full torsional + thermal wedge exactly as before the gate.
+      const on = { ...base, torsional: 0.55, thermal: 0.4 };
+      const fast = settledLevel(on, 0.2, 0.85);
+      expect(fast).toBeGreaterThan(0.06); // the string speaks strongly when actually bowed
+      // and the wedge is meaningfully engaged relative to the closed-gate case
+      const off = { ...base, torsional: 0, thermal: 0 };
+      const slowOn = settledLevel(on, 0.003, 0.85);
+      const slowOff = settledLevel(off, 0.003, 0.85);
+      expect(slowOn).toBeLessThan(slowOff * 1.15); // gate closed at jitter speed
+    });
+  });
 });
