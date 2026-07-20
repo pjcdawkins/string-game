@@ -229,8 +229,9 @@ export class Engine {
 
   /** Bow-hair ribbon width (a fraction of the open-string length): the bow's
    * tilt, from flat hair (wide, stable, rounder) to on-edge (narrow → a point
-   * contact, brighter and more responsive). A property of the bow, so it is set
-   * once rather than per stroke. */
+   * contact, brighter and more responsive). The input layer pushes it every
+   * frame (like the other bow params) so dragging the Hair slider takes effect
+   * mid-stroke; the RibbonAverager absorbs the window-length steps click-free. */
   setBowHairWidth(width: number): void {
     this.setParam("bowHairWidth", width);
   }

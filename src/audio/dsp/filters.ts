@@ -161,19 +161,28 @@ export class RibbonAverager {
   private s1 = 0;
   private s2 = 0;
   private len = 1;
+  private lastOut = 0; // last value returned, for a click-free length change
 
   constructor(maxHalfLen: number) {
     this.r1 = new Float64Array(Math.max(1, maxHalfLen));
     this.r2 = new Float64Array(Math.max(1, maxHalfLen));
   }
 
-  /** Set the boxcar half-length L (triangular base spans 2L-1 samples). Resets
-   * the running state when the length changes so no sum spans a stale window. */
+  /** Set the boxcar half-length L (triangular base spans 2L-1 samples). The
+   * length changes as the player drags the Hair slider mid-stroke, so instead of
+   * zeroing the running sums (which would make the output collapse toward 0 for
+   * ~2L samples — an audible click) re-seed both stages with the last output:
+   * the average stays continuous and simply relaxes into the new window. */
   setHalfLength(L: number): void {
     const clamped = Math.max(1, Math.min(this.r1.length, Math.floor(L)));
     if (clamped === this.len) return;
     this.len = clamped;
-    this.clear();
+    const v = this.lastOut;
+    this.r1.fill(v);
+    this.r2.fill(v);
+    this.s1 = v * clamped;
+    this.s2 = v * clamped;
+    this.p1 = this.p2 = 0;
   }
 
   process(x: number): number {
@@ -185,13 +194,15 @@ export class RibbonAverager {
     this.s2 += a1 - this.r2[this.p2];
     this.r2[this.p2] = a1;
     if (++this.p2 >= L) this.p2 = 0;
-    return this.s2 / L;
+    this.lastOut = this.s2 / L;
+    return this.lastOut;
   }
 
   clear(): void {
     this.r1.fill(0);
     this.r2.fill(0);
     this.p1 = this.p2 = this.s1 = this.s2 = 0;
+    this.lastOut = 0;
   }
 }
 
