@@ -1,9 +1,10 @@
 /** DOM heads-up display: tool/string pickers, technique controls, tuner. */
-import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, Tool, LeftMode, GuideMode, MarkersMode } from "../state";
+import { state, notify, subscribe, STRINGS, freqToNote, fingerStop, BOW_HAIR_UI_MAX, Tool, LeftMode, GuideMode, MarkersMode } from "../state";
 import { engine } from "../audio/engine";
 
 /** localStorage flag: the intro help has been dismissed once already. */
 const HELP_SEEN_KEY = "stringGame.helpSeen";
+
 
 /** GitHub's mark, inlined as an SVG (no network fetch, themes via currentColor). */
 const GITHUB_ICON = `<svg class="gh-icon" viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"></path></svg>`;
@@ -86,6 +87,7 @@ export class Hud {
     <div class="right-station">
       <div class="panel pressure-panel">
         <label>Pressure <input type="range" id="force" min="0.05" max="1.2" step="0.01"></label>
+        <label title="Bow tilt — how flat the hair lies on the string. On the edge (left, the default): focused and bright, quick to speak, and it keeps the glassy sul&#8209;ponticello top. Flatter (right): fuller and rounder with steadier attacks, but darker — and leaned on hard near the bridge a low string can choke.">Hair <input type="range" id="hair" min="0" max="${BOW_HAIR_UI_MAX}" step="0.005"></label>
       </div>
       <div class="panel tools-panel">
         <div class="row seg-group" id="tools">
@@ -110,7 +112,9 @@ export class Hud {
         fingerboard (<i>sul&nbsp;tasto</i>: round, flutey) down to the bridge
         (<i>sul&nbsp;ponticello</i>: glassy, rich in harmonics). The <b>Pressure</b> slider
         (or pen/touch pressure) sets bow weight: too little skates on the surface, too
-        much chokes and crunches. With <b>Pick</b>/<b>Pizz</b>, grab the string below the
+        much chokes and crunches. The <b>Hair</b> slider tilts the bow — from the edge of
+        the hair (focused and bright, keeping the ponticello glass) to flat (fuller and
+        rounder, with steadier attacks). With <b>Pick</b>/<b>Pizz</b>, grab the string below the
         fingerboard, or reach in from either side of the board, bend it sideways and
         release — so you can pluck an open string sul tasto, anywhere up its length; how
         far you pull sets the attack, and <b>Pressure</b> scales it too.</p>
@@ -133,7 +137,8 @@ export class Hud {
         <p class="desktop-only"><b>Keyboard</b> (desktop): right hand — <kbd>→</kbd> down bow, <kbd>←</kbd> up bow
         (flip direction when you run out of bow), hold <kbd>Space</kbd> for auto-bowing,
         <kbd>↑</kbd>/<kbd>↓</kbd> slide the contact point toward the nut/bridge, hold
-        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string. In <b>Pick</b>/<b>Pizz</b>
+        <kbd>[</kbd>/<kbd>]</kbd> to ease off / lean into the string, and <kbd>;</kbd>/<kbd>'</kbd>
+        to tilt the bow hair onto its edge / flat. In <b>Pick</b>/<b>Pizz</b>
         the right hand plucks instead: <kbd>→</kbd>/<kbd>←</kbd> (and <kbd>Space</kbd>) each pluck,
         <kbd>↑</kbd>/<kbd>↓</kbd> set where, and <kbd>[</kbd>/<kbd>]</kbd> how hard. Left hand — digits are
         semitones above the open string (<kbd>1</kbd> = semitone … <kbd>9</kbd>) and held
@@ -256,6 +261,10 @@ export class Hud {
 
     const force = $<HTMLInputElement>("#force");
     force.addEventListener("input", () => (state.bowForce = Number(force.value)));
+
+    // Hair slider = bow tilt (edge ↔ flat), driving the hair-contact width
+    const hair = $<HTMLInputElement>("#hair");
+    hair.addEventListener("input", () => (state.bowHairWidth = Number(hair.value)));
 
     const help = $("#help");
     const closeHelp = () => {
@@ -414,6 +423,12 @@ export class Hud {
       b.classList.toggle("on", Number(b.dataset.str) === state.stringIdx)
     );
     (this.root.querySelector("#force") as HTMLInputElement).value = String(state.bowForce);
+    // Hair (bow tilt) only applies to the bow, so grey it out in the pluck tools
+    const hairInput = this.root.querySelector("#hair") as HTMLInputElement;
+    hairInput.value = String(state.bowHairWidth);
+    const hairOff = state.tool !== "bow";
+    hairInput.disabled = hairOff;
+    (hairInput.closest("label") as HTMLElement).classList.toggle("disabled", hairOff);
     const nodesSel = this.root.querySelector("#nodesSel") as HTMLSelectElement;
     nodesSel.value = state.markers;
     // the Guides select is always live (the lines draw in either finger

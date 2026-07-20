@@ -241,6 +241,60 @@ describe("StringSim", () => {
     expect(pont).toBeGreaterThan(tasto * 2.0);
   });
 
+  it("a finite bow-hair width suppresses double-slip (octave capture)", () => {
+    // A ribbon of hair averages the string velocity the friction curve sees
+    // across the contact patch, spreading the moment of slip and starving the
+    // secondary slip-within-a-period that captures the octave. At a stop two-
+    // thirds up the G string, bowed steadily over the fingerboard, a point
+    // contact (bowHairWidth = 0) locks into the octave; the ribbon pulls it
+    // back toward the stopped fundamental. Measured as the octave partial's
+    // share of the energy at the fundamental + its octave (Goertzel), averaged
+    // over a few strokes to smooth the friction model's force noise.
+    const goertzel = (buf: Float32Array, f: number, from: number, to: number): number => {
+      const a = Math.round(from * FS);
+      const b = Math.round(to * FS);
+      const w = (2 * Math.PI * f) / FS;
+      const cw = 2 * Math.cos(w);
+      let s1 = 0;
+      let s2 = 0;
+      for (let i = a; i < b; i++) {
+        const s0 = buf[i] + cw * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+      }
+      return s1 * s1 + s2 * s2 - cw * s1 * s2;
+    };
+    const octaveShare = (width: number): number => {
+      const node = 0.7;
+      const f0 = 196;
+      const sounding = f0 / (1 - node); // ~653 Hz
+      let acc = 0;
+      const strokes = 4;
+      for (let k = 0; k < strokes; k++) {
+        const sim = new StringSim(FS);
+        sim.setString({ f0, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0 });
+        sim.bowHairWidth = width;
+        sim.fingerOn = true;
+        sim.fingerPosition = node - FINGER_RADIUS;
+        sim.fingerPressure = 1;
+        sim.bowOn = true;
+        sim.bowVelocity = 0.2;
+        sim.bowForce = 0.55;
+        sim.bowPosition = 0.83;
+        const out = render(sim, 0.8);
+        expectNoNaN(out);
+        const pf = goertzel(out, sounding, 0.4, 0.75);
+        const po = goertzel(out, 2 * sounding, 0.4, 0.75);
+        acc += po / (pf + po + 1e-20);
+      }
+      return acc / strokes;
+    };
+    const point = octaveShare(0); // classic single-point friction (the default)
+    const ribbon = octaveShare(0.06); // hair laid flat (the "Hair" slider well up)
+    expect(point).toBeGreaterThan(0.55); // point contact locks the octave in
+    expect(ribbon).toBeLessThan(point - 0.08); // flattening the hair suppresses it
+  });
+
   it("stays in tune when bowing very close to the bridge", () => {
     // regression: the bridge-side delay segment used to hit its minimum
     // length near the bridge, lengthening the loop and playing flat

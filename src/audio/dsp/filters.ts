@@ -138,6 +138,74 @@ export class DCBlocker {
   }
 }
 
+/**
+ * Center-weighted moving average modelling a bow-hair ribbon's contact patch.
+ * The friction at the bow responds to the string velocity averaged across the
+ * hair, and a real ribbon presses hardest at its centre — so the weighting is a
+ * triangular (Bartlett) profile, not a flat boxcar. A triangle is the
+ * convolution of two rectangles, so it is realised here as two cascaded boxcars
+ * and still costs O(1) per sample. Versus a flat window of the same span the
+ * triangle has a much gentler high-frequency roll-off (no deep sinc notches),
+ * so it averages slip timing to tame double-slip while keeping more of the
+ * bright sul-ponticello partials.
+ *
+ * The single boxcar length is `halfLen` (L); the resulting triangular window
+ * spans 2L-1 samples with an equivalent smoothing width of ~L. halfLen = 1 is a
+ * pass-through — a mathematical point contact.
+ */
+export class RibbonAverager {
+  private r1: Float64Array; // float64 so each running sum subtracts exactly what
+  private r2: Float64Array; // it added (no float32 truncation drift over a stroke)
+  private p1 = 0;
+  private p2 = 0;
+  private s1 = 0;
+  private s2 = 0;
+  private len = 1;
+  private lastOut = 0; // last value returned, for a click-free length change
+
+  constructor(maxHalfLen: number) {
+    this.r1 = new Float64Array(Math.max(1, maxHalfLen));
+    this.r2 = new Float64Array(Math.max(1, maxHalfLen));
+  }
+
+  /** Set the boxcar half-length L (triangular base spans 2L-1 samples). The
+   * length changes as the player drags the Hair slider mid-stroke, so instead of
+   * zeroing the running sums (which would make the output collapse toward 0 for
+   * ~2L samples — an audible click) re-seed both stages with the last output:
+   * the average stays continuous and simply relaxes into the new window. */
+  setHalfLength(L: number): void {
+    const clamped = Math.max(1, Math.min(this.r1.length, Math.floor(L)));
+    if (clamped === this.len) return;
+    this.len = clamped;
+    const v = this.lastOut;
+    this.r1.fill(v);
+    this.r2.fill(v);
+    this.s1 = v * clamped;
+    this.s2 = v * clamped;
+    this.p1 = this.p2 = 0;
+  }
+
+  process(x: number): number {
+    const L = this.len;
+    this.s1 += x - this.r1[this.p1];
+    this.r1[this.p1] = x;
+    if (++this.p1 >= L) this.p1 = 0;
+    const a1 = this.s1 / L;
+    this.s2 += a1 - this.r2[this.p2];
+    this.r2[this.p2] = a1;
+    if (++this.p2 >= L) this.p2 = 0;
+    this.lastOut = this.s2 / L;
+    return this.lastOut;
+  }
+
+  clear(): void {
+    this.r1.fill(0);
+    this.r2.fill(0);
+    this.p1 = this.p2 = this.s1 = this.s2 = 0;
+    this.lastOut = 0;
+  }
+}
+
 /** Per-sample exponential smoother for control parameters. */
 export class Smoother {
   value: number;

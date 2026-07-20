@@ -62,6 +62,7 @@ export class ViolinSim {
   bowVelocity = 0;
   bowForce = 0.3;
   bowPosition = 0.88;
+  bowHairWidth = 0; // bow-hair ribbon width; 0 = point contact (see StringSim.bowHairWidth)
   fingerOn = false;
   fingerPosition = 0.3;
   fingerPressure = 0;
@@ -136,6 +137,7 @@ export class ViolinSim {
         s.bowVelocity = this.bowVelocity;
         s.bowForce = this.bowForce;
         s.bowPosition = this.bowPosition;
+        s.bowHairWidth = this.bowHairWidth;
         s.fingerOn = this.fingerOn;
         s.fingerPosition = this.fingerPosition;
         s.fingerPressure = this.fingerPressure;

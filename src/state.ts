@@ -56,6 +56,13 @@ export const FINGERBOARD_END = 0.84;
  * actually be dragged (see FINGER_DRAG_MAX in input/interactions.ts). */
 export const MAX_STOP_NODE = 0.94;
 
+/** UI range for the bow-hair "Hair" control (the `bowHairWidth` slider and the
+ * `;` / `'` keys): a fraction of the open-string length. 0 = on the edge of the
+ * hair (point contact, the default); the top is where the low strings' patch
+ * averaging saturates — see StringSim.MAX_HAIR_SAMPLES. Shared so the slider and
+ * the keyboard ramp clamp to the same maximum. */
+export const BOW_HAIR_UI_MAX = 0.08;
+
 /** Half-width of the fingertip's contact patch, as a fraction of the string
  * length. A pressed finger is fleshy: it clamps the string to the board over
  * a patch and the note speaks from the *bridge-side edge* of that patch, not
@@ -94,6 +101,7 @@ export interface AppState {
   leftMode: LeftMode;
   autoBow: boolean;
   bowForce: number; // 0..1.5
+  bowHairWidth: number; // bow tilt: hair-ribbon width as a fraction of open-string length (0 = on edge / point contact)
   autoBowSpeed: number; // 0..0.6
   fingerOn: boolean;
   fingerPos: number; // 0..1 from nut
@@ -113,6 +121,7 @@ export const state: AppState = {
   leftMode: "press",
   autoBow: false,
   bowForce: 0.45,
+  bowHairWidth: 0, // bow-hair width / tilt; 0 = point contact (the original model). Opt-in via the "Hair" slider.
   autoBowSpeed: 0.22,
   fingerOn: false,
   fingerPos: 0.3,
