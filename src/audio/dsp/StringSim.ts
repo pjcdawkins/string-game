@@ -762,7 +762,11 @@ export class StringSim {
         // friction force at the contact is the FULL (pre-torsional) transverse
         // excursion 2Z·(ad − s); the sliding speed is s. Heat lags this by the
         // flash time constant, which is the hysteresis.
-        if (this.thermalBeta > 0) this.temp += THERMAL_KHEAT * 2 * (ad - s) * s;
+        // scale the heating by the same wedge that gates the softening, so the
+        // contact temperature only banks heat while the thermal effect is
+        // actually engaged — a near-stationary contact (wedge = 0) neither
+        // softens nor heats, and the two stay consistent across the gate ramp.
+        if (this.thermalBeta > 0) this.temp += THERMAL_KHEAT * 2 * (ad - s) * s * wedge;
         fExc = sgn * (ad - s);
         vSlip = sgn * s;
       }
