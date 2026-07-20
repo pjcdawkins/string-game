@@ -56,6 +56,86 @@ phase, not the frequency-dependent, travelling-and-reflecting torsional
 waveguide of a real string. That richer model (or the thermal-friction and
 finite-bow-width stabilisers below) is the route to a *larger* effect; this one
 is the cheap, safe first cut the note anticipated.
+
+## Thermal (plastic) friction (added later than the notes below)
+
+Implements the second item under "Why the model is more capture-prone" below:
+the friction coefficients are modulated by a lumped contact temperature instead
+of held constant. It lives in the same bow stick–slip solver
+(`src/audio/dsp/StringSim.ts`, `tickComplete`), with a per-string `thermal`
+amount in `StringSpec` (default 0 = off) set in `state.ts`.
+
+**The physics, and the one design choice that matters.** Real rosin friction is
+set by contact *temperature*, not sliding speed (Smith & Woodhouse 2000): the
+contact flash-heats while the string slips, the rosin softens and the friction
+drops — then recovers as the contact cools between slips. Crucially the heat
+*lags* the sliding by the flash-contact time constant, so the coefficient the
+curve uses this sample depends on the recent slip history, not the instantaneous
+velocity: the friction curve opens into a hysteresis loop. That lag is what
+damps the runaway the plain velocity curve is prone to, so it stabilises attacks
+and widens the Helmholtz regime. The cheap lumped model (cf. the torsional
+note): one scalar contact temperature `T` per string, a first-order state like a
+`Smoother`. Heating during slip is the frictional power `T += kHeat·fFric·|vSlip|`
+(both measured in the patch-averaged sense the stick/slip decision uses, so it
+composes with the bow-hair ribbon); cooling every sample is `T -= T/tauCool`,
+with `tauCool` the flash time (~0.4 ms, ~19 samples at 48 kHz — that short lag
+*is* the hysteresis). The coefficient is softened by `θ(T) = 1/(1 + β·T)`, `β`
+scaled by the per-string `thermal` amount so it is a no-op at 0 and monotone
+above it.
+
+The choice that matters: **θ softens only the DYNAMIC coefficient `muD` (the slip
+branch), NOT the static stick threshold `muS`.** The recommended first cut
+softens both. But softening `muS` lowers the stick threshold, which lets a
+*working* Helmholtz break into slip too readily — and it shows up as a
+non-monotone capture hole (a settled stopped note that flips out and back as
+`thermal` rises) and a measurable loss of ponticello brightness. Softening only
+the slip branch leaves the stick threshold — and with it every stick-dominated
+regime — exactly where it was, and widens the attack wedge cleanly. This is the
+same move as the torsional note's "act only in the slip branch", for the same
+reason: the attack transient is slip-heavy, the sustained regimes are
+stick-heavy, and the thermal benefit concentrates in the transient.
+
+**What it does, measured** (same harness method as the torsional note: drive
+`StringSim` in Node, classify settled pitch by autocorrelation over many
+stochastic strokes):
+
+- *Widens the attack wedge, monotonically.* At a genuinely octave-prone corner —
+  a high stop (node ~0.7) on the G bowed over the fingerboard, fast ramp, finger
+  still landing — the classic velocity curve locks the octave essentially every
+  time (~0% fundamental capture). Thermal pulls it up monotonically to 100% and
+  holds it across `thermal` ≈ 0.2–0.5, degrading only past ~0.6 as too much
+  softening starves the slip. The chosen amounts sit mid-plateau. Corners the
+  attack choreography already lands were reliable anyway, so there the change is
+  neutral — the win is at the edge.
+- *Opens the hysteresis loop.* Plotting the transverse friction force against the
+  bow-string sliding velocity over a Helmholtz cycle: with the classic curve the
+  trajectory retraces a single-valued curve (near-zero enclosed area — only
+  force-noise scatter); with thermal the slip branch traces a genuine loop, ~7×
+  the area. `test/stringsim.test.ts` pins the loop opening and the wedge.
+- *Tames the flat-hair pressure whistle.* The heavy, near-bridge low-G stroke
+  that whistles ~100% of the time with the hair laid flat and the classic curve
+  holds the fundamental ~100% of the time with thermal engaged — see the hair
+  section, whose forward reference this confirms.
+- *Extremes preserved.* Over-pressure still crunches, a slow bow still speaks (a
+  hair louder, if anything), sul ponticello stays ≫ sul tasto, and the
+  extreme-tasto subharmonic survives intact. Ponticello brightness on the high
+  strings is unchanged (measured).
+
+**Chosen amounts** (`state.ts`): G3 0.4, D4 0.35, A4 0.3, E5 0.25 — graded down
+like the torsional shunt. The win concentrates on the low strings, where the
+hardest attacks (and the flat-hair whistle) live; the high strings are already
+reliable on ordinary attacks and carry a smaller amount that leaves their tone
+untouched.
+
+**Still simplified.** The true contact temperature comes from 1-D heat diffusion
+into the string and the rosin, which gives a *half-order* (`~1/√t`) memory kernel
+— a long, slowly-decaying tail, not the single exponential pole used here. The
+lumped one-pole `T` captures the essential lag (heat trails the slip) at O(1) per
+sample; the faithful version would swap the pole for that fractional kernel —
+heavier, a truer temperature history, and the route to a still-larger and more
+accurate effect. As with torsion, this is the cheap, safe first cut the note
+anticipated.
+
 ## Finite bow-hair width — the "Hair" control (added later than the notes below)
 
 Stabiliser #3 from "Why the model is more capture-prone" below, exposed as a
@@ -105,14 +185,33 @@ interesting part — see the trade below.
   slider lets a player flatten the hair when they want the steadier, rounder
   sound and can live with the trade. `test/stringsim.test.ts` pins the mechanism
   at `w = 0.06` (point > 0.55, flattened at least 0.08 below).
+- **Reconciled with thermal friction (now shipped).** The pressure whistle above
+  was the *hard* cost — the one that made flat hair genuinely risky rather than
+  merely a tone change. Thermal friction (added since; per-string, always on)
+  resists exactly that spurious high-mode lock, and it is measurably gone: the
+  heavy near-bridge low-G stroke that whistles ~100% of the time with flat hair
+  and the classic curve holds the fundamental ~100% of the time with thermal
+  engaged (pinned in `test/stringsim.test.ts`). So the forward reference this
+  section used to carry is confirmed — with thermal in, the pressure whistle is
+  tamed and the width feature is no longer *needed* as a stabiliser. It stays off
+  by default now for the softer reasons: the remaining costs are pure tone
+  (ponticello darkens, the attack softens at half-length 4), and its
+  double-slip-suppression job is largely covered by thermal and the torsional
+  shunt. The `MAX_HAIR_SAMPLES` cap stays put regardless: the half-length-5
+  pseudo-flautando it guards against is an *averaging* artifact (the window
+  rounding the fundamental's own corner away), not a friction one, so thermal
+  does not touch it.
 - **Guardrail.** `MAX_HAIR_SAMPLES` caps the half-length at 4. Past 5 the
   over-smoothing becomes pathological on every string (a bright pseudo-flautando,
   ~0.99 octave), so no slider position, however far, can reach it.
-- **Still the #3 stabiliser.** The model's attack choreography (see below)
-  already lands Helmholtz on ordinary strokes, so there is little double-slip
-  left to remove there; the gains show up in the octave-prone corners
-  (flautando nodes, light fast bow), and the control is really as much a tone
-  colour (edge = focused/bright, flat = round/steady) as a stabiliser.
+- **Still the #3 stabiliser — now more tone than stabiliser.** The model's attack
+  choreography (see below) already lands Helmholtz on ordinary strokes, so there
+  is little double-slip left to remove there; the gains show up in the
+  octave-prone corners (flautando nodes, light fast bow) — and those are now
+  handled by thermal friction, which widens the same wedge without the ponticello
+  cost. So with thermal shipped the Hair control is really a tone colour
+  (edge = focused/bright, flat = round/steady) that a player dials in, more than a
+  stabiliser the model relies on.
 ## Sympathetic strings: the coupled bridge (added later than the notes below)
 
 All four strings now run continuously as full waveguides terminated on ONE
@@ -239,10 +338,16 @@ reliability:
    wedge at the edge rather than "substantially" everywhere — a broadband
    resistive lump is cruder than real travelling torsional waves — but it was
    the highest-value upgrade and it landed cleanly.
-2. **Thermal (plastic) friction.** The model uses the classic
-   velocity-dependent hyperbolic friction curve, which is known to
-   exaggerate spurious regimes; rosin actually behaves thermally
-   (Smith & Woodhouse), with hysteresis that stabilises attacks.
+2. **Thermal (plastic) friction.** The classic velocity-dependent
+   hyperbolic friction curve is known to exaggerate spurious regimes;
+   rosin actually behaves thermally (Smith & Woodhouse), with a
+   hysteresis that stabilises attacks. **Done** (see "Thermal (plastic)
+   friction" above): the contact temperature is a lumped first-order
+   state that softens the dynamic friction coefficient, gated — like the
+   torsional loss — to the slip branch. It widens the attack wedge
+   monotonically at the hardest low-string corners, closing octave-flips
+   the velocity curve locks in, and as a bonus tames the finite-hair
+   pressure whistle, so that stabiliser is no longer needed for it.
 3. **Finite bow-hair width.** A ribbon of hair rather than a point contact
    averages slip timing across the contact patch and suppresses double-slip.
    *Implemented as the opt-in "Hair" control* — see "Finite bow-hair width" at

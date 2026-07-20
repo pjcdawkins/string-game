@@ -14,7 +14,10 @@
  *   rigid stop, which shortens the speaking length to finger->bridge.
  * - The BOW junction applies the classic stick-slip friction model
  *   (McIntyre/Schumacher/Woodhouse): a hyperbolic kinetic friction curve,
- *   solved in closed form (quadratic) each sample. Plucks (plectrum/finger
+ *   solved in closed form (quadratic) each sample, optionally with the friction
+ *   coefficients thermally modulated (temperature-dependent rosin, a hysteresis
+ *   that widens the Helmholtz regime — see THERMAL_* and StringSpec.thermal).
+ *   Plucks (plectrum/finger
  *   pizz) are injected at the same point as a raised-cosine force pulse whose
  *   duration encodes the hardness/width of the plucking implement.
  * - The BRIDGE reflects through a one-pole loss/brightness filter and a pair
@@ -63,6 +66,18 @@ export interface StringSpec {
    * transverse admittance (1 => equal). See StringSim.tickComplete.
    */
   torsional?: number;
+  /**
+   * Thermal (plastic) friction amount, ~0..1 (0, or omitted, disables it).
+   * Real rosin friction is temperature-dependent, not velocity-dependent
+   * (Smith & Woodhouse 2000): the contact flash-heats as it slips, the rosin
+   * softens, and the friction coefficients drop — but the heat (and so the
+   * softening) LAGS the sliding by the flash-contact time constant, which turns
+   * the friction curve into a hysteresis loop that stabilises attacks and
+   * widens the Helmholtz regime. This amount scales how strongly the modelled
+   * contact temperature softens the coefficients (see THERMAL_* and
+   * StringSim.tickComplete); 0 leaves the classic velocity curve untouched.
+   */
+  thermal?: number;
 }
 
 export interface SimState {
@@ -74,6 +89,32 @@ export interface SimState {
 
 const MU_S = 0.8; // static friction coefficient
 const MU_D = 0.3; // dynamic friction coefficient
+
+// Thermal (plastic) friction. Rosin's friction is set by contact temperature,
+// not sliding speed (Smith & Woodhouse 2000): the flash-contact heats while the
+// string slips, the rosin softens and the friction falls — then recovers as the
+// contact cools between slips. Because the heat lags the sliding by the (short)
+// flash time constant, the coefficient the friction curve uses this sample
+// depends on the RECENT slip history, not just the instantaneous velocity: the
+// curve opens into a hysteresis loop. That lag damps the runaway that makes the
+// velocity curve over-capture spurious regimes, so it stabilises attacks and
+// widens the Helmholtz wedge. See MODEL_NOTES.md.
+//
+// Cheap lumped model (cf. the torsional note): one scalar contact temperature T
+// per string, first-order like a Smoother. Heating during slip is the
+// frictional power T += THERMAL_KHEAT · fFric · |vSlip|; cooling every sample is
+// T -= T / tauCool. The DYNAMIC coefficient is softened by θ(T) = 1/(1 + β·T),
+// falling with heat, and fed into the existing quadratic in place of the
+// constant. We modulate only muD (the slip branch), not the muS stick threshold:
+// softening the threshold destabilises working Helmholtz (a non-monotone capture
+// hole, lost ponticello brightness), so — exactly as the torsional loss is gated
+// to slip — this is too. The per-string `thermal` amount scales β (so it is a
+// no-op at 0 and monotone above it). The faithful version would replace this
+// single pole with the 1-D heat-diffusion memory kernel (~1/√t half-order
+// memory) of a real contact — heavier, but a truer temperature history.
+const THERMAL_TAU_S = 0.0004; // flash-contact cooling time constant (~0.4 ms)
+const THERMAL_KHEAT = 2.0; // frictional-power -> temperature gain
+const THERMAL_BETA = 1.0; // base coefficient-softening sensitivity (scaled by spec.thermal)
 
 // Finite bow-hair width. A real bow contacts the string over a ribbon of hair
 // (~8-10 mm) rather than a mathematical point, so the friction at any instant
@@ -237,6 +278,7 @@ export class StringSim {
     stiffness: 0.2,
     nonlinearity: 0.15,
     torsional: 0,
+    thermal: 0,
   };
 
   // delay lines: right-going (toward bridge) and left-going (toward nut)
@@ -268,6 +310,19 @@ export class StringSim {
   // with it every sustained, slow-bow, and over-pressed regime — is left
   // exactly as it was, so those effects are untouched.
   private torsTransFrac = 1;
+
+  // Thermal (plastic) friction (see THERMAL_* and tickComplete). `temp` is the
+  // lumped contact temperature T; `thermalBeta` is the per-string softening
+  // sensitivity (THERMAL_BETA · spec.thermal, so 0 when thermal is off);
+  // `thermalCool` is the per-sample cooling fraction 1/(tauCool in samples).
+  private temp = 0;
+  private thermalBeta = 0;
+  private thermalCool = 0;
+  // instrumentation for the friction-velocity hysteresis loop: the signed
+  // transverse friction force and the signed bow-string sliding velocity from
+  // the last bow sample (see bowFriction / bowSlipVel).
+  private fricLast = 0;
+  private slipVelLast = 0;
 
   // bridge force -> body filter -> ear, for the solo (uncoupled) path
   private output: BodyOutput;
@@ -351,6 +406,10 @@ export class StringSim {
     // transverse share of a slip is then 1/(1 + torsional).
     const tors = Math.max(0, spec.torsional ?? 0);
     this.torsTransFrac = 1 / (1 + tors);
+    // thermal friction: β scaled by the per-string amount (0 => θ ≡ 1, off);
+    // cooling fraction from the flash-contact time constant in samples.
+    this.thermalBeta = THERMAL_BETA * Math.max(0, spec.thermal ?? 0);
+    this.thermalCool = 1 / Math.max(1, THERMAL_TAU_S * this.fs);
     this.updateHairWindow();
   }
 
@@ -413,6 +472,9 @@ export class StringSim {
     this.output.clear();
     this.pluckSamplesLeft = 0;
     this.amp2 = 0;
+    this.temp = 0;
+    this.fricLast = 0;
+    this.slipVelLast = 0;
     this.ribbon.clear();
   }
 
@@ -594,7 +656,8 @@ export class StringSim {
     const fngToB = vF - this.sBFng;
     const fngToA = vF - this.sAFng;
 
-    // --- bow junction: stick-slip friction with a lossy torsional shunt.
+    // --- bow junction: stick-slip friction with a lossy torsional shunt and
+    // optional thermal (temperature-dependent) coefficients.
     // The bow rides on the string SURFACE, which twists as well as translates.
     // Torsion matters during a SLIP: the sudden release spins the string, and
     // that twist — heavily damped, so treated as a pure loss — carries off part
@@ -608,6 +671,17 @@ export class StringSim {
     // threshold), so sustained tone, slow bows, and over-pressure — all
     // stick-dominated — keep their existing behaviour; and torsional = 0 makes
     // torsTransFrac = 1, recovering the pure-transverse junction exactly.
+    //
+    // Thermal friction (spec.thermal > 0) layers on top: the contact flash-heats
+    // as it slips, softening the DYNAMIC friction coefficient muD via θ(T) below,
+    // with the heat lagging the sliding (a hysteresis loop). Like the torsional
+    // shunt it is a slip-side effect — and, mirroring that choice, it modulates
+    // only the slip branch's coefficient (muD), NOT the static stick threshold
+    // muS: softening the threshold would let working Helmholtz break into slip
+    // too easily (measurably: a non-monotone capture hole and lost ponticello
+    // brightness), whereas softening only the dynamic branch widens the attack
+    // wedge cleanly and leaves the stick-dominated extremes intact. Both effects
+    // compose, and each is a no-op at its 0 setting. See MODEL_NOTES.md.
     const bBow = this.sBBow;
     const cBow = this.sCBow;
     const vh = bBow + cBow; // free transverse velocity at the bow point
@@ -618,29 +692,59 @@ export class StringSim {
     // TRUE point velocity vh. A half-length of 1 leaves vhBar = vh (point
     // contact, the default), recovering the plain torsional junction exactly.
     const vhBar = this.ribbon.process(vh);
+    // Thermal (plastic) friction: soften the DYNAMIC friction coefficient by
+    // θ(T), where T is the lumped contact temperature carried between samples
+    // (see THERMAL_*). θ = 1/(1 + β·T) drops with heat, so muD falls as the
+    // contact flash-heats and recovers as it cools — and because T lags the
+    // sliding, the slip branch traces a hysteresis loop rather than a fixed
+    // velocity curve. thermalBeta = 0 (thermal off) makes θ ≡ 1, so muD is the
+    // plain constant and every downstream test is byte-for-byte the classic
+    // curve. The STATIC coefficient muS (the stick threshold) is deliberately
+    // left unmodulated — see the note in tickComplete below and MODEL_NOTES.md.
+    const muS = MU_S;
+    let muD = MU_D;
+    if (this.thermalBeta > 0) muD = MU_D / (1 + this.thermalBeta * this.temp);
     let vJ = vh;
     let slipping = 0;
+    let fExc = 0; // signed transverse velocity excursion vJfree − vh (½ the force)
+    let vSlip = 0; // signed bow-string sliding velocity = vBow − vJfree
     if (fb > 1e-4) {
       const k = 0.5 * fb; // F/(2Z)
       const d = vBow - vhBar;
       const ad = Math.abs(d);
-      if (ad <= k * MU_S) {
+      if (ad <= k * muS) {
         // stick: string moves with the bow (torsion is a slip-only loss). With
         // a finite patch this rides the averaged velocity, so vJ equals vBow
-        // exactly only at hair width 0 (vhBar = vh).
+        // exactly only at hair width 0 (vhBar = vh). No sliding, so no heating.
         vJ = vh + (vBow - vhBar);
+        fExc = vBow - vhBar; // held-stick force excursion (no sliding: vSlip = 0)
       } else {
         // slip: solve s^2 + B s + C = 0 for slip speed s = |vBow - vJfree|
-        const B = this.vcKnee - ad + k * MU_D;
-        const C = this.vcKnee * (k * MU_S - ad); // < 0 here => one positive root
+        const B = this.vcKnee - ad + k * muD;
+        const C = this.vcKnee * (k * muS - ad); // < 0 here => one positive root
         const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
+        const sgn = Math.sign(d);
         // free transverse target is vBow - sign(d)·s, measured against the
         // patch-averaged velocity; the torsional shunt keeps only torsTransFrac
         // of that excursion, dissipating the rest as twist.
-        vJ = vh + Math.sign(d) * (ad - s) * this.torsTransFrac;
+        vJ = vh + sgn * (ad - s) * this.torsTransFrac;
         slipping = 1;
+        // Frictional heating (thermal only): power = friction force × sliding
+        // speed, both in the patch-averaged sense the decision above used. The
+        // friction force at the contact is the FULL (pre-torsional) transverse
+        // excursion 2Z·(ad − s); the sliding speed is s. Heat lags this by the
+        // flash time constant, which is the hysteresis.
+        if (this.thermalBeta > 0) this.temp += THERMAL_KHEAT * 2 * (ad - s) * s;
+        fExc = sgn * (ad - s);
+        vSlip = sgn * s;
       }
     }
+    // Cooling every sample (thermal only): first-order relaxation of the flash
+    // contact. Runs in stick and silence too, so heat bleeds off between slips —
+    // that recovery is the other half of the hysteresis.
+    if (this.thermalBeta > 0) this.temp -= this.temp * this.thermalCool;
+    this.fricLast = 2 * fExc; // 2Z·excursion = the transverse friction force
+    this.slipVelLast = vSlip;
     let bowToC = vJ - cBow;
     let bowToB = vJ - bBow;
 
@@ -675,6 +779,25 @@ export class StringSim {
    * contribution to the total bridge force) — valid after tickBridgeRead(). */
   get bridgeForce(): number {
     return this.sAtBridge;
+  }
+
+  /** Signed transverse friction force injected at the bow last sample (2Z times
+   * the velocity excursion). Instrumentation for the friction–velocity
+   * hysteresis loop; pair with {@link bowSlipVel}. Valid after tickComplete(). */
+  get bowFriction(): number {
+    return this.fricLast;
+  }
+
+  /** Signed bow-string sliding velocity last sample (0 while stuck). The x-axis
+   * of the friction–velocity loop that thermal friction opens. */
+  get bowSlipVel(): number {
+    return this.slipVelLast;
+  }
+
+  /** Lumped bow-contact temperature (thermal friction state); 0 when thermal is
+   * off. Exposed for the thermal-model harnesses. */
+  get contactTemp(): number {
+    return this.temp;
   }
 
   /** Slow (~30 ms) envelope of the bridge-wave amplitude — how strongly the
