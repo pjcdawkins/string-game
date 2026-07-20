@@ -439,4 +439,219 @@ describe("StringSim", () => {
       expect(pont).toBeGreaterThan(tasto * 1.6);
     });
   });
+
+  describe("thermal (plastic) friction", () => {
+    const base = { f0: 196, darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35 };
+
+    // A ramped, optionally bitten stroke driven with the app's 30 fps parameter
+    // quantisation. `node`/`land` add a stopped note whose finger is still
+    // landing (pressure ramps in) — the hardest attack corner. `spec` carries
+    // the thermal (and any other) fields; returns the raw string signal.
+    const bowStroke = (
+      spec: object,
+      opts: { speed: number; force: number; pos: number; ramp: number; bite?: number; node?: number; land?: boolean; secs?: number },
+    ): Float32Array => {
+      const sim = new StringSim(FS);
+      sim.setString(spec as Parameters<StringSim["setString"]>[0]);
+      sim.bodyMix = 0;
+      sim.bowPosition = opts.pos;
+      if (opts.node !== undefined) {
+        sim.fingerOn = true;
+        sim.fingerPosition = opts.node - FINGER_RADIUS;
+      }
+      sim.bowOn = true;
+      const out = new Float32Array(Math.round((opts.secs ?? 1.0) * FS));
+      let t = 0;
+      const FRAME = 1 / 30;
+      let lastFrame = -1;
+      for (let i = 0; i + 128 <= out.length; i += 128) {
+        t += 128 / FS;
+        const frame = Math.floor(t / FRAME);
+        if (frame !== lastFrame) {
+          lastFrame = frame;
+          sim.bowVelocity = opts.speed * Math.min(1, t / opts.ramp);
+          sim.bowForce = opts.force * (1 + (opts.bite ?? 0) * Math.exp(-t / 0.25));
+          if (opts.node !== undefined) sim.fingerPressure = opts.land ? Math.min(1, t / 0.12) : 1;
+        }
+        sim.process(out.subarray(i, i + 128));
+      }
+      return out;
+    };
+
+    // fraction of strokes that settle within ~half a semitone of `target`, over
+    // several stochastic strokes (the friction has force noise).
+    const captureRate = (spec: object, opts: Parameters<typeof bowStroke>[1], target: number, trials: number): number => {
+      let ok = 0;
+      for (let k = 0; k < trials; k++) {
+        const f = estimatePitch(bowStroke(spec, opts), 0.55, 0.95);
+        if (f > 0 && Math.abs(1200 * Math.log2(f / target)) < 55) ok++;
+      }
+      return ok / trials;
+    };
+
+    it("thermal = 0 is the classic velocity curve (same as omitting it)", () => {
+      // the field defaults to 0; with it explicitly 0 the friction path is
+      // byte-for-byte the no-field case (θ ≡ 1, muD untouched). Pin the force
+      // noise to a fixed sequence and assert the two strokes are identical.
+      const orig = Math.random;
+      const seeded = () => {
+        let s = 0x51ed2701;
+        return () => {
+          s = (s * 1103515245 + 12345) & 0x7fffffff;
+          return s / 0x7fffffff;
+        };
+      };
+      const opts = { speed: 0.3, force: 0.5, pos: 0.85, ramp: 0.12, bite: 0.4 };
+      let withZero: Float32Array;
+      let omitted: Float32Array;
+      try {
+        Math.random = seeded();
+        withZero = bowStroke({ ...base, thermal: 0 }, opts);
+        Math.random = seeded();
+        omitted = bowStroke({ ...base }, opts);
+      } finally {
+        Math.random = orig;
+      }
+      let maxDiff = 0;
+      for (let i = 0; i < withZero.length; i++) maxDiff = Math.max(maxDiff, Math.abs(withZero[i] - omitted[i]));
+      expect(maxDiff).toBe(0);
+    });
+
+    it("widens the attack wedge monotonically at the hardest low-G corner", () => {
+      // A high stop (node 0.7) bowed over the fingerboard on the G is flautando
+      // territory: a fast-ramp attack with the finger still landing locks the
+      // octave almost every time with the classic curve. Thermal friction pulls
+      // capture of the true fundamental up monotonically. (One of the two hard
+      // corners the finite-hair note documents; here thermal, not hair, fixes it.)
+      const corner = { speed: 0.3, force: 0.5, pos: 0.83, ramp: 0.03, node: 0.7, land: true };
+      const target = 196 / (1 - 0.7); // sounding ~653 Hz
+      const trials = 40;
+      const off = captureRate({ ...base, thermal: 0 }, corner, target, trials);
+      const mid = captureRate({ ...base, thermal: 0.2 }, corner, target, trials);
+      const on = captureRate({ ...base, thermal: 0.4 }, corner, target, trials);
+      expect(off).toBeLessThan(0.3); // classic curve locks the octave
+      expect(mid).toBeGreaterThan(off + 0.3); // already climbing at a modest amount
+      expect(on).toBeGreaterThan(0.85); // and reliable at the string's tuned value
+    }, 60000);
+
+    it("opens a friction–velocity hysteresis loop", () => {
+      // With the classic curve the friction is a single-valued function of the
+      // sliding velocity, so the (vSlip, friction) trajectory over a Helmholtz
+      // cycle retraces itself — negligible enclosed area (only force-noise
+      // scatter). Thermal makes the coefficient depend on the lagging contact
+      // temperature, so the slip branch traces a genuine loop with area. Drive
+      // the sim sample-by-sample and integrate the enclosed area (shoelace).
+      const loopArea = (thermal: number): number => {
+        const sim = new StringSim(FS);
+        sim.setString({ ...base, nonlinearity: 0, thermal });
+        sim.bodyMix = 0;
+        sim.bowOn = true;
+        sim.bowPosition = 0.85;
+        sim.bowForce = 0.5;
+        const N = Math.round(1.0 * FS);
+        const vs: number[] = [];
+        const fr: number[] = [];
+        let t = 0;
+        sim.beginBlock();
+        for (let i = 0; i < N; i++) {
+          t += 1 / FS;
+          sim.bowVelocity = 0.2 * Math.min(1, t / 0.12);
+          if (i % 128 === 0) sim.beginBlock();
+          sim.tickBridgeRead();
+          sim.tickComplete(0);
+          if (i > 0.6 * FS && i < 0.6 * FS + 4000) {
+            vs.push(sim.bowSlipVel);
+            fr.push(sim.bowFriction);
+          }
+        }
+        let area = 0;
+        for (let i = 0; i < vs.length; i++) {
+          const j = (i + 1) % vs.length;
+          area += vs[i] * fr[j] - vs[j] * fr[i];
+        }
+        return Math.abs(0.5 * area);
+      };
+      const off = loopArea(0);
+      const on = loopArea(0.4);
+      expect(on).toBeGreaterThan(off * 4); // the loop genuinely opens
+      expect(on).toBeGreaterThan(0.5);
+    }, 30000);
+
+    it("sustains Helmholtz at f0 with thermal engaged, without choking or pumping", () => {
+      const level = (thermal: number, n = 5): number => {
+        let s = 0;
+        for (let i = 0; i < n; i++) s += rms(bowStroke({ ...base, thermal }, { speed: 0.3, force: 0.5, pos: 0.85, ramp: 0.12, bite: 0.4, secs: 1.4 }), 0.6, 1.1);
+        return s / n;
+      };
+      const out = bowStroke({ ...base, thermal: 0.4 }, { speed: 0.3, force: 0.5, pos: 0.85, ramp: 0.12, bite: 0.4, secs: 1.4 });
+      expectNoNaN(out);
+      const f = estimatePitch(out, 0.8, 1.35);
+      expect(f).toBeGreaterThan(196 * 0.97);
+      expect(f).toBeLessThan(196 * 1.03);
+      const on = level(0.4);
+      const off = level(0);
+      expect(on).toBeGreaterThan(off * 0.6);
+      expect(on).toBeLessThan(off * 1.6);
+    }, 30000);
+
+    it("leaves the stick-dominated extremes intact (slow bow, over-pressure, sul pont)", () => {
+      const th = 0.4;
+      const slow = bowStroke({ ...base, thermal: th }, { speed: 0.06, force: 0.4, pos: 0.85, ramp: 0.12, secs: 1.4 });
+      expectNoNaN(slow);
+      expect(rms(slow, 0.8, 1.3)).toBeGreaterThan(0.02); // a slow bow still speaks
+
+      const heavy = bowStroke({ ...base, thermal: th }, { speed: 0.3, force: 1.4, pos: 0.85, ramp: 0.12 });
+      expectNoNaN(heavy);
+      expect(rms(heavy, 0.6, 0.95)).toBeGreaterThan(0.05); // over-pressure still crunches
+
+      const bright = (out: Float32Array): number => {
+        let num = 0, den = 0;
+        const a = Math.round(0.6 * FS);
+        for (let i = a + 1; i < out.length; i++) {
+          const d = out[i] - out[i - 1];
+          num += d * d;
+          den += out[i] * out[i];
+        }
+        return num / Math.max(1e-12, den);
+      };
+      const pont = bright(bowStroke({ ...base, thermal: th }, { speed: 0.22, force: 0.7, pos: 0.96, ramp: 0.12 }));
+      const tasto = bright(bowStroke({ ...base, thermal: th }, { speed: 0.2, force: 0.32, pos: 0.6, ramp: 0.12 }));
+      expect(pont).toBeGreaterThan(tasto * 1.6); // ponticello still ≫ tasto
+    }, 30000);
+
+    it("tames the flat-hair pressure whistle on the low G (composes with the Hair control)", () => {
+      // #54's finite-hair note: at its useful strength the flat hair, leaned on
+      // hard near the bridge, tips the low open G into a surface whistle (a high
+      // mode locks and the fundamental is lost). Thermal friction resists that
+      // spurious high-mode lock, so with it engaged the fundamental holds — the
+      // two stabilisers compose. Fraction of heavy near-bridge strokes that keep
+      // the ~196 Hz fundamental, hair flat (w = 0.06), off vs on.
+      const fundamentalRate = (thermal: number, trials: number): number => {
+        let ok = 0;
+        for (let k = 0; k < trials; k++) {
+          const sim = new StringSim(FS);
+          sim.setString({ ...base, thermal });
+          sim.bodyMix = 0;
+          sim.bowHairWidth = 0.06; // hair laid flat (the "Hair" slider well up)
+          sim.bowOn = true;
+          sim.bowPosition = 0.9; // heavy and near the bridge
+          sim.bowForce = 1.3;
+          const out = new Float32Array(Math.round(1.0 * FS));
+          let t = 0;
+          for (let i = 0; i + 128 <= out.length; i += 128) {
+            t += 128 / FS;
+            sim.bowVelocity = 0.18 * Math.min(1, t / 0.1);
+            sim.process(out.subarray(i, i + 128));
+          }
+          const f = estimatePitch(out, 0.55, 0.95);
+          if (f > 0 && Math.abs(1200 * Math.log2(f / 196)) < 90) ok++;
+        }
+        return ok / trials;
+      };
+      const off = fundamentalRate(0, 28);
+      const on = fundamentalRate(0.4, 28);
+      expect(off).toBeLessThan(0.35); // flat hair alone whistles under heavy pressure
+      expect(on).toBeGreaterThan(0.85); // thermal holds the fundamental
+    }, 60000);
+  });
 });

@@ -34,11 +34,18 @@ export interface ViolinString {
 // capture at the hardest attack corners climbing steadily up to ~0.4–0.5 and
 // levelling off there, so these values sit at the top of the useful range while
 // leaving the sustained, slow-bow, over-pressure and sul-pont regimes intact.
+// thermal: temperature-dependent (plastic) rosin friction, the hysteresis that
+// widens the Helmholtz wedge (see StringSim, MODEL_NOTES). Graded down like the
+// torsional shunt — the win concentrates on the low strings, where the hardest
+// attacks and the flat-hair pressure whistle live; measured capture on the low-G
+// flautando corner climbs from 0% to 100% and holds across ~0.2–0.5, so these
+// sit mid-plateau. The high strings, already reliable on ordinary attacks, carry
+// a smaller amount that preserves their tone (ponticello unchanged, measured).
 export const STRINGS: ViolinString[] = [
-  { name: "G3", numeral: "IV", spec: { f0: 440 * (2 / 3) * (2 / 3), darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35, torsional: 0.55 } },
-  { name: "D4", numeral: "III", spec: { f0: 440 * (2 / 3), darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25, torsional: 0.5 } },
-  { name: "A4", numeral: "II", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15, torsional: 0.45 } },
-  { name: "E5", numeral: "I", spec: { f0: 440 * (3 / 2), darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06, torsional: 0.4 } },
+  { name: "G3", numeral: "IV", spec: { f0: 440 * (2 / 3) * (2 / 3), darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35, torsional: 0.55, thermal: 0.4 } },
+  { name: "D4", numeral: "III", spec: { f0: 440 * (2 / 3), darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25, torsional: 0.5, thermal: 0.35 } },
+  { name: "A4", numeral: "II", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15, torsional: 0.45, thermal: 0.3 } },
+  { name: "E5", numeral: "I", spec: { f0: 440 * (3 / 2), darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06, torsional: 0.4, thermal: 0.25 } },
 ];
 
 /** Fraction of the string length (from the nut) covered by the fingerboard.
