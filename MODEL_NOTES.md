@@ -334,6 +334,26 @@ instrument and `selectString` just moves the bow/finger. Design notes:
   stiffness dispersion — present with the nonlinearity disabled entirely — and
   is unrelated to this amplitude-referencing; it is consistent across strings so
   the pure-fifth partial coincidences stay aligned.)
+- **Relative string tension** (`StringSpec.tension`, one global `STRING_TENSION`
+  in state.ts). The geometric drift coefficient is ~EA/T₀ (axial stiffness over
+  rest tension), so a tighter string drifts less: the effective nonlinearity is
+  `nonlinearity / tension`, and since the cents of drift are ~linear in that
+  coefficient, tension scales the whole drift as 1/tension (tension = 2 halves
+  it). It does NOT touch f0 — the string stays tuned; physically a higher-
+  tension string at the same pitch is a heavier one — only the amplitude-
+  dependent sharpening. The set ships at tension 2 because modern strings hold
+  pitch well: measured open-string drift under an ordinary bow stays at the
+  dispersion baseline (~−2 to +0.5c) and even a hard, fast détaché drifts little
+  (A +1.6c, D +3.1c), while the low G — keeping the largest base nonlinearity —
+  still bends audibly under an intense, fast sul-tasto stroke (~+9–10c at pos
+  0.72, where the bridge-wave amp² driving the detune actually runs high). One
+  global knob, not per-string: raise it for a stabler modern set, lower toward 1
+  for a gutty, floppier one. tension defaults to 1 (the reference) when a spec
+  omits it, so the bare-spec unit tests are unchanged. NB the effect keys off
+  bridge-wave amp², which is high at normal/ponticello and hard/fast strokes but
+  LOW at gentle extreme sul tasto — so the residual bend concentrates in loud,
+  fast playing rather than tracking bow position per se (a truer displacement/
+  elongation drive would be the next refinement).
 - **Measurement method** (mirrors the attack-tuning method below): drive
   ViolinSim in Node, ramped attack, read each string's 30 ms bridge-wave
   envelope (`StringSim.amplitude()`) during the stroke and again ~0.3 s after

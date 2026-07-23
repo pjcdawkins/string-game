@@ -54,8 +54,23 @@ export interface StringSpec {
    * Tension-modulation coefficient (geometric nonlinearity): large-amplitude
    * vibration stretches the string and raises its pitch, most audibly on the
    * low, floppy strings when driven hard sul tasto. 0 disables the effect.
+   * This is the coefficient at the reference tension (see `tension`).
    */
   nonlinearity: number;
+  /**
+   * Relative string tension, 1 = the model's reference (omitted => 1). The
+   * geometric pitch-drift coefficient is ~EA/T₀ (axial stiffness over rest
+   * tension), so it scales as 1/tension: a tighter string stretches less for a
+   * given vibration amplitude and drifts less in pitch. Raising this above 1
+   * makes the string more pitch-STABLE — the drift shrinks everywhere in
+   * proportion, leaving an audible bend only under the hardest, fastest
+   * sul-tasto strokes on the low strings — which is how modern high-tension
+   * strings behave. It does NOT change f0 (the string stays tuned to the same
+   * note; physically a higher-tension string at this pitch is a heavier one),
+   * only the amplitude-dependent sharpening. The effective nonlinearity is
+   * `nonlinearity / tension`, so tension = 2 halves the cents of drift.
+   */
+  tension?: number;
   /**
    * Reference vibration amplitude (bridge-wave amp², the quantity
    * `StringSim.amplitude()` squares) at which the tension-modulation detune is
@@ -421,6 +436,9 @@ export class StringSim {
   // amplitude at which the tension-modulation detune is zero (the string sounds
   // exactly f0): the ordinario reference, from spec.nlAmp2Ref (see delayTargets).
   private nlAmp2Ref = NL_AMP2_REF_DEFAULT;
+  // effective tension-modulation coefficient: spec.nonlinearity / spec.tension
+  // (see delayTargets). Precomputed in setString; a tighter string drifts less.
+  private nlCoeff = 0.15;
 
   // block-level targets computed by beginBlock()
   private tgtA = 0;
@@ -489,6 +507,10 @@ export class StringSim {
     // exactly f0 (see delayTargets). Defaults to the historical knee so a bare
     // spec keeps the original curve.
     this.nlAmp2Ref = Math.max(0, spec.nlAmp2Ref ?? NL_AMP2_REF_DEFAULT);
+    // effective nonlinearity: the geometric coefficient falls as 1/tension, so
+    // a tighter string drifts less in pitch. tension defaults to 1 (a bare spec
+    // keeps the original coefficient), clamped away from 0 to stay finite.
+    this.nlCoeff = spec.nonlinearity / Math.max(0.05, spec.tension ?? 1);
     this.updateHairWindow();
   }
 
@@ -621,7 +643,7 @@ export class StringSim {
     // and scaled (NL_AMP2_GAIN) to hold the loud-stroke ceiling.
     const ref = this.nlAmp2Ref;
     const excess = NL_AMP2_GAIN * Math.max(0, Math.min(ref + NL_AMP2_SPAN, this.amp2) - ref);
-    const detune = 1 + this.spec.nonlinearity * excess;
+    const detune = 1 + this.nlCoeff * excess;
     const oneWay = this.fs / (2 * this.spec.f0 * detune);
     const [pf, pb] = this.clampedPositions();
     // the reflection filters live at the bridge, so their delay is taken
