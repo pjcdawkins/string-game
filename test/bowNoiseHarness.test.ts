@@ -29,19 +29,19 @@
  * - THE MAIN FINDING (held-note probe below): on a note locked at the
  *   fundamental, the 2.5-8 kHz content is 97-99% HARMONIC (a comb on f0 — a
  *   metallic buzz, not noise), and at the slow-heavy corner (vel 0.05, force
- *   0.6, open G) the torsional shunt makes it BISTABLE: most strokes settle
- *   ~15-19% high-harmonic energy vs a tight ~3.5% with torsion off; shipped
- *   (torsion + thermal) lands in the buzzy state on a minority of strokes
- *   (median clean, upper quartile ~18%). Cause: the slip branch's post-scaling
- *   `(ad - s) * torsFrac` is DISCONTINUOUS at the stick/slip boundary (stick
- *   excursion k·muS vs slip-side torsFrac·k·muS as s -> 0), injecting a step
- *   at every slip onset/end. A boundary-matched form,
- *   `k·muS + (ad - s - k·muS) * torsFrac` — identical at torsional = 0 —
- *   eliminated the buzzy mode entirely (tors med 15.4% -> 2.7%, tight IQR)
- *   and turned the shunt into a consistent darkener, with all 25 StringSim
- *   tests (attack wedge, whistle taming, hysteresis, extremes) still passing;
- *   only ViolinSim's stopped-unison sympathy test went marginal (~2.9x vs the
- *   pinned 3x — the buzz harmonics had been feeding the coincidence partials).
+ *   0.6, open G) the torsional shunt's original instantaneous scaling made it
+ *   BISTABLE: most strokes settled at ~15-19% high-harmonic energy vs a tight
+ *   ~3.5% with torsion off; shipped (torsion + thermal) landed in the buzzy
+ *   state on a minority of strokes (median clean, upper quartile ~18%).
+ *   Cause: post-scaling the excursion by torsFrac only in the slip branch
+ *   STEPPED the friction force by (1 − torsFrac)·k·muS at every slip onset
+ *   and release — twice per Helmholtz period, a bright harmonic comb.
+ *   FIXED by low-passing the torsional reduction (the torsRed one-pole,
+ *   TORS_TAU_S in StringSim.ts): after the fix the shipped combination is the
+ *   tightest variant at that corner (median 0.62%, IQR 0.61-0.66%), ordinary
+ *   strokes are unchanged, the attack corners hold or improve, and the
+ *   stopped-unison sympathy ring sits at ~4.1-4.2x its detuned control. Full
+ *   write-up in MODEL_NOTES.md ("The torsional reduction is low-passed").
  */
 import { describe, it } from "vitest";
 import { StringSim } from "../src/audio/dsp/StringSim";
