@@ -116,6 +116,15 @@ const THERMAL_TAU_S = 0.0004; // flash-contact cooling time constant (~0.4 ms)
 const THERMAL_KHEAT = 2.0; // frictional-power -> temperature gain
 const THERMAL_BETA = 1.0; // base coefficient-softening sensitivity (scaled by spec.thermal)
 
+// Torsional-reduction relaxation time (see torsRed / tickComplete): how fast
+// the twist loss at the bow builds up when a slip starts and dies away when it
+// ends. ~0.2 ms (≈10 samples at 48 kHz) is long enough to remove the
+// friction-force step at the stick/slip boundaries — the step's harmonics
+// above ~1 kHz are what rang the metallic comb — yet far shorter than a slip
+// phase (~0.6 ms on the open G bowed at 0.88), so a sustained slip still gets
+// the full shunted loss and the attack wedge keeps its measured width.
+const TORS_TAU_S = 0.0002;
+
 // Bow-speed gate for the attack-wedge effects (the torsional slip loss and the
 // thermal softening). Both widen the Helmholtz CAPTURE region — that is what
 // makes an attack lock the fundamental — and both belong to a bow drawn ACROSS
@@ -323,10 +332,17 @@ export class StringSim {
   // torsTransFrac = 1/(1 + torsional) is the fraction of the slip that reaches
   // the transverse waveguide, the rest being twist the (heavily damped)
   // torsional mode dissipates. It is 1 when spec.torsional is 0, recovering the
-  // pure-transverse bow. Applied ONLY in the slip branch: the stick phase — and
-  // with it every sustained, slow-bow, and over-pressed regime — is left
-  // exactly as it was, so those effects are untouched.
+  // pure-transverse bow. The reduction is TARGETED only by the slip branch —
+  // the stick phase, and with it every sustained, slow-bow, and over-pressed
+  // regime, is left essentially as it was — but it is applied through the
+  // torsRed one-pole below, so it builds and decays over TORS_TAU_S instead of
+  // stepping at the stick/slip boundaries (see tickComplete).
   private torsTransFrac = 1;
+  // Low-passed torsional reduction (signed velocity units) and its per-sample
+  // relaxation coefficient — the lumped "twist can't switch on in one sample"
+  // state. Exactly 0 whenever spec.torsional is 0.
+  private torsRed = 0;
+  private torsRedCoeff = 0;
 
   // Thermal (plastic) friction (see THERMAL_* and tickComplete). `temp` is the
   // lumped contact temperature T; `thermalBeta` is the per-string softening
@@ -423,6 +439,7 @@ export class StringSim {
     // transverse share of a slip is then 1/(1 + torsional).
     const tors = Math.max(0, spec.torsional ?? 0);
     this.torsTransFrac = 1 / (1 + tors);
+    this.torsRedCoeff = 1 - Math.exp(-1 / (TORS_TAU_S * this.fs));
     // thermal friction: β scaled by the per-string amount (0 => θ ≡ 1, off);
     // cooling fraction from the flash-contact time constant in samples.
     this.thermalBeta = THERMAL_BETA * Math.max(0, spec.thermal ?? 0);
@@ -493,6 +510,7 @@ export class StringSim {
     this.fricLast = 0;
     this.slipVelLast = 0;
     this.ribbon.clear();
+    this.torsRed = 0;
   }
 
   getState(): SimState {
@@ -681,7 +699,11 @@ export class StringSim {
     // of the slip instead of launching it all as a transverse wave. So a slip
     // moves the transverse junction only torsTransFrac = 1/(1 + torsional) of the
     // way from the incoming (free) velocity toward the solved slip velocity;
-    // the remainder is dissipated in twist. This puts a loss channel right at
+    // the remainder is dissipated in twist — applied through the torsRed
+    // one-pole (TORS_TAU_S), so the reduction builds and decays over ~10
+    // samples instead of stepping at the stick/slip boundaries (the step rang
+    // a metallic high-harmonic comb; see the notes at torsRed and the solve).
+    // This puts a loss channel right at
     // the bow point, where an attack's aperiodic junk lives, damping the
     // spurious double-slip/whistle regimes and widening the Guettler attack
     // wedge. The STICK phase is deliberately left untouched (vJ = vBow, same
@@ -733,6 +755,7 @@ export class StringSim {
     let muD = MU_D;
     if (this.thermalBeta > 0) muD = MU_D / (1 + this.thermalBeta * wedge * this.temp);
     let vJ = vh;
+    let torsTarget = 0; // torsional-reduction target this sample (slip only)
     let slipping = 0;
     let fExc = 0; // signed transverse velocity excursion vJfree − vh (½ the force)
     let vSlip = 0; // signed bow-string sliding velocity = vBow − vJfree
@@ -751,11 +774,21 @@ export class StringSim {
         const B = this.vcKnee - ad + k * muD;
         const C = this.vcKnee * (k * muS - ad); // < 0 here => one positive root
         const s = 0.5 * (-B + Math.sqrt(B * B - 4 * C));
+        torsTarget = (1 - torsFrac) * Math.sign(d) * (ad - s);
         const sgn = Math.sign(d);
         // free transverse target is vBow - sign(d)·s, measured against the
-        // patch-averaged velocity; the torsional shunt keeps only torsTransFrac
-        // of that excursion, dissipating the rest as twist.
-        vJ = vh + sgn * (ad - s) * torsFrac;
+        // patch-averaged velocity; the torsional shunt dissipates part of that
+        // excursion as twist. The reduction it applies is NOT instantaneous:
+        // it is the torsRed one-pole state, which relaxes toward the target
+        // (1 − torsFrac)·excursion over TORS_TAU_S (see below, where it is
+        // updated and applied). Fully engaged (a sustained slip) this is the
+        // plain shunted excursion (ad − s)·torsFrac; what the lag removes is
+        // the STEP the instantaneous form put on the friction force at every
+        // slip onset and release — (1 − torsFrac)·k·muS, twice per Helmholtz
+        // period — which rang a metallic comb of high harmonics on top of a
+        // correctly locked note (bistably, ~5× the 2.5–8 kHz energy on slow,
+        // heavy strokes; see MODEL_NOTES and the bow-noise harness).
+        vJ = vh + sgn * (ad - s);
         slipping = 1;
         // Frictional heating (thermal only): power = friction force × sliding
         // speed, both in the patch-averaged sense the decision above used. The
@@ -775,6 +808,17 @@ export class StringSim {
     // contact. Runs in stick and silence too, so heat bleeds off between slips —
     // that recovery is the other half of the hysteresis.
     if (this.thermalBeta > 0) this.temp -= this.temp * this.thermalCool;
+    // Torsional reduction, low-passed. The twist that soaks up part of a slip
+    // is a wave leaving the contact, not an instantaneous sink, so the shunt's
+    // reduction relaxes toward its target — (1 − torsFrac)·excursion during
+    // slip, 0 in stick/silence — over TORS_TAU_S rather than switching. In a
+    // sustained slip it converges to the plain shunted junction; at the
+    // stick/slip boundaries it ramps over ~10 samples, which removes the
+    // friction-force step (and with it the metallic high-harmonic comb) while
+    // keeping the loss that widens the attack wedge. torsional = 0 keeps
+    // torsTarget ≡ 0 and torsRed ≡ 0, leaving vJ bit-for-bit unchanged.
+    this.torsRed += this.torsRedCoeff * (torsTarget - this.torsRed);
+    vJ -= this.torsRed;
     this.fricLast = 2 * fExc; // 2Z·excursion = the transverse friction force
     this.slipVelLast = vSlip;
     let bowToC = vJ - cBow;

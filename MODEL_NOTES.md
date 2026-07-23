@@ -57,6 +57,54 @@ waveguide of a real string. That richer model (or the thermal-friction and
 finite-bow-width stabilisers below) is the route to a *larger* effect; this one
 is the cheap, safe first cut the note anticipated.
 
+### The torsional reduction is low-passed (fix: the metallic comb)
+
+The original shunt applied its scaling *instantaneously*: the slip branch's
+excursion was `(ad − s)·torsFrac` while the stick branch was untouched, so the
+friction force **stepped** by `(1 − torsFrac)·k·muS` at every slip onset and
+release — twice per Helmholtz period. A periodic step train is a bright
+harmonic comb, and it was audible: a metallic, glassy buzz ("playing on the
+metal winding") riding on a correctly locked note. Measured with the held-note
+probe in `test/bowNoiseHarness.test.ts`: the 2.5–8 kHz content of a locked
+note is 97–99% *harmonic* (a comb on f0, not noise), and at a slow, heavy
+stroke (open G, vel 0.05, force 0.6) the instantaneous shunt made the regime
+**bistable** — most strokes settled at ~15–19% high-comb energy vs a tight
+~3.5% with torsion off; the shipped torsional+thermal combination landed in
+the buzzy state on a minority of strokes (clean median, upper quartile ~18%).
+Touch bowing lives near that corner (slow, heavy relative to speed, each
+stroke re-rolling the stochastic dice), and small phone speakers emphasise
+exactly that band while dropping the fundamentals — which is why it presented
+as "many high-pitched harmonicy noises, much worse on mobile".
+
+The fix: the reduction the shunt applies is now a **one-pole state**
+(`torsRed`, time constant `TORS_TAU_S` = 0.2 ms ≈ 10 samples at 48 kHz) that
+relaxes toward `(1 − torsFrac)·excursion` during slip and toward 0 in
+stick/silence, and is subtracted from the junction velocity wherever it
+stands. A sustained slip converges to the same shunted junction as before
+(the loss — and the wedge-widening — is preserved); the stick/slip boundaries
+now ramp over ~10 samples instead of stepping, which removes the comb's
+content in the audible 2.5–8 kHz band. Physically: the twist that soaks up a
+slip is a wave leaving the contact, not an instantaneous sink. `torsional = 0`
+keeps `torsRed` identically 0 and the junction bit-for-bit unchanged.
+
+Measured after the fix (same probes): the bistable buzzy state is gone — the
+shipped combination is the *tightest* variant at the slow-heavy corner (median
+0.62%, IQR 0.61–0.66%) and unchanged at ordinary strokes; the attack corners
+hold or improve (torsional "land" corner 98–100% capture at all amounts; the
+thermal octave corner with full torsional layered on rises 90% → 98%); the
+stopped-unison sympathetic ring is a comfortable ~4.1–4.2× the detuned
+control (the old instantaneous shunt's buzz had been artificially feeding the
+coincidence partials at ~4.5–5×; a naive boundary-matched form without the
+loss dropped it to a marginal ~2.9×). All existing pinned tests pass
+unchanged.
+
+One instructive dead end, for the record: matching the slip branch to the
+stick boundary *instantaneously* (`k·muS + (ad − s − k·muS)·torsFrac`) also
+removes the comb, but it **raises** the friction force during slip toward the
+stick value instead of dissipating — the wedge collapses (the octave corner
+fell from 90% to 0% capture). Continuity had to come from the reduction's
+*time constant*, not from re-anchoring its magnitude.
+
 ### Bow-speed gate (applies to both the torsional and thermal wedge)
 
 Both the torsional slip-loss and the thermal softening widen the Helmholtz
