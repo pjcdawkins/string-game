@@ -165,13 +165,18 @@ function xorshift(seed: number): () => number {
   };
 }
 
-/** Steady stroke, keyboard-like: smooth ramp with bite, then constant speed. */
+/** Steady stroke, keyboard-like: smooth ramp with bite, then constant speed.
+ * Length must cover the held-note probe's analysis window entirely: it reads a
+ * 65536-point FFT from 0.8 s in (through sample ~103935), so anything shorter
+ * would zero-pad the tail of the window and leak into the harmonic-ratio
+ * figures. 2.4 s (115200 samples) clears it with margin; the extra tail is
+ * steady-state audio, so the numbers are measured over real signal only. */
 function renderSteady(v: Variant, vel: number, force: number): Float32Array {
   const sim = new StringSim(FS);
   sim.setString({ ...G_BASE, torsional: v.torsional, thermal: v.thermal });
   sim.bowPosition = 0.88;
   sim.bowOn = true;
-  const out = new Float32Array(Math.round(1.8 * FS));
+  const out = new Float32Array(Math.round(2.4 * FS));
   const frame = Math.round(FS / 30);
   for (let i = 0; i < out.length; i += 128) {
     if (i % frame < 128) {
