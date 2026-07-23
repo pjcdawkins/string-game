@@ -41,11 +41,22 @@ export interface ViolinString {
 // flautando corner climbs from 0% to 100% and holds across ~0.2–0.5, so these
 // sit mid-plateau. The high strings, already reliable on ordinary attacks, carry
 // a smaller amount that preserves their tone (ponticello unchanged, measured).
+// nlAmp2Ref: the tension-modulation reference amplitude (bridge-wave amp²) at
+// which each string sounds EXACTLY f0 — its ordinario level, because a
+// violinist tunes the open string while bowing it ordinario, so f0 is the
+// ordinary-bow pitch, not the never-heard zero-amplitude rest pitch (see
+// StringSim.delayTargets / StringSpec.nlAmp2Ref). Set to each string's measured
+// ordinario amp² under the app's default bow (autoBowSpeed 0.22, bowForce 0.45,
+// pos 0.88): ~0.21 (G), 0.25 (D), 0.23 (A), 0.23 (E). Without it the historical
+// knee (0.1) sat below every string's ordinario level, so an ordinary bow read
+// a few to ~+9 cents sharp — an open A tuned to 440 sounded ~441. Referencing
+// each string to its own ordinario keeps ordinary bowing in tune while a
+// louder-than-ordinario stroke (higher amp²) still pushes sharp, as it should.
 export const STRINGS: ViolinString[] = [
-  { name: "G3", numeral: "IV", spec: { f0: 440 * (2 / 3) * (2 / 3), darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35, torsional: 0.55, thermal: 0.4 } },
-  { name: "D4", numeral: "III", spec: { f0: 440 * (2 / 3), darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25, torsional: 0.5, thermal: 0.35 } },
-  { name: "A4", numeral: "II", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15, torsional: 0.45, thermal: 0.3 } },
-  { name: "E5", numeral: "I", spec: { f0: 440 * (3 / 2), darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06, torsional: 0.4, thermal: 0.25 } },
+  { name: "G3", numeral: "IV", spec: { f0: 440 * (2 / 3) * (2 / 3), darkness: 0.45, loss: 0.35, stiffness: 0.25, nonlinearity: 0.35, nlAmp2Ref: 0.21, torsional: 0.55, thermal: 0.4 } },
+  { name: "D4", numeral: "III", spec: { f0: 440 * (2 / 3), darkness: 0.35, loss: 0.3, stiffness: 0.2, nonlinearity: 0.25, nlAmp2Ref: 0.25, torsional: 0.5, thermal: 0.35 } },
+  { name: "A4", numeral: "II", spec: { f0: 440.0, darkness: 0.28, loss: 0.3, stiffness: 0.15, nonlinearity: 0.15, nlAmp2Ref: 0.23, torsional: 0.45, thermal: 0.3 } },
+  { name: "E5", numeral: "I", spec: { f0: 440 * (3 / 2), darkness: 0.15, loss: 0.25, stiffness: 0.1, nonlinearity: 0.06, nlAmp2Ref: 0.23, torsional: 0.4, thermal: 0.25 } },
 ];
 
 /** Fraction of the string length (from the nut) covered by the fingerboard.
