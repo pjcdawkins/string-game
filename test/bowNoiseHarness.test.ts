@@ -26,6 +26,22 @@
  *   decides whether a session locks a surface whistle), so single-trial A/B
  *   comparisons of the high-speed bands are unreliable — average many trials
  *   and trust only large differences.
+ * - THE MAIN FINDING (held-note probe below): on a note locked at the
+ *   fundamental, the 2.5-8 kHz content is 97-99% HARMONIC (a comb on f0 — a
+ *   metallic buzz, not noise), and at the slow-heavy corner (vel 0.05, force
+ *   0.6, open G) the torsional shunt makes it BISTABLE: most strokes settle
+ *   ~15-19% high-harmonic energy vs a tight ~3.5% with torsion off; shipped
+ *   (torsion + thermal) lands in the buzzy state on a minority of strokes
+ *   (median clean, upper quartile ~18%). Cause: the slip branch's post-scaling
+ *   `(ad - s) * torsFrac` is DISCONTINUOUS at the stick/slip boundary (stick
+ *   excursion k·muS vs slip-side torsFrac·k·muS as s -> 0), injecting a step
+ *   at every slip onset/end. A boundary-matched form,
+ *   `k·muS + (ad - s - k·muS) * torsFrac` — identical at torsional = 0 —
+ *   eliminated the buzzy mode entirely (tors med 15.4% -> 2.7%, tight IQR)
+ *   and turned the shunt into a consistent darkener, with all 25 StringSim
+ *   tests (attack wedge, whistle taming, hysteresis, extremes) still passing;
+ *   only ViolinSim's stopped-unison sympathy test went marginal (~2.9x vs the
+ *   pinned 3x — the buzz harmonics had been feeding the coincidence partials).
  */
 import { describe, it } from "vitest";
 import { StringSim } from "../src/audio/dsp/StringSim";
@@ -155,7 +171,7 @@ function renderSteady(v: Variant, vel: number, force: number): Float32Array {
   sim.setString({ ...G_BASE, torsional: v.torsional, thermal: v.thermal });
   sim.bowPosition = 0.88;
   sim.bowOn = true;
-  const out = new Float32Array(Math.round(1.6 * FS));
+  const out = new Float32Array(Math.round(1.8 * FS));
   const frame = Math.round(FS / 30);
   for (let i = 0; i < out.length; i += 128) {
     if (i % frame < 128) {
@@ -200,6 +216,64 @@ function renderTouchSession(
   return { out, vels };
 }
 
+/** Autocorrelation pitch estimate with parabolic refinement. */
+function estimatePitch(buf: Float32Array, from: number, to: number): number {
+  const a = Math.round(from * FS);
+  const n = Math.round(to * FS) - a;
+  const x = buf.subarray(a, a + n);
+  const maxLag = Math.floor(FS / 50);
+  const minLag = Math.floor(FS / 2000);
+  const ac = (lag: number) => {
+    let acc = 0;
+    for (let i = 0; i + lag < x.length; i++) acc += x[i] * x[i + lag];
+    return acc;
+  };
+  let bestLag = -1;
+  let bestVal = -Infinity;
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    const r = ac(lag);
+    if (r > bestVal) {
+      bestVal = r;
+      bestLag = lag;
+    }
+  }
+  const rm = ac(bestLag - 1);
+  const rp = ac(bestLag + 1);
+  const denom = rm - 2 * bestVal + rp;
+  const shift = denom !== 0 ? (0.5 * (rm - rp)) / denom : 0;
+  return FS / (bestLag + shift);
+}
+
+/** Fraction of total energy in the 2.5-8 kHz band that lies on the harmonic
+ * comb of the estimated fundamental (65536-point Hann FFT from 0.8 s in). */
+function heldNoteHarmonicHi(buf: Float32Array): { f0est: number; harmRatio: number } {
+  const f0est = estimatePitch(buf, 0.8, 1.4);
+  const N = 65536;
+  const a = Math.round(0.8 * FS);
+  const re = new Float64Array(N);
+  const im = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (N - 1)));
+    re[i] = (buf[a + i] ?? 0) * w;
+  }
+  fft(re, im);
+  const binHz = FS / N;
+  const isHarm = new Uint8Array(N / 2);
+  for (let k = 1; k * f0est < 8000; k++) {
+    const c = Math.round((k * f0est) / binHz);
+    for (let b = c - 3; b <= c + 3; b++) if (b > 0 && b < N / 2) isHarm[b] = 1;
+  }
+  let total = 0;
+  let harm = 0;
+  for (let k = 1; k < N / 2; k++) {
+    const p = re[k] * re[k] + im[k] * im[k];
+    const f = k * binHz;
+    total += p;
+    if (f >= 2500 && f <= 8000 && isHarm[k]) harm += p;
+  }
+  return { f0est, harmRatio: harm / total };
+}
+
 describe.skip("bow-noise diagnostic harness", () => {
   it("steady-stroke spectra by variant", () => {
     for (const vel of [0.06, 0.12, 0.25]) {
@@ -223,6 +297,35 @@ describe.skip("bow-noise diagnostic harness", () => {
       }
     }
   }, 120000);
+
+  it("held-note high-harmonic buzz by variant (the metallic comb)", () => {
+    for (const [vel, force] of [
+      [0.05, 0.6],
+      [0.08, 0.4],
+      [0.08, 0.6],
+      [0.12, 0.6],
+    ] as const) {
+      console.log(`\n--- held note vel=${vel} force=${force} (open G, bow 0.88) ---`);
+      for (const v of VARIANTS) {
+        const TRIALS = 15;
+        const vals: number[] = [];
+        let locked = 0;
+        for (let t = 0; t < TRIALS; t++) {
+          const s = heldNoteHarmonicHi(renderSteady(v, vel, force));
+          if (Math.abs(s.f0est - G_BASE.f0) < 12) {
+            locked++;
+            vals.push(s.harmRatio);
+          }
+        }
+        vals.sort((a, b) => a - b);
+        const q = (p: number) =>
+          vals.length ? vals[Math.min(vals.length - 1, Math.floor(p * vals.length))] : NaN;
+        console.log(
+          `${v.name}  harmonic 2.5-8k energy: med=${(100 * q(0.5)).toFixed(2)}%  q25=${(100 * q(0.25)).toFixed(2)}%  q75=${(100 * q(0.75)).toFixed(2)}%  lockedF0=${locked}/${TRIALS}`
+        );
+      }
+    }
+  }, 600000);
 
   it("touch-session squeal windows by |bowVel| band", () => {
     const bands = [0.02, 0.05, 0.09, 0.14, 999];
