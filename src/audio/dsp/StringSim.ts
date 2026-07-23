@@ -54,8 +54,36 @@ export interface StringSpec {
    * Tension-modulation coefficient (geometric nonlinearity): large-amplitude
    * vibration stretches the string and raises its pitch, most audibly on the
    * low, floppy strings when driven hard sul tasto. 0 disables the effect.
+   * This is the coefficient at the reference tension (see `tension`).
    */
   nonlinearity: number;
+  /**
+   * Relative string tension, 1 = the model's reference (omitted => 1). The
+   * geometric pitch-drift coefficient is ~EA/T₀ (axial stiffness over rest
+   * tension), so it scales as 1/tension: a tighter string stretches less for a
+   * given vibration amplitude and drifts less in pitch. Raising this above 1
+   * makes the string more pitch-STABLE — the drift shrinks everywhere in
+   * proportion, leaving an audible bend only under the hardest, fastest
+   * sul-tasto strokes on the low strings — which is how modern high-tension
+   * strings behave. It does NOT change f0 (the string stays tuned to the same
+   * note; physically a higher-tension string at this pitch is a heavier one),
+   * only the amplitude-dependent sharpening. The effective nonlinearity is
+   * `nonlinearity / tension`, so tension = 2 halves the cents of drift.
+   */
+  tension?: number;
+  /**
+   * Reference vibration amplitude (bridge-wave amp², the quantity
+   * `StringSim.amplitude()` squares) at which the tension-modulation detune is
+   * zero — i.e. the amplitude the open string sounds *exactly* f0. A real
+   * string is always vibrating when its pitch is heard, and a violinist tunes
+   * it while bowing ORDINARIO, so f0 is by definition the ordinary-bow pitch,
+   * not the (never-heard) zero-amplitude rest pitch. Set this to the string's
+   * measured ordinario amp² so an ordinary bow reads f0 and only louder-than-
+   * ordinario amplitude sharpens (see NL_AMP2_* and delayTargets). Omitted, it
+   * defaults to NL_AMP2_REF_DEFAULT — the historical knee — so a bare spec (the
+   * unit tests) keeps the original curve unchanged.
+   */
+  nlAmp2Ref?: number;
   /**
    * Lossy torsional impedance at the bow point, ~0..1 (0, or omitted,
    * disables it). The bow drives the string *surface*, which twists as well
@@ -188,6 +216,31 @@ const MAX_HAIR_HALF = Math.ceil((MAX_HAIR_SAMPLES + 1) / 2); // = 4, boxcar buff
 // note (node ~0.056, a semitone above the open string).
 const NUT_OPEN = 0.015;
 const NUT_FADE = 0.03;
+
+// Tension-modulation reference amplitude (see delayTargets and
+// StringSpec.nlAmp2Ref). The geometric (stretching) nonlinearity raises pitch
+// with vibration amplitude — but a real string is ALWAYS vibrating when its
+// pitch is heard, and a violinist tunes the open string while bowing it
+// ORDINARIO. So the string's nominal f0 is by definition the pitch it sounds
+// under an ordinary bow, NOT its (never-heard) zero-amplitude rest pitch: the
+// detune is referenced to the ordinary-playing amplitude (per-string
+// nlAmp2Ref), reading exactly f0 there and sharpening only ABOVE it (a hard
+// sul-tasto stroke on the low, floppy strings audibly pushes sharp — the effect
+// this models). Only the excess amplitude above the reference detunes: a window
+// NL_AMP2_SPAN wide, scaled by NL_AMP2_GAIN to keep the ceiling (nl × 0.033,
+// ~+20 cents on the G driven hard) for the loudest strokes.
+//
+// NL_AMP2_REF_DEFAULT is the historical knee (0.1), used when a spec omits
+// nlAmp2Ref — a bare spec (the unit tests) keeps the original curve. The four
+// real strings (state.ts) set nlAmp2Ref to their MEASURED ordinario amp²
+// (~0.20–0.25), which sat WELL ABOVE this old knee — so every ordinary bow
+// carried detune, a few to ~+9 cents sharp, worst on the low strings: an open A
+// tuned to 440 sounded ~441 under an ordinary bow. Referencing each string to
+// its own ordinario level fixes that while leaving the louder-than-ordinario
+// sharpening (a bare spec's amp² still exceeds a real string's ordinario ref).
+const NL_AMP2_REF_DEFAULT = 0.1;
+const NL_AMP2_SPAN = 0.2;
+const NL_AMP2_GAIN = 0.165;
 
 // Pluck loudness compensation. A low pizzicato carries as much signal energy as
 // a high one, but the ear's low-frequency roll-off (equal-loudness) makes it
@@ -380,6 +433,12 @@ export class StringSim {
   // slow EMA of squared string amplitude, drives tension-modulation detune
   private amp2 = 0;
   private amp2Coeff = 0;
+  // amplitude at which the tension-modulation detune is zero (the string sounds
+  // exactly f0): the ordinario reference, from spec.nlAmp2Ref (see delayTargets).
+  private nlAmp2Ref = NL_AMP2_REF_DEFAULT;
+  // effective tension-modulation coefficient: spec.nonlinearity / spec.tension
+  // (see delayTargets). Precomputed in setString; a tighter string drifts less.
+  private nlCoeff = 0.15;
 
   // block-level targets computed by beginBlock()
   private tgtA = 0;
@@ -444,6 +503,14 @@ export class StringSim {
     // cooling fraction from the flash-contact time constant in samples.
     this.thermalBeta = THERMAL_BETA * Math.max(0, spec.thermal ?? 0);
     this.thermalCool = 1 / Math.max(1, THERMAL_TAU_S * this.fs);
+    // tension-modulation reference: the ordinario amplitude the string reads as
+    // exactly f0 (see delayTargets). Defaults to the historical knee so a bare
+    // spec keeps the original curve.
+    this.nlAmp2Ref = Math.max(0, spec.nlAmp2Ref ?? NL_AMP2_REF_DEFAULT);
+    // effective nonlinearity: the geometric coefficient falls as 1/tension, so
+    // a tighter string drifts less in pitch. tension defaults to 1 (a bare spec
+    // keeps the original coefficient), clamped away from 0 to stay finite.
+    this.nlCoeff = spec.nonlinearity / Math.max(0.05, spec.tension ?? 1);
     this.updateHairWindow();
   }
 
@@ -567,18 +634,16 @@ export class StringSim {
   private delayTargets(): [number, number, number] {
     const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
     // tension modulation: vibration amplitude stretches the string slightly,
-    // raising the pitch — shorten all segments by the same factor.
-    // Only amplitudes beyond ordinary playing stretch the string audibly:
-    // measured bridge-wave amp² is ~0.11 for a gentle sustained stroke and
-    // ~0.17–0.21 driven hard, so the knee sits just under the former and the
-    // window is scaled to keep the old ceiling (nl × 0.033, ~+20 cents on the
-    // G) for the hardest strokes. (The previous knee/cap of 0.012/0.045 sat
-    // entirely BELOW ordinary levels, so every bowed note — however gentle —
-    // carried the full detune: always ~9–20 cents sharp of nominal, which
-    // also kept the played note off the open strings' sympathetic resonances
-    // whenever the bow was moving.)
-    const excess = 0.165 * Math.max(0, Math.min(0.3, this.amp2) - 0.1);
-    const detune = 1 + this.spec.nonlinearity * excess;
+    // raising the pitch — shorten all segments by the same factor. The detune is
+    // referenced to the string's ORDINARY-playing amplitude (nlAmp2Ref), so the
+    // open string sounds exactly f0 under an ordinary bow — the condition a
+    // violinist actually tunes in — and only louder-than-ordinary amplitude
+    // sharpens it (see the NL_AMP2_* notes above). Amplitudes at or below the
+    // reference carry no detune; the excess above it is windowed (NL_AMP2_SPAN)
+    // and scaled (NL_AMP2_GAIN) to hold the loud-stroke ceiling.
+    const ref = this.nlAmp2Ref;
+    const excess = NL_AMP2_GAIN * Math.max(0, Math.min(ref + NL_AMP2_SPAN, this.amp2) - ref);
+    const detune = 1 + this.nlCoeff * excess;
     const oneWay = this.fs / (2 * this.spec.f0 * detune);
     const [pf, pb] = this.clampedPositions();
     // the reflection filters live at the bridge, so their delay is taken

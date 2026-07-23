@@ -305,16 +305,55 @@ instrument and `selectString` just moves the bow/finger. Design notes:
   A440. In 12-EDO every cross-string coincidence is ~2 cents off — outside
   the receiving mode's half-power bandwidth (≈1/Q ≈ 7–10 cents), so
   coincidences beat instead of blooming. Pure fifths make them exact.
-- **Tension-modulation recalibration** (StringSim.delayTargets). Measured
-  bridge-wave amp² is ~0.11 for the gentlest sustained stroke and ~0.17–0.21
-  driven hard; the old detune window (knee 0.012, cap 0.045) sat entirely
-  below that, so EVERY bowed note carried the full detune — 9–20 cents sharp
-  of nominal, which parked the played note off the open strings' resonances
-  whenever the bow moved (sympathy only appeared after bow-off, weakly). The
-  window is now knee 0.1, cap 0.3, scaled to preserve the old ceiling
-  (nl × 0.033) for genuinely hard strokes. Side effect worth knowing:
-  ordinary bowing is now in tune with the nominal pitch; pressing hard still
-  pulls sharp — and audibly chokes the sympathy as it detunes, which is real.
+- **Tension-modulation reference = ordinario** (StringSim.delayTargets). The
+  geometric (stretching) nonlinearity raises pitch with vibration amplitude,
+  but a real string is ALWAYS vibrating when its pitch is heard: a violinist
+  tunes the open string while bowing it ordinario, so the string's nominal f0
+  is BY DEFINITION the pitch it sounds under an ordinary bow, not its (never-
+  heard) zero-amplitude rest pitch. The detune must therefore be referenced to
+  the ordinary-playing amplitude. Measured bridge-wave amp² (StringSim
+  .amplitude()², app default speed/force) is ~0.20–0.25 across the four strings
+  at ordinario, reaching ~0.4–1.0 driven hard. The knee was previously 0.1 —
+  below every string's ordinary level — so every bowed note carried detune: a
+  few cents to ~+9c sharp of nominal, worst on the low strings (an open A tuned
+  to 440 sounded ~441 under an ordinary bow). The reference is now PER STRING
+  (`StringSpec.nlAmp2Ref` in state.ts, each set to its measured ordinario amp²:
+  G 0.21, D 0.25, A 0.23, E 0.23; span NL_AMP2_SPAN 0.2, gain NL_AMP2_GAIN 0.165
+  — same window width/scale as before, just re-anchored). So an ordinary bow
+  reads exactly f0 and only louder-than-ordinario amplitude sharpens — a hard
+  sul-tasto stroke, whose amp² exceeds the string's ordinario reference, still
+  pulls sharp to the ceiling (nl × 0.033), the real effect this models, and
+  audibly chokes the sympathy as it detunes. Per-string (not one global knee) is
+  what lets the fix hold both ends: a single knee high enough to neutralise
+  ordinario on the A/D/E (~0.23–0.25) also sat at the low G's louder strokes
+  (~0.24), cancelling the sul-tasto sharpening there; referencing each string to
+  its OWN ordinario separates the two. The reference defaults to the historical
+  knee (NL_AMP2_REF_DEFAULT = 0.1) when a spec omits it, so the bare-spec unit
+  tests keep the original curve byte-for-byte — only the four real strings move.
+  (An intrinsic ~1–2c flat baseline remains at all amplitudes from the bridge/
+  stiffness dispersion — present with the nonlinearity disabled entirely — and
+  is unrelated to this amplitude-referencing; it is consistent across strings so
+  the pure-fifth partial coincidences stay aligned.)
+- **Relative string tension** (`StringSpec.tension`, one global `STRING_TENSION`
+  in state.ts). The geometric drift coefficient is ~EA/T₀ (axial stiffness over
+  rest tension), so a tighter string drifts less: the effective nonlinearity is
+  `nonlinearity / tension`, and since the cents of drift are ~linear in that
+  coefficient, tension scales the whole drift as 1/tension (tension = 2 halves
+  it). It does NOT touch f0 — the string stays tuned; physically a higher-
+  tension string at the same pitch is a heavier one — only the amplitude-
+  dependent sharpening. The set ships at tension 2 because modern strings hold
+  pitch well: measured open-string drift under an ordinary bow stays at the
+  dispersion baseline (~−2 to +0.5c) and even a hard, fast détaché drifts little
+  (A +1.6c, D +3.1c), while the low G — keeping the largest base nonlinearity —
+  still bends audibly under an intense, fast sul-tasto stroke (~+9–10c at pos
+  0.72, where the bridge-wave amp² driving the detune actually runs high). One
+  global knob, not per-string: raise it for a stabler modern set, lower toward 1
+  for a gutty, floppier one. tension defaults to 1 (the reference) when a spec
+  omits it, so the bare-spec unit tests are unchanged. NB the effect keys off
+  bridge-wave amp², which is high at normal/ponticello and hard/fast strokes but
+  LOW at gentle extreme sul tasto — so the residual bend concentrates in loud,
+  fast playing rather than tracking bow position per se (a truer displacement/
+  elongation drive would be the next refinement).
 - **Measurement method** (mirrors the attack-tuning method below): drive
   ViolinSim in Node, ramped attack, read each string's 30 ms bridge-wave
   envelope (`StringSim.amplitude()`) during the stroke and again ~0.3 s after
