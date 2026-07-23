@@ -21,7 +21,9 @@ function seededRandom(seed: number): () => number {
   let s = seed & 0x7fffffff;
   return () => {
     s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
+    // s lands in [0, 2^31 - 1]; divide by 2^31 so the result stays in [0, 1),
+    // matching Math.random()'s contract (it must never return exactly 1.0).
+    return s / 0x80000000;
   };
 }
 
