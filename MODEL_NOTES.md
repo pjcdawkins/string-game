@@ -352,8 +352,45 @@ instrument and `selectString` just moves the bow/finger. Design notes:
   omits it, so the bare-spec unit tests are unchanged. NB the effect keys off
   bridge-wave amp², which is high at normal/ponticello and hard/fast strokes but
   LOW at gentle extreme sul tasto — so the residual bend concentrates in loud,
-  fast playing rather than tracking bow position per se (a truer displacement/
-  elongation drive would be the next refinement).
+  fast playing rather than tracking bow position per se (whether a displacement/
+  elongation drive would change that was investigated — see the next bullet).
+- **Why the drive stays bridge-wave amp² (elongation drive investigated, not
+  adopted).** The geometric tension increase is ∝ the string elongation
+  ∫½(∂y/∂x)² dx, so it is tempting to drive the detune from a slope/elongation
+  proxy rather than the bridge-wave amplitude — the hope being that intense sul
+  tasto (large excursion) would then sharpen more than a loud near-bridge
+  détaché, tracking bow position. It does not, and the reason is measurable. The
+  exact elongation was computed straight from the waveguide state: at any cross-
+  section the transverse slope is carried by the force wave (v⁺−v⁻), and v⁺, v⁻
+  at one physical point share the same delay index, so Σ(v⁺−v⁻)² over the integer
+  taps of all three segments is the true instantaneous ∫(∂y/∂x)² dx (its kinetic
+  partner is Σ(v⁺+v⁻)²). Two findings killed the swap:
+  (1) *amp² already IS an elongation drive.* Over a 30 ms envelope, bridge-wave
+  amp² is proportional to the exact spatial elongation with a per-string constant
+  that barely moves across bow position, speed and force — measured amp²/energy
+  ≈ 0.025 (G), 0.037 (D), 0.056 (A), 0.083 (E) at every stroke tested (ordinario,
+  hard/fast détaché, intense and gentle sul tasto, sul pont). In steady state a
+  linearly-lossy waveguide stores energy ∝ the power it radiates at the bridge ∝
+  bridge-wave², so this is expected, not a coincidence. Swapping the drive for a
+  slope/energy proxy therefore rescales it by a per-string constant and changes
+  nothing about the position dependence.
+  (2) *Sul tasto genuinely elongates LESS, so the premise is wrong for this (and
+  the real) model.* Elongation is an energy-like quantity, dominated by how much
+  the stroke drives the string, not by where. On the G at matched speed/force a
+  near-bridge stroke stores more energy (hence more elongation) than a sul-tasto
+  one; an *intense* fast sul-tasto stroke reaches only ~2.6× the ordinario
+  elongation (exact ∫ 9.4 vs 3.7) while a hard/fast détaché reaches ~8.7× (31.9)
+  and a loud sul pont ~4.5× (16.6). amp² tracks all of these faithfully. So the
+  model already sharpens intense sul tasto — modestly, in proportion to its
+  genuinely modest elongation — and correctly sharpens a loud détaché more. The
+  one quantity that *does* carry independent position information, the elongation
+  fraction of the energy (PE vs KE partition), is dominated by which capture
+  regime each stroke lands in — it scatters non-monotonically with position and
+  is not a robust, cheap drive. A leaky-integrator displacement estimate was also
+  tried and was too DC-drifty/poorly-scaled. Conclusion: the bridge-wave amp²
+  drive is kept; there is no cheap slope/elongation proxy that makes the bend
+  track bow position without being fragile, because in this model the bend
+  *should* track loudness, which amp² already does.
 - **Measurement method** (mirrors the attack-tuning method below): drive
   ViolinSim in Node, ramped attack, read each string's 30 ms bridge-wave
   envelope (`StringSim.amplitude()`) during the stroke and again ~0.3 s after
