@@ -91,6 +91,35 @@ describe("StringSim", () => {
     expect(lowRms).toBeGreaterThan(highRms);
   });
 
+  it("a tighter string plucked with the same pull speaks louder", () => {
+    // a pluck is displacement-controlled: the same bend on a tighter string
+    // resolves into a proportionally bigger bridge force (PLUCK_TENSION_TILT).
+    // Bowing is force-controlled and gets no such term.
+    const base = {
+      f0: 220,
+      darkness: 0.3,
+      loss: 0.3,
+      stiffness: 0.1,
+      nonlinearity: 0,
+    };
+    const level = (tension: number | undefined): number => {
+      const sim = new StringSim(FS);
+      sim.setString({ ...base, tension });
+      sim.bowPosition = 0.85;
+      sim.pluck(0.5, 1.2);
+      const out = render(sim, 0.4);
+      expectNoNaN(out);
+      return rms(out, 0, 0.2);
+    };
+    const slack = level(undefined); // omitted => the model's reference tension
+    const unit = level(1);
+    const tight = level(2);
+    expect(unit).toBeCloseTo(slack, 6); // an omitted tension is tension 1
+    // ~+6 dB for double the tension, less the output stage's gentle saturation
+    expect(tight).toBeGreaterThan(slack * 1.7);
+    expect(tight).toBeLessThan(slack * 2.05);
+  });
+
   it("pluck decays over time", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.3, loss: 0.5, stiffness: 0.1, nonlinearity: 0 });

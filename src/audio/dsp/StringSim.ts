@@ -253,6 +253,22 @@ const PLUCK_LF_REF_HZ = 660;
 const PLUCK_LF_TILT = 0.5;
 const PLUCK_LF_MAX = 2.0;
 
+// Pluck loudness vs string tension. A pluck is a DISPLACEMENT-controlled
+// gesture — the player hooks the string, pulls it aside by however far the
+// fingertip or plectrum carries it, and lets go — but the model excites the
+// string with a FORCE pulse. The bridge force a released string carries is the
+// tension resolved through the bend angle, F ~ T·y₀/(L·β(1−β)): for the same
+// pull, a tighter string pushes back harder and speaks louder. So the bend ->
+// force conversion has to follow spec.tension, which is why raising the set's
+// tension (state.STRING_TENSION) left the plucks sounding thin — the strings
+// got tighter but their plucks kept injecting the slack-string force. Bowing
+// needs no such term: its force is set by bow weight and the friction curve,
+// not by how far the string is displaced.
+//
+// Exponent 1 is the physical law; tension defaults to 1 (a bare spec — the
+// unit tests) so this is neutral unless a spec opts into a tension.
+const PLUCK_TENSION_TILT = 1;
+
 /** Violin-ish modal body resonances: [freq Hz, Q, gain]. */
 const BODY_MODES: ReadonlyArray<[number, number, number]> = [
   [275, 9, 1.5], // "breathing" A0 mode
@@ -560,7 +576,11 @@ export class StringSim {
     // PLUCK_LF_* notes) — a √-frequency tilt anchored at the top string
     const freq = this.fs / Math.max(1, period);
     const lfGain = Math.min(PLUCK_LF_MAX, Math.max(1, Math.pow(PLUCK_LF_REF_HZ / freq, PLUCK_LF_TILT)));
-    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force)) * widthComp * lfGain;
+    // a tighter string turns the same pull into a bigger bridge force (see the
+    // PLUCK_TENSION_TILT notes) — this is the player's bend becoming a force
+    // and so sits outside the force clamp above
+    const tensionGain = Math.pow(Math.max(0.05, this.spec.tension ?? 1), PLUCK_TENSION_TILT);
+    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force)) * widthComp * lfGain * tensionGain;
     this.pluckPhase = 0;
   }
 

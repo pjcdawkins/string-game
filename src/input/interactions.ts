@@ -56,6 +56,22 @@ const MAX_BEND = 0.18;
 // self-cancels into a whisper. Period-relative so it balances across the range.
 const FINGER_PLUCK_PERIOD_FRAC = 1.5;
 
+// How deeply each implement hooks the string, as a multiplier on the pull the
+// gesture measures. A fingertip catches the string and carries it — the pizz
+// takes the bend at face value (1) — while a plectrum is held across the
+// string and glances off it, releasing well before the fingertip would.
+//
+// Balance: with StringSim's tension term (PLUCK_TENSION_TILT) turning the pull
+// into a bridge force, the set's tension of 2 lifts BOTH implements ~6 dB.
+// That is where the pizz wants to be; the plectrum, whose narrow pulse never
+// self-cancelled the way the fingertip's wide one does, was already the louder
+// of the two and only wanted a couple of dB, so its shallower hook trims it
+// back to ~+2.5 dB. Pizz lands a few dB under the pick — the pick still reads
+// as the brighter, more incisive attack, but the two are now the same
+// instrument at the same effort rather than a stroke and an afterthought.
+const PICK_HOOK = 0.72;
+const PIZZ_HOOK = 1.0;
+
 // Lateral half-width (world units) of the left-hand catch on the fingerboard: a
 // touch within this of the strings' centre line stops the string, while one
 // further out to either side is the right hand reaching in (bow contact / pizz)
@@ -505,8 +521,8 @@ export class Interactions {
     // a plectrum is a sharp, fixed-width stroke (bright); a fingertip is a soft
     // pulse keyed to the string period, so its mellow tone and level stay
     // consistent from the low strings to the high (see StringSim.pluck)
-    if (state.tool === "pick") engine.pluck(p, force, 0.7);
-    else engine.pluck(p, force, 0, FINGER_PLUCK_PERIOD_FRAC);
+    if (state.tool === "pick") engine.pluck(p, force * PICK_HOOK, 0.7);
+    else engine.pluck(p, force * PIZZ_HOOK, 0, FINGER_PLUCK_PERIOD_FRAC);
     // vibration starts at the fingertip's bridge-side edge (the node)
     const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
     this.view.visual.pluckVisual(p, dx, stopped);

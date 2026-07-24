@@ -354,6 +354,24 @@ instrument and `selectString` just moves the bow/finger. Design notes:
   LOW at gentle extreme sul tasto — so the residual bend concentrates in loud,
   fast playing rather than tracking bow position per se (whether a displacement/
   elongation drive would change that was investigated — see the next bullet).
+- **Tension also sets how loudly a pluck speaks** (`PLUCK_TENSION_TILT` in
+  StringSim). A pluck is a *displacement*-controlled gesture — the player hooks
+  the string, carries it aside, lets go — but the model excites the string with
+  a force pulse, so the bend → force conversion has to carry the tension:
+  F ~ T·y₀/(L·β(1−β)), i.e. amplitude ∝ tension (exponent 1, the physical law).
+  Bowing takes no such term; its force comes from bow weight and the friction
+  curve, not from how far the string is displaced. This is why raising the set
+  to tension 2 left the plucks sounding thin — the strings got tighter while
+  their plucks kept injecting the slack-string force. Restoring it lifts every
+  pluck ~+6 dB (a little less after the output stage's gentle saturation), and
+  the implement balance is then set on top of it by `PICK_HOOK`/`PIZZ_HOOK` in
+  input/interactions.ts: the fingertip takes the measured bend at face value,
+  the plectrum glances off at ~0.72 of it. Net at default Pressure, A-weighted:
+  pizz +5.8 dB, pick +2.5 dB, closing the pick→pizz gap from ~12 dB to ~9 dB
+  (raw broadband, ~4.7 dB to ~2 dB — the pizz measures closer than it sounds
+  because its wide, mellow pulse puts most of its energy low). Plucked pitch is
+  untouched by the extra level: ≤1c at default Pressure, ≤3.3c on the G flat
+  out, since tension 2 is holding the drift down at the same time.
 - **Why the drive stays bridge-wave amp² (elongation drive investigated, not
   adopted).** The geometric tension increase is ∝ the string elongation
   ∫½(∂y/∂x)² dx, so it is tempting to drive the detune from a slope/elongation
