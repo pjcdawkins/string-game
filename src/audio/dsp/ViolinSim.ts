@@ -100,8 +100,8 @@ export class ViolinSim {
   }
 
   /** Pluck the played string (at its current bow position). */
-  pluck(force: number, widthMs: number, periodFrac = 0): void {
-    this.strings[this.played].pluck(force, widthMs, periodFrac);
+  pluck(force: number, contactWidth = 0): void {
+    this.strings[this.played].pluck(force, contactWidth);
   }
 
   /** Instantly silence the whole instrument. */

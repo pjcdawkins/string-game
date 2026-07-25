@@ -4,6 +4,11 @@ import { FINGER_RADIUS } from "../src/state";
 
 const FS = 48000;
 
+/** A middling implement for the tests: the span over which the string leaves
+ * it, as a fraction of the vibrating length (see StringSim.pluck). Sharp
+ * enough to excite a full harmonic series, well short of the fingertip's. */
+const PLUCK_CONTACT = 0.02;
+
 function render(sim: StringSim, seconds: number): Float32Array {
   const out = new Float32Array(Math.round(seconds * FS));
   for (let i = 0; i < out.length; i += 128) {
@@ -46,6 +51,22 @@ function estimatePitch(buf: Float32Array, from: number, to: number): number {
   return FS / (bestLag + shift);
 }
 
+/** Magnitude at a single frequency over a Hann-windowed slice. */
+function goertzel(buf: Float32Array, f: number, from: number, to: number): number {
+  const a = Math.round(from * FS);
+  const b = Math.min(buf.length, Math.round(to * FS));
+  const n = b - a;
+  let re = 0;
+  let im = 0;
+  for (let i = 0; i < n; i++) {
+    const w = 0.5 * (1 - Math.cos((2 * Math.PI * i) / n));
+    const ph = (2 * Math.PI * f * i) / FS;
+    re += buf[a + i] * w * Math.cos(ph);
+    im += buf[a + i] * w * Math.sin(ph);
+  }
+  return (2 * Math.sqrt(re * re + im * im)) / n;
+}
+
 function autocorr(x: Float32Array, lag: number): number {
   let acc = 0;
   for (let i = 0; i + lag < x.length; i++) acc += x[i] * x[i + lag];
@@ -63,7 +84,7 @@ describe("StringSim", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
     sim.bowPosition = 0.85;
-    sim.pluck(0.6, 1.2);
+    sim.pluck(0.6, PLUCK_CONTACT);
     const out = render(sim, 0.8);
     expectNoNaN(out);
     const f = estimatePitch(out, 0.2, 0.6);
@@ -79,16 +100,86 @@ describe("StringSim", () => {
     const low = new StringSim(FS);
     low.setString({ ...base, f0: 196 }); // open G
     low.bowPosition = 0.85;
-    low.pluck(0.6, 1.2);
+    low.pluck(0.6, PLUCK_CONTACT);
     const lowRms = rms(render(low, 0.4), 0.02, 0.2);
 
     const high = new StringSim(FS);
     high.setString({ ...base, f0: 659 }); // open E (the tilt's anchor: no boost)
     high.bowPosition = 0.85;
-    high.pluck(0.6, 1.2);
+    high.pluck(0.6, PLUCK_CONTACT);
     const highRms = rms(render(high, 0.4), 0.02, 0.2);
 
     expect(lowRms).toBeGreaterThan(highRms);
+  });
+
+  it("the pluck point combs the harmonics out (a released triangle, not a pulse)", () => {
+    // The defining signature of a displacement release: the string starts as a
+    // triangle with its apex at the contact point, so mode n is excited in
+    // proportion to sin(n·pi·beta) and every mode with a node AT the contact
+    // point gets nothing. Plucked dead centre that silences the whole even
+    // series; plucked at a quarter, every fourth partial. No force pulse
+    // injected at a point can do this — it is the initial shape that does it.
+    const harmonics = (pos: number, ns: number[]): number[] => {
+      const sim = new StringSim(FS);
+      sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
+      sim.bodyMix = 0; // the raw string, with no body resonance filling holes in
+      sim.bowPosition = pos;
+      sim.pluck(0.12, 0.004); // gentle and sharp: no saturation, full series
+      const out = render(sim, 0.5);
+      expectNoNaN(out);
+      return ns.map((n) => goertzel(out, n * 220, 0.02, 0.25));
+    };
+
+    // dead centre: the even partials should be far below their odd neighbours
+    const mid = harmonics(0.5, [1, 2, 3, 4, 5, 6]);
+    for (const even of [1, 3, 5]) {
+      expect(mid[even]).toBeLessThan(0.05 * mid[0]); // >26 dB below the fundamental
+      expect(mid[even]).toBeLessThan(0.1 * mid[even - 1]); // and below its neighbour
+    }
+
+    // at a quarter of the way from the bridge, every 4th partial drops out
+    const quarter = harmonics(0.75, [1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(quarter[3]).toBeLessThan(0.1 * quarter[0]); // H4
+    expect(quarter[7]).toBeLessThan(0.1 * quarter[0]); // H8
+    expect(quarter[1]).toBeGreaterThan(0.3 * quarter[0]); // H2 survives
+  });
+
+  it("a softer implement rolls the top off and leaves the fundamental alone", () => {
+    // The implement is a LENGTH — the span over which the string leaves it —
+    // rounding the triangle's apex, which lowpasses the released shape. The
+    // force pulse this replaced set the implement by DURATION instead, i.e. by
+    // bandwidth measured in PERIODS, and its soft setting put the first null
+    // at 1.33·f0: below the second harmonic, leaving a sine. A width cannot do
+    // that. It is a fraction of the string, so its first null sits at harmonic
+    // 2/width and even rounding over the WHOLE string only reaches H2 — the
+    // fundamental is structurally out of reach.
+    //
+    // Measured at a pluck point whose own comb null (~H10) is clear of the
+    // range, so what is left is the implement's transfer alone.
+    const harmonics = (contact: number): number[] => {
+      const sim = new StringSim(FS);
+      sim.setString({ f0: 220, darkness: 0.3, loss: 0.3, stiffness: 0.1, nonlinearity: 0 });
+      sim.bodyMix = 0;
+      sim.bowPosition = 0.9;
+      sim.pluck(0.12, contact);
+      const out = render(sim, 0.5);
+      expectNoNaN(out);
+      return [1, 2, 3, 4, 5, 6, 7, 8].map((n) => goertzel(out, n * 220, 0.02, 0.25));
+    };
+    const sharp = harmonics(0.004); // a hard plectrum: near-ideal corner
+    const soft = harmonics(0.16); // the fingertip
+    const ratio = soft.map((m, i) => m / sharp[i]);
+
+    // the fundamental comes through untouched...
+    expect(ratio[0]).toBeGreaterThan(0.95);
+    // ...and above it the transfer falls away monotonically — a roll-off, not
+    // a notch: every partial is attenuated at least as much as the one below
+    for (let n = 1; n < ratio.length; n++) expect(ratio[n]).toBeLessThan(ratio[n - 1]);
+    expect(ratio[7]).toBeLessThan(0.3); // and by H8 it has genuinely bitten
+
+    const centroid = (h: number[]) =>
+      h.reduce((a, m, i) => a + (i + 1) * m, 0) / h.reduce((a, m) => a + m, 0);
+    expect(centroid(soft)).toBeLessThan(centroid(sharp));
   });
 
   it("a tighter string plucked with the same pull speaks louder", () => {
@@ -106,7 +197,7 @@ describe("StringSim", () => {
       const sim = new StringSim(FS);
       sim.setString({ ...base, tension });
       sim.bowPosition = 0.85;
-      sim.pluck(0.5, 1.2);
+      sim.pluck(0.5, PLUCK_CONTACT);
       const out = render(sim, 0.4);
       expectNoNaN(out);
       return rms(out, 0, 0.2);
@@ -123,7 +214,7 @@ describe("StringSim", () => {
   it("pluck decays over time", () => {
     const sim = new StringSim(FS);
     sim.setString({ f0: 220, darkness: 0.3, loss: 0.5, stiffness: 0.1, nonlinearity: 0 });
-    sim.pluck(0.6, 1.2);
+    sim.pluck(0.6, PLUCK_CONTACT);
     const out = render(sim, 1.6);
     const early = rms(out, 0.05, 0.25);
     const late = rms(out, 1.3, 1.5);
@@ -228,7 +319,7 @@ describe("StringSim", () => {
     sim.fingerPosition = 0.5;
     sim.fingerPressure = 0.12; // light harmonic touch
     sim.bowPosition = 0.88;
-    sim.pluck(0.7, 1.0);
+    sim.pluck(0.7, PLUCK_CONTACT);
     const out = render(sim, 1.0);
     expectNoNaN(out);
     const f = estimatePitch(out, 0.45, 0.95);

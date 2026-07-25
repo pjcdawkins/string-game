@@ -39,7 +39,7 @@ class StringProcessor extends AudioWorkletProcessor {
       const m = e.data;
       switch (m.type) {
         case "pluck":
-          this.sim.pluck(m.force, m.widthMs, m.periodFrac);
+          this.sim.pluck(m.force, m.contactWidth);
           break;
         case "selectString":
           // no reset: the string just left keeps ringing sympathetically

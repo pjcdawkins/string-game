@@ -51,26 +51,39 @@ const FINGER_DRAG_MAX = BOW_MAX - BOW_CLEARANCE;
 // the release seeds the visual ring-down at the held displacement, and the
 // audio force maps off the same range.
 const MAX_BEND = 0.18;
-// A fingertip pizz's soft force pulse, as a fraction of the string period —
-// wide enough to sound mellow (rounder than the plectrum) but not so wide it
-// self-cancels into a whisper. Period-relative so it balances across the range.
-const FINGER_PLUCK_PERIOD_FRAC = 1.5;
-
-// How deeply each implement hooks the string, as a multiplier on the pull the
-// gesture measures. A fingertip catches the string and carries it — the pizz
-// takes the bend at face value (1) — while a plectrum is held across the
-// string and glances off it, releasing well before the fingertip would.
+// The span over which the held string leaves each implement, as a fraction of
+// the vibrating length — the length that rounds the corner of the released
+// triangle (see StringSim.pluck). This is the implement's whole tone control:
+// wider rounds the corner more and darkens the attack. Over the range used
+// here it is a plain roll-off, and it can never reach the fundamental however
+// wide it goes, which is exactly what the duration-based pulse it replaced
+// could not promise.
 //
-// Balance: with StringSim's tension term (PLUCK_TENSION_TILT) turning the pull
-// into a bridge force, the set's tension of 2 lifts BOTH implements ~6 dB.
-// That is where the pizz wants to be; the plectrum, whose narrow pulse never
-// self-cancelled the way the fingertip's wide one does, was already the louder
-// of the two and only wanted a couple of dB, so its shallower hook trims it
-// back to ~+2.5 dB. Pizz lands a few dB under the pick — the pick still reads
-// as the brighter, more incisive attack, but the two are now the same
-// instrument at the same effort rather than a stroke and an afterthought.
-const PICK_HOOK = 0.72;
-const PIZZ_HOOK = 1.0;
+// A plectrum touches the string over about a millimetre of a ~330 mm string,
+// so it releases an almost ideal corner: 0.006 is generous for one.
+//
+// The fingertip figure is NOT the geometric contact patch, which is only ~8 mm
+// (0.025) and on its own would leave pizz and pick all but indistinguishable —
+// the honest reading of the physics being that a real pizzicato is a bright
+// sound. It is a lumped effective width, in the same spirit as the torsional
+// and thermal contact models elsewhere in the DSP: the flesh deforms and the
+// string peels off it over an arc, and the finger goes on damping the string
+// as it leaves, both of which soften the corner. Set by ear against the
+// plectrum, not measured off a fingertip. Modelling the damping separately
+// would let this drop back toward the geometric width.
+const PICK_CONTACT = 0.006;
+const PIZZ_CONTACT = 0.16;
+
+// How much of the gesture's pull actually reaches the string. A plectrum is
+// rigid and delivers the measured bend whole; a fingertip is the compliant
+// half of the pair (the same softness that widens its release above), so part
+// of the pull goes into squashing flesh rather than displacing string.
+//
+// Between this and the corner rounding — which spends a little level of its
+// own — pizz lands ~2.5 dB under pick, A-weighted, with pick left at the level
+// it already had. A bit under, not far under.
+const PICK_HOOK = 1.0;
+const PIZZ_HOOK = 0.8;
 
 // Lateral half-width (world units) of the left-hand catch on the fingerboard: a
 // touch within this of the strings' centre line stops the string, while one
@@ -521,8 +534,8 @@ export class Interactions {
     // a plectrum is a sharp, fixed-width stroke (bright); a fingertip is a soft
     // pulse keyed to the string period, so its mellow tone and level stay
     // consistent from the low strings to the high (see StringSim.pluck)
-    if (state.tool === "pick") engine.pluck(p, force * PICK_HOOK, 0.7);
-    else engine.pluck(p, force * PIZZ_HOOK, 0, FINGER_PLUCK_PERIOD_FRAC);
+    if (state.tool === "pick") engine.pluck(p, force * PICK_HOOK, PICK_CONTACT);
+    else engine.pluck(p, force * PIZZ_HOOK, PIZZ_CONTACT);
     // vibration starts at the fingertip's bridge-side edge (the node)
     const stopped = state.fingerOn && this.fingerPressure > 0.55 ? fingerStop(state.fingerPos) : 0;
     this.view.visual.pluckVisual(p, dx, stopped);

@@ -242,10 +242,10 @@ export class Engine {
     this.setParam("fingerPressure", pressure);
   }
 
-  pluck(position: number, force: number, widthMs: number, periodFrac = 0): void {
+  pluck(position: number, force: number, contactWidth = 0): void {
     if (!this.node) return;
     this.setParam("bowPosition", position);
-    this.node.port.postMessage({ type: "pluck", force, widthMs, periodFrac });
+    this.node.port.postMessage({ type: "pluck", force, contactWidth });
   }
 
   /** Move the bow/finger to another string. The strings all keep sounding —

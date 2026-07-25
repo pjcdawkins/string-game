@@ -33,6 +33,17 @@ export class DelayLine {
     this.writeIdx++;
   }
 
+  /**
+   * Add `x` into the sample sitting `delay` steps back — the one `read(delay)`
+   * would return. Used to load a travelling-wave initial condition along a
+   * segment (a plucked string's released shape) rather than to inject a signal
+   * at its input end. Adds rather than replaces, so a pluck lands on top of
+   * whatever the string was already doing.
+   */
+  addAt(delay: number, x: number): void {
+    this.buf[(this.writeIdx - delay) & this.mask] += x;
+  }
+
   clear(): void {
     this.buf.fill(0);
   }

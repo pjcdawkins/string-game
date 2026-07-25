@@ -356,22 +356,78 @@ instrument and `selectString` just moves the bow/finger. Design notes:
   elongation drive would change that was investigated — see the next bullet).
 - **Tension also sets how loudly a pluck speaks** (`PLUCK_TENSION_TILT` in
   StringSim). A pluck is a *displacement*-controlled gesture — the player hooks
-  the string, carries it aside, lets go — but the model excites the string with
-  a force pulse, so the bend → force conversion has to carry the tension:
-  F ~ T·y₀/(L·β(1−β)), i.e. amplitude ∝ tension (exponent 1, the physical law).
-  Bowing takes no such term; its force comes from bow weight and the friction
-  curve, not from how far the string is displaced. This is why raising the set
-  to tension 2 left the plucks sounding thin — the strings got tighter while
-  their plucks kept injecting the slack-string force. Restoring it lifts every
-  pluck ~+6 dB (a little less after the output stage's gentle saturation), and
-  the implement balance is then set on top of it by `PICK_HOOK`/`PIZZ_HOOK` in
-  input/interactions.ts: the fingertip takes the measured bend at face value,
-  the plectrum glances off at ~0.72 of it. Net at default Pressure, A-weighted:
-  pizz +5.8 dB, pick +2.5 dB, closing the pick→pizz gap from ~12 dB to ~9 dB
-  (raw broadband, ~4.7 dB to ~2 dB — the pizz measures closer than it sounds
-  because its wide, mellow pulse puts most of its energy low). Plucked pitch is
-  untouched by the extra level: ≤1c at default Pressure, ≤3.3c on the G flat
-  out, since tension 2 is holding the drift down at the same time.
+  the string, carries it aside, lets go — and the bridge force that results is
+  the tension resolved through the bend angle, F ~ T·y₀/(L·β(1−β)): amplitude ∝
+  tension, exponent 1, the physical law. Bowing takes no such term; its force
+  comes from bow weight and the friction curve, not from how far the string is
+  displaced. This is why raising the set to tension 2 first left the plucks
+  sounding thin — the strings got tighter while their plucks kept delivering
+  the slack-string force. Since the pluck became a proper displacement release
+  (below) this is no longer an assertion bolted onto the excitation: the
+  velocity waves loaded into the delay lines are pure kinematics, and the model
+  turns them into bridge force through the string's impedance, which is where
+  the tension lives. The term states explicitly what the waveguide would say
+  anyway if Z were not normalised to 1.
+- **Plucks are a released initial condition, not an injected signal**
+  (`StringSim.pluck`). A plucked string starts as a triangle — straight from
+  each termination to the fingertip — held at rest and let go. d'Alembert
+  splits that shape into two half-amplitude travelling waves, and in the
+  velocity variables the waveguide carries, v± = ∓(c/2)·∂y/∂x — so each
+  straight leg becomes a *constant block* of velocity wave: −g on the nut side
+  and +g on the bridge side going one way, the exact negative going the other.
+  The two cancel everywhere at t = 0 (displaced but stationary, which is what
+  "held" means) and the note grows as they separate. `pluck()` writes those
+  blocks into the six delay lines through `DelayLine.addAt` and returns;
+  nothing is injected afterwards. It also snaps the segment delays to their
+  targets first — they normally glide over 4 ms so the bow doesn't zipper, but
+  a pluck happens at a definite place, and loading a shape into lines still
+  travelling toward their lengths would stretch it out from under itself.
+
+  What this buys, all of it falling out rather than being modelled: the
+  contact-point comb is exact (plucked dead centre the whole even series
+  vanishes; at a quarter, every fourth partial — mode n goes as sin(nπβ), and
+  the unit tests assert it), the 1/(β(1−β)) loudness law is emergent, and the
+  spectrum is the real 1/n² plucked series instead of whatever an injected
+  pulse shape happened to have.
+
+  It replaced a raised-cosine *force* pulse whose duration stood in for the
+  implement's hardness — which was the bug behind a pizz that sounded, in the
+  end, like a sine with reverb on it. Duration is bandwidth: a Hann pulse
+  spanning k periods is a lowpass with its first null at (2/k)·f₀, so the soft
+  setting (k = 1.5) put the first null at 1.33·f₀ — *below the second
+  harmonic*. It nulled the entire even series exactly, left the odd partials
+  33 dB down, and threw away 15 dB of fundamental drive as well. Measured: the
+  pizz's spectral centroid was 245 Hz on the G against the pick's 816 and a
+  bowed note's 1085, i.e. four times darker than a bowed note when a real pizz
+  should be *brighter* at the attack. Neither the body filter nor the decay was
+  implicated — sweeping `bodyMix` 0.75 → 0 moved the centroid only 245 → 219 Hz.
+  The "wet" quality was simply what a note with no onset transient and no upper
+  partials sounds like.
+
+  The implement is now a LENGTH: `contactWidth`, the span over which the string
+  leaves it, as a fraction of the vibrating length, rounding the corner of the
+  released triangle. That is the physically right knob — and a safe one, since
+  its first null lies at harmonic 2/width and a width cannot exceed the whole
+  string, so the fundamental is structurally out of reach where the old pulse's
+  null walked straight past it. `PICK_CONTACT`/`PIZZ_CONTACT` and
+  `PICK_HOOK`/`PIZZ_HOOK` in input/interactions.ts set the pair. Honest caveat:
+  0.16 for the fingertip is well above a real fingertip's ~8 mm contact patch,
+  which on its own would leave pizz and pick nearly indistinguishable — the
+  truthful reading of the physics being that a real pizzicato is a bright
+  sound. It is a lumped effective width standing in for the flesh deforming as
+  the string peels off it *and* for the finger damping the string as it leaves;
+  modelling that damping separately would let the width drop back toward the
+  geometric one.
+
+  Net at default Pressure, A-weighted, against the force-pulse build: pizz
+  +2.3 to +6.7 dB and its centroid 599–911 Hz where it had been 245–708, with
+  pick held at the level it already had (−0.4 to −2.5 dB) — pizz now sits
+  ~2.5 dB under pick instead of ~12. Plucked pitch stays within 1.6 c at every
+  Pressure and string bar the hardest possible plectrum stroke on the open G
+  (+5.5 c, the tension-modulation drift doing its job). Peaks run 0.40–0.68
+  against a 0.72 saturation ceiling; a released triangle plucked near the
+  bridge has a genuinely high crest factor (a short steep kick), so the attack
+  compresses a little more than the old pulse did.
 - **Why the drive stays bridge-wave amp² (elongation drive investigated, not
   adopted).** The geometric tension increase is ∝ the string elongation
   ∫½(∂y/∂x)² dx, so it is tempting to drive the detune from a slope/elongation
