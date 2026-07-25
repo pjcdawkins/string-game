@@ -17,10 +17,11 @@
  * In the pluck tools (pizz / pick) the right hand claims one more thing: any
  * left/right swipe, wherever it starts. Plucking is a gesture ACROSS the
  * string, so a sideways flick that begins on the board grabs and plucks
- * instead of stopping — the stop it laid down on landing is taken back —
- * while taps and drags along the string stay the left hand's, exactly as under
- * the bow. (Bowing needs no such rule: a stroke is a sideways swipe too, but
- * it mostly happens off the board, beside the strings, anyway.)
+ * instead of stopping — the stop it laid down on landing is taken back, and a
+ * stop already held is left untouched on its own string (see restoreLeftHand)
+ * — while taps and drags along the string stay the left hand's, exactly as
+ * under the bow. (Bowing needs no such rule: a stroke is a sideways swipe too,
+ * but it mostly happens off the board, beside the strings, anyway.)
  */
 import { SceneView, STRING_LEN, BRIDGE_RISE } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
@@ -233,7 +234,7 @@ export class Interactions {
   // beforehand so a swipe can put it back and hand the pointer to the pluck.
   // Null in the bow tool, and cleared once the touch commits (a glissando
   // drag, or the pointer lifting on a tap).
-  private leftUndo: { on: boolean; pos: number } | null = null;
+  private leftUndo: { on: boolean; pos: number; idx: number } | null = null;
   private pressureTarget = 0;
   private pointerRawX = 0; // raw pointer lateral position (pre-acceleration)
   private gestureDx = 0; // raw pointer movement accumulated since last frame
@@ -345,7 +346,9 @@ export class Interactions {
       // in the pluck tools the stop this touch is about to place is only
       // provisional until the gesture proves not to be a sideways pluck
       this.leftUndo =
-        state.tool === "bow" ? null : { on: state.fingerOn, pos: state.fingerPos };
+        state.tool === "bow"
+          ? null
+          : { on: state.fingerOn, pos: state.fingerPos, idx: state.stringIdx };
       const lane = this.catchLane(c);
       this.leftOnFinger =
         state.fingerOn && lane === state.stringIdx && Math.abs(c.s - state.fingerPos) < 0.035;
@@ -466,13 +469,23 @@ export class Interactions {
 
   /** Put the left hand back as it was before the current touch placed its
    * provisional stop (see leftUndo): the swipe turned out to be the right
-   * hand, so the touch leaves no stop behind — it only ever plucks. The
-   * string *selection* stands, though: a swipe across a lane plucks the lane
-   * it crossed, which is the whole point of reaching over the board. */
+   * hand, so it leaves no stop behind — it only ever plucks.
+   *
+   * Which string it plucks follows from the same principle. With the hand
+   * lifted, the touch's own lane pick stands and the swipe plucks the lane it
+   * crossed — the whole point of reaching over the board, and it makes all
+   * four strings pluckable by touch alone. But while a stop is held the lane
+   * pick is taken back too: the finger and the sounding string move together
+   * here (one finger, one string), so keeping the new lane would carry the
+   * held stop onto a string the player never stopped. A swipe must not move
+   * the left hand at all, so it plucks the string the hand is stopping —
+   * which is the note being fingered, and the only one the model can pluck
+   * with that stop in place. */
   private restoreLeftHand(): void {
     const u = this.leftUndo;
     this.leftUndo = null;
     if (!u) return;
+    if (u.on && u.idx !== state.stringIdx) this.selectString(u.idx);
     state.fingerOn = u.on;
     state.fingerPos = u.pos;
     this.fingerGlideTarget = null;
@@ -566,7 +579,7 @@ export class Interactions {
     // a lift from anywhere else (Esc, the lift targets) becomes the baseline a
     // pending pluck swipe would restore, so undoing its provisional stop can
     // never bring the hand back down
-    if (this.leftUndo) this.leftUndo = { on: false, pos: state.fingerPos };
+    if (this.leftUndo) this.leftUndo = { on: false, pos: state.fingerPos, idx: state.stringIdx };
     this.rearticulate();
     notify();
   }

@@ -571,18 +571,52 @@ await page.keyboard.press("Escape"); // back to the arco default for later tests
 // still stops the string and a drag along the board still glissandos.
 await page.click('[data-tool="finger"]');
 await page.waitForTimeout(400); // let the previous ring-down decay
-const sw0 = await stringPt(2, 0.4);
-const sw1 = await stringPt(2, 0.4, 0.5);
-await page.mouse.move(sw0.clientX, sw0.clientY);
-await page.mouse.down();
-await page.mouse.move(sw1.clientX, sw1.clientY, { steps: 6 });
-await page.mouse.up();
-ms = await page.evaluate(() => ({ on: window.__debug.state.fingerOn }));
+const swipeBoard = async (idx, s) => {
+  const a = await stringPt(idx, s);
+  const b = await stringPt(idx, s, 0.5);
+  await page.mouse.move(a.clientX, a.clientY);
+  await page.mouse.down();
+  await page.mouse.move(b.clientX, b.clientY, { steps: 6 });
+  await page.mouse.up();
+};
+// with the hand lifted, the swipe plucks the lane it crossed (here the D
+// string, while the A is selected) and leaves no stop behind
+await swipeBoard(1, 0.4);
+ms = await page.evaluate(() => ({
+  on: window.__debug.state.fingerOn,
+  idx: window.__debug.state.stringIdx,
+}));
 if (ms.on) fail("a pizz swipe across the board left a stop behind");
 else ok("a pizz swipe across the board left no stop");
+if (ms.idx !== 1) fail(`a pizz swipe did not pluck the lane it crossed (stringIdx=${ms.idx})`);
+else ok("a pizz swipe with the hand lifted plucks the lane it crossed");
 const swipeRms = await peakRmsAfter();
 if (swipeRms < 0.002) fail(`a pizz swipe across the board did not pluck (rms=${swipeRms})`);
 else ok(`a pizz swipe across the board plucked (rms=${swipeRms.toFixed(4)})`);
+
+// but a swipe must not disturb a stop that IS held: the finger and the
+// sounding string move together, so crossing another lane must not carry the
+// stop onto a string the player never stopped — it plucks the stopped string
+await tapString(2, 0.4); // stop the A string
+const held = await page.evaluate(() => ({
+  idx: window.__debug.state.stringIdx,
+  pos: window.__debug.state.fingerPos,
+}));
+await page.waitForTimeout(400);
+await swipeBoard(1, 0.4); // swipe across the D lane with the A stop held
+ms = await page.evaluate(() => ({
+  on: window.__debug.state.fingerOn,
+  idx: window.__debug.state.stringIdx,
+  pos: window.__debug.state.fingerPos,
+}));
+if (!ms.on || ms.idx !== held.idx || Math.abs(ms.pos - held.pos) > 1e-6)
+  fail(
+    `a pizz swipe moved the held stop (on=${ms.on}, stringIdx=${ms.idx}, pos=${ms.pos} — was ${held.idx}/${held.pos})`
+  );
+else ok("a pizz swipe leaves a held stop exactly where it was, on its own string");
+const heldRms = await peakRmsAfter();
+if (heldRms < 0.002) fail(`a pizz swipe over a held stop did not pluck (rms=${heldRms})`);
+else ok(`a pizz swipe over a held stop plucked the stopped string (rms=${heldRms.toFixed(4)})`);
 
 await tapString(2, 0.4); // a tap in the pluck tool still stops the string
 ms = await page.evaluate(() => ({
