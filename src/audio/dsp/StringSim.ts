@@ -17,9 +17,9 @@
  *   solved in closed form (quadratic) each sample, optionally with the friction
  *   coefficients thermally modulated (temperature-dependent rosin, a hysteresis
  *   that widens the Helmholtz regime — see THERMAL_* and StringSpec.thermal).
- *   Plucks (plectrum/finger
- *   pizz) are injected at the same point as a raised-cosine force pulse whose
- *   duration encodes the hardness/width of the plucking implement.
+ *   Plucks (plectrum/finger pizz) happen at the same point, but are not
+ *   injected at all: a pluck is a RELEASE, so pluck() loads the held triangle
+ *   into the delay lines as an initial condition and lets it go (see there).
  * - The BRIDGE reflects through a one-pole loss/brightness filter and a pair
  *   of allpasses that model string stiffness (dispersion / inharmonicity).
  *   The transmitted bridge force drives a small modal body filter.
@@ -269,6 +269,19 @@ const PLUCK_LF_MAX = 2.0;
 // unit tests) so this is neutral unless a spec opts into a tension.
 const PLUCK_TENSION_TILT = 1;
 
+// Travelling-wave amplitude of a centred pluck at unit force, before the
+// low-frequency and tension tilts (see StringSim.pluck). Off-centre plucks
+// scale from here by each leg's share of the vibrating length.
+const PLUCK_GAIN = 0.105;
+
+// Shortest leg a pluck can bend, as a fraction of the vibrating length. The
+// released triangle's wave amplitude is the bend over the leg's length, which
+// runs away as the contact point nears a termination — where a real string is
+// far too stiff to take the bend at all, so the pull flattens out instead. The
+// floor stands in for that stiffness, and keeps a hard pizz right at the bridge
+// from arriving ~25 dB hot. 1/12 of the length is well outside normal playing.
+const PLUCK_MIN_LEG = 1 / 12;
+
 /** Violin-ish modal body resonances: [freq Hz, Q, gain]. */
 const BODY_MODES: ReadonlyArray<[number, number, number]> = [
   [275, 9, 1.5], // "breathing" A0 mode
@@ -429,12 +442,6 @@ export class StringSim {
   // bridge force -> body filter -> ear, for the solo (uncoupled) path
   private output: BodyOutput;
 
-  // pluck pulse state
-  private pluckSamplesLeft = 0;
-  private pluckLen = 0;
-  private pluckAmp = 0;
-  private pluckPhase = 0;
-
   // finite bow-hair width: a centre-weighted (triangular) average of the free
   // bow-point velocity over the contact patch (see BOW_HAIR_WIDTH). A half-
   // length of 1 collapses to the point-contact model exactly.
@@ -546,42 +553,133 @@ export class StringSim {
   }
 
   /**
-   * Trigger a pluck at the current bowPosition. The pulse width sets the
-   * implement's hardness: a sharp plectrum is a fixed absolute `widthMs`, while
-   * a soft fingertip is better expressed as a fraction of the current period
-   * (`periodFrac` > 0 overrides `widthMs`). A soft pulse is spread over a large
-   * fraction of the period, so its raised-cosine force partly cancels itself
-   * against the string's own motion during injection and the note comes out
-   * quieter. Keying the finger's width to the period keeps that self-cancellation
-   * — hence the loudness and the mellow tone — consistent across the range,
-   * instead of a fixed-ms pulse that is ~1 period on the low strings but several
-   * periods (and near-silent) on the high ones.
+   * Pluck: RELEASE the string from a bend held at the current bowPosition.
+   *
+   * Not an excitation signal but an initial condition. A plucked string starts
+   * as a triangle — straight from each termination up to the fingertip — held
+   * at rest and let go. d'Alembert splits that shape into two half-amplitude
+   * travelling waves, and in the velocity variables this waveguide carries,
+   *
+   *   v± = ∓(c/2)·∂y/∂x
+   *
+   * so each leg of the triangle, having constant slope, becomes a CONSTANT
+   * block of velocity wave: −g on the nut side and +g on the bridge side for
+   * the right-going wave, and its exact negative for the left-going one. The
+   * two cancel everywhere at t = 0 — the string is displaced but stationary,
+   * which is what "held, then released" means — and the note grows as they
+   * separate. Loading those blocks into the delay lines IS the pluck; nothing
+   * is injected afterwards.
+   *
+   * This replaces a force pulse whose duration stood in for the implement's
+   * hardness. Duration is bandwidth: a raised-cosine pulse spanning k periods
+   * is a lowpass with its first null at (2/k)·f0, so the soft setting (k = 1.5)
+   * nulled every even harmonic and left a sine. Here the implement is a LENGTH
+   * instead — `contactWidth`, the span over which the held string leaves the
+   * fingertip, as a FRACTION OF THE VIBRATING LENGTH. It rounds the triangle's
+   * corner, lowpassing the initial shape: a wider, softer implement darkens the
+   * attack. Being a length rather than a duration is what makes it safe — its
+   * first null sits at harmonic 2/contactWidth, and since the width cannot
+   * exceed the whole string that null cannot come below the second harmonic,
+   * so the fundamental is structurally out of reach. 0 gives an ideal corner.
+   *
+   * `force` is the pull (the bend). Loudness follows from it and from the
+   * contact point: each leg's slope is the bend over that leg's length, so
+   * plucking near the bridge gives a short, steep, bright kick and plucking
+   * over the board a long, gentle one — the ~1/(β(1−β)) law, now emergent
+   * rather than asserted. Legs are measured as FRACTIONS of the vibrating
+   * length, not in samples, so the amplitude tracks the gesture rather than
+   * the string's pitch (the pitch/loudness relation stays with PLUCK_LF_*).
    */
-  pluck(force: number, widthMs: number, periodFrac = 0): void {
-    // the sounding fundamental (round-trip length), needed for a period-keyed
-    // width and for the low-frequency loudness tilt below
-    const total = this.dA.value + this.dB.value + this.dC.value;
-    const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
-    const vibLen = this.effectiveRf() > 4 ? this.dB.value + this.dC.value : total;
-    const period = 2 * vibLen + comp;
-    let len = Math.round((widthMs / 1000) * this.fs);
-    if (periodFrac > 0) len = Math.round(periodFrac * period);
-    this.pluckLen = Math.max(8, len);
-    this.pluckSamplesLeft = this.pluckLen;
-    // a gentle width compensation keeps a mellow (wider) pizz from dropping too
-    // far below a sharp plectrum stroke of the same force
-    const widthMsActual = (this.pluckLen / this.fs) * 1000;
-    const widthComp = 1 + 0.06 * Math.max(0, widthMsActual - 0.8);
+  pluck(force: number, contactWidth = 0): void {
+    // Settle the geometry first. The segment delays normally GLIDE toward the
+    // contact point (4 ms, so moving the bow doesn't zipper), but a pluck is an
+    // event at a definite place: the string is caught, bent and released right
+    // there. Loading a shape into lines that are still travelling toward their
+    // lengths would stretch that shape out from under itself and smear the
+    // contact point's comb. Snapping costs nothing when the pluck point has not
+    // moved, which is the common case.
+    const [tA, tB, tC] = this.delayTargets();
+    this.dA.jump(tA);
+    this.dB.jump(tB);
+    this.dC.jump(tC);
+    this.tgtA = tA;
+    this.tgtB = tB;
+    this.tgtC = tC;
+    const dA = tA;
+    const dB = tB;
+    const dC = tC;
+    // A stopped string is plucked between the finger's node and the bridge;
+    // the nut side of the finger stays where it is (a firm stop leaves it at
+    // rest, and the finger junction handles what little couples across).
+    const stopped = this.effectiveRf() > 4;
+    const nutSide = stopped ? dB : dA + dB;
+    const bridgeSide = dC;
+    const total = nutSide + bridgeSide;
+    if (!(total > 2)) return;
+
     // boost the low strings so they read as present as the highs (see the
     // PLUCK_LF_* notes) — a √-frequency tilt anchored at the top string
-    const freq = this.fs / Math.max(1, period);
+    const comp = this.bridgeLP.phaseDelay() + this.disp1.delayAtDC() + this.disp2.delayAtDC();
+    const freq = this.fs / Math.max(1, 2 * total + comp);
     const lfGain = Math.min(PLUCK_LF_MAX, Math.max(1, Math.pow(PLUCK_LF_REF_HZ / freq, PLUCK_LF_TILT)));
     // a tighter string turns the same pull into a bigger bridge force (see the
-    // PLUCK_TENSION_TILT notes) — this is the player's bend becoming a force
-    // and so sits outside the force clamp above
+    // PLUCK_TENSION_TILT notes) — the player's bend becoming a force, so it
+    // sits outside the force clamp
     const tensionGain = Math.pow(Math.max(0.05, this.spec.tension ?? 1), PLUCK_TENSION_TILT);
-    this.pluckAmp = 0.55 * Math.min(1.5, Math.max(0, force)) * widthComp * lfGain * tensionGain;
-    this.pluckPhase = 0;
+    const amp = PLUCK_GAIN * Math.min(1.5, Math.max(0, force)) * lfGain * tensionGain;
+
+    // Each leg's wave amplitude is the bend over that leg's length. Right at a
+    // termination the string is far too stiff to pull a real corner into — the
+    // bend flattens out instead of growing without bound — so the legs are held
+    // to PLUCK_MIN_LEG of the vibrating length. Halves so a centred pluck
+    // (both legs ½) lands at `amp` exactly.
+    const fracN = Math.max(PLUCK_MIN_LEG, nutSide / total);
+    const fracB = Math.max(PLUCK_MIN_LEG, bridgeSide / total);
+    const gN = amp / (2 * fracN);
+    const gB = amp / (2 * fracB);
+
+    // Right-going wave: a step from −gN to +gB at the contact point, rounded
+    // over the implement's contact width (the integral of a raised cosine, so
+    // the corner meets both legs smoothly). `s` is signed distance from the
+    // contact point in samples, negative toward the nut.
+    const w = Math.max(1, contactWidth * total);
+    const profile = (s: number): number => {
+      if (s <= -w) return -gN;
+      if (s >= w) return gB;
+      const t = 0.5 * (1 + s / w + Math.sin((Math.PI * s) / w) / Math.PI);
+      return -gN + (gN + gB) * t;
+    };
+
+    // Scatter the profile along the delay lines. Each line is written at one
+    // end of its segment and read at the other, so the sample `tau` steps back
+    // sits `tau` samples along from the writing end — which fixes where in the
+    // string each buffer slot lives. One extra sample past each segment covers
+    // the fractional read's interpolation.
+    const load = (
+      line: DelayLine,
+      len: number,
+      /** signed position of the sample `tau` steps back */
+      posAt: (tau: number) => number,
+      /** +1 for a line running toward the bridge, −1 toward the nut */
+      dir: 1 | -1,
+    ): void => {
+      const n = Math.ceil(len) + 1;
+      for (let tau = 1; tau <= n; tau++) {
+        const s = Math.max(-nutSide, Math.min(bridgeSide, posAt(tau)));
+        line.addAt(tau, dir * profile(s));
+      }
+    };
+    // C: written at the bow, read at the bridge (cR) and vice versa (cL)
+    load(this.cR, dC, (tau) => tau, 1);
+    load(this.cL, dC, (tau) => dC - tau, -1);
+    // B: written at the bow (bL) / at the finger (bR)
+    load(this.bL, dB, (tau) => -tau, -1);
+    load(this.bR, dB, (tau) => -(dB - tau), 1);
+    // A: nut side of the finger — only in play on an open string
+    if (!stopped) {
+      load(this.aL, dA, (tau) => -(dB + tau), -1);
+      load(this.aR, dA, (tau) => -(dB + dA - tau), 1);
+    }
   }
 
   /** Instantly silence the string. */
@@ -591,7 +689,6 @@ export class StringSim {
     this.disp1.clear();
     this.disp2.clear();
     this.output.clear();
-    this.pluckSamplesLeft = 0;
     this.amp2 = 0;
     this.temp = 0;
     this.fricLast = 0;
@@ -906,18 +1003,11 @@ export class StringSim {
     vJ -= this.torsRed;
     this.fricLast = 2 * fExc; // 2Z·excursion = the transverse friction force
     this.slipVelLast = vSlip;
-    let bowToC = vJ - cBow;
-    let bowToB = vJ - bBow;
+    const bowToC = vJ - cBow;
+    const bowToB = vJ - bBow;
 
-    // --- pluck force injection (raised cosine pulse)
-    if (this.pluckSamplesLeft > 0) {
-      const ph = this.pluckPhase / this.pluckLen;
-      const p = this.pluckAmp * 0.5 * (1 - Math.cos(2 * Math.PI * ph));
-      bowToC += p;
-      bowToB += p;
-      this.pluckPhase++;
-      this.pluckSamplesLeft--;
-    }
+    // (a pluck needs nothing here: it is an initial condition loaded straight
+    // into the delay lines by pluck(), not a signal injected over time)
 
     // --- advance delay lines
     this.aR.write(nutOut);

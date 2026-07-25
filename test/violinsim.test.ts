@@ -4,6 +4,11 @@ import { FINGER_RADIUS, STRINGS } from "../src/state";
 
 const FS = 48000;
 
+/** A middling implement for the tests: the span over which the string leaves
+ * it, as a fraction of the vibrating length (see StringSim.pluck). Sharp
+ * enough to excite a full harmonic series, well short of the fingertip's. */
+const PLUCK_CONTACT = 0.02;
+
 const SPECS = STRINGS.map((s) => s.spec);
 const G = 0;
 const D = 1;
@@ -97,7 +102,7 @@ describe("ViolinSim (four strings coupled at the bridge)", () => {
     // both exact in pure fifths. G shares nothing below its 9th partial.
     const v = makeViolin(A);
     v.bowPosition = 0.85;
-    v.pluck(0.8, 1.2);
+    v.pluck(0.8, PLUCK_CONTACT);
     expectNoNaN(render(v, 0.5));
     const g = v.strings[G].amplitude();
     const d = v.strings[D].amplitude();
@@ -125,7 +130,7 @@ describe("ViolinSim (four strings coupled at the bridge)", () => {
   it("switching strings leaves the old string ringing (no reset)", () => {
     const v = makeViolin(A);
     v.bowPosition = 0.85;
-    v.pluck(0.8, 1.2);
+    v.pluck(0.8, PLUCK_CONTACT);
     const before = render(v, 0.3);
     expectNoNaN(before);
     const ringing = v.strings[A].amplitude();
@@ -152,7 +157,7 @@ describe("ViolinSim (four strings coupled at the bridge)", () => {
     const run = (wander: boolean): Float64Array => {
       const v = makeViolin(A);
       v.bowPosition = 0.85;
-      v.pluck(0.8, 1.2);
+      v.pluck(0.8, PLUCK_CONTACT);
       render(v, 0.3);
       v.selectString(E);
       const blocks = Math.floor((0.6 * FS) / 128);

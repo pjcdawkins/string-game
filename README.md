@@ -36,11 +36,16 @@ npm run build    # production build (worklet bundles to a self-contained file)
   the string, bend it, release. The bend point shapes the spectrum (comb
   filtering — pluck at 1/4 and the 4th harmonic family is missing). Grabbing
   can start from beside the board too — reach in from the flank and flick — so
-  an open string can be plucked *sul tasto*, anywhere up its length. How loudly
-  a pluck speaks follows the string tension: the bend is a displacement, and a
-  tighter string turns the same pull into a bigger bridge force. The fingertip
-  hooks the string more deeply than the glancing plectrum, so *pizz.* sits a
-  few dB under the pick — nearer, and mellower, rather than an afterthought.
+  an open string can be plucked *sul tasto*, anywhere up its length. A pluck is
+  modelled as what it physically is: not a signal fed into the string but a
+  *release*. The bend you hold is loaded into the waveguide as a triangle at
+  rest and let go, so the comb, the 1/n² spectrum and the way loudness follows
+  both the pull and the contact point all fall out on their own. Each implement
+  is then a contact *width*, rounding the corner of that triangle — the
+  plectrum releases a sharp one and bites, the fingertip a rounded one and
+  sings, with *pizz.* sitting a couple of dB under the pick. How loudly a pluck
+  speaks also follows the string tension: the bend is a displacement, and a
+  tighter string turns the same pull into a bigger bridge force.
 - **Stop** the string anywhere on the fingerboard: a tap on the board latches
   a finger, a drag glissandos — and the drag can carry the finger on past the
   end of the board toward the bridge, higher in pitch than the board itself
@@ -167,9 +172,13 @@ nut |-- A --| finger |-- B --| bow/pluck |-- C --| bridge
 - **Tension modulation**: a slow amplitude tracker shortens all delay lines
   slightly when the string is driven beyond ordinary amplitudes, so hard,
   fast bowing goes sharp — scaled per string (strongest on G, barely on E).
-- **Plucks** are raised-cosine force pulses injected at the interaction
-  point; pulse duration encodes implement width/hardness (plectrum ≈ 0.7 ms,
-  fingertip ≈ 5 ms).
+- **Plucks** are not injected at all: the released triangle is loaded into
+  the delay lines as an initial condition (each straight leg becomes a
+  constant block of velocity wave, the two directions cancelling to a
+  stationary displaced string), so the contact-point comb and the 1/n²
+  spectrum come out on their own. The implement is a contact *width*
+  rounding the triangle's corner — plectrum ≈ 0.6%, fingertip ≈ 16% of the
+  vibrating length.
 - **Bridge**: inverting reflection through a one-pole loss/brightness filter
   plus two first-order allpasses for string stiffness (dispersion /
   inharmonicity); their group delay is compensated in the loop tuning. The
@@ -203,6 +212,10 @@ in Node. `npm test` verifies, with an autocorrelation pitch estimator:
 - tension modulation sharpens loud playing on a nonlinear string;
 - a tighter string plucked with the same pull speaks louder (~+6 dB for
   double the tension);
+- the pluck point combs the harmonics out — plucked dead centre, the whole
+  even series is missing; at a quarter, every fourth partial;
+- a softer (wider) plucking implement rolls the top off monotonically and
+  leaves the fundamental alone;
 - silence stays silent and every sample stays finite.
 
 ### Visual model
