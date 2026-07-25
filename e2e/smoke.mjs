@@ -366,7 +366,10 @@ await page.screenshot({ path: "e2e/pluck.png" });
 // 10b. multi-string left hand: a touch on another string's lane moves the
 // finger (and the sounding string, and so the bow) there; tapping the latched
 // finger leaves it latched; flicking it sideways lifts it; a tap in the
-// top-left corner lifts too.
+// top-left corner lifts too. Back to the bow first — test 10 leaves the pick
+// selected, and in the pluck tools a sideways flick is the right hand plucking
+// (see 10f), not the lift gesture.
+await page.click('[data-tool="bow"]');
 const laneXAt = (idx, s) => (idx - 1.5) * (0.062 + (0.128 - 0.062) * s); // scene/lanes.ts
 const stringPt = (idx, s, dx = 0) =>
   page.evaluate(([ss, xx]) => window.__debug.view.stringToScreen(ss, xx), [s, laneXAt(idx, s) + dx]);
@@ -562,6 +565,48 @@ if (firmPluck < softPluck * 1.5)
   fail(`Pressure did not scale pluck force (soft=${softPluck.toFixed(4)}, firm=${firmPluck.toFixed(4)})`);
 else ok(`Pressure scales pluck force (soft=${softPluck.toFixed(4)} -> firm=${firmPluck.toFixed(4)})`);
 await page.keyboard.press("Escape"); // back to the arco default for later tests
+
+// 10f. in the pluck tools a left/right swipe is the RIGHT hand: a sideways
+// swipe over the fingerboard plucks and leaves no stop behind, while a tap
+// still stops the string and a drag along the board still glissandos.
+await page.click('[data-tool="finger"]');
+await page.waitForTimeout(400); // let the previous ring-down decay
+const sw0 = await stringPt(2, 0.4);
+const sw1 = await stringPt(2, 0.4, 0.5);
+await page.mouse.move(sw0.clientX, sw0.clientY);
+await page.mouse.down();
+await page.mouse.move(sw1.clientX, sw1.clientY, { steps: 6 });
+await page.mouse.up();
+ms = await page.evaluate(() => ({ on: window.__debug.state.fingerOn }));
+if (ms.on) fail("a pizz swipe across the board left a stop behind");
+else ok("a pizz swipe across the board left no stop");
+const swipeRms = await peakRmsAfter();
+if (swipeRms < 0.002) fail(`a pizz swipe across the board did not pluck (rms=${swipeRms})`);
+else ok(`a pizz swipe across the board plucked (rms=${swipeRms.toFixed(4)})`);
+
+await tapString(2, 0.4); // a tap in the pluck tool still stops the string
+ms = await page.evaluate(() => ({
+  on: window.__debug.state.fingerOn,
+  pos: window.__debug.state.fingerPos,
+}));
+if (!ms.on || Math.abs(ms.pos - 0.4) > 0.03)
+  fail(`a tap in the pluck tool did not stop the string (on=${ms.on}, pos=${ms.pos})`);
+else ok("a tap in the pluck tool still stops the string");
+
+const gl0 = await stringPt(2, 0.4);
+const gl1 = await stringPt(2, 0.62);
+await page.mouse.move(gl0.clientX, gl0.clientY);
+await page.mouse.down();
+await page.mouse.move(gl1.clientX, gl1.clientY, { steps: 6 });
+await page.mouse.up();
+ms = await page.evaluate(() => ({
+  on: window.__debug.state.fingerOn,
+  pos: window.__debug.state.fingerPos,
+}));
+if (!ms.on || ms.pos < 0.55)
+  fail(`a drag along the board in the pluck tool did not glissando (on=${ms.on}, pos=${ms.pos})`);
+else ok(`a drag along the board still glissandos in the pluck tool (pos=${ms.pos.toFixed(3)})`);
+await page.keyboard.press("Escape"); // back to arco, finger lifted
 
 // 11. switch strings mid-stroke: while one finger holds a bow stroke on the
 // canvas, a second finger taps a string button. Regression check — the HUD

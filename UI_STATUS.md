@@ -115,7 +115,12 @@ impossible until the bowing finger lifted.
   shift slightly onto the snap target), while flicking it sideways off its
   string lifts it; a tap
   in the top-left corner of the play area lifts the hand, and a tap at the nut
-  lifts it *and* selects the tapped lane — that string, open.
+  lifts it *and* selects the tapped lane — that string, open. In the pluck
+  tools (pizz / pick) a left/right swipe over the board belongs to the **right**
+  hand instead — plucking is a gesture across the string, so the swipe grabs
+  and plucks, and the stop the touch laid down on landing is taken back
+  (the sideways lift flick therefore only exists under the bow; the nut tap,
+  the corner tap and `Esc` still lift in the pluck tools).
 - **Keyboard shortcuts** (`src/input/keyboard.ts`) — arrows bow (`→` down
   bow, `←` up bow, `↑`/`↓` contact point), `Space` (held) auto-bows,
   `[`/`]` (held) ramp the bow pressure, digits (held) add their semitones

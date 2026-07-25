@@ -36,7 +36,11 @@ npm run build    # production build (worklet bundles to a self-contained file)
   the string, bend it, release. The bend point shapes the spectrum (comb
   filtering — pluck at 1/4 and the 4th harmonic family is missing). Grabbing
   can start from beside the board too — reach in from the flank and flick — so
-  an open string can be plucked *sul tasto*, anywhere up its length. A pluck is
+  an open string can be plucked *sul tasto*, anywhere up its length. In the
+  pluck tools it can start *on* the board as well: a pluck is a swipe across
+  the string, so there any left/right swipe is the right hand's and plucks
+  rather than stopping (taps and slides along the board still belong to the
+  left hand). A pluck is
   modelled as what it physically is: not a signal fed into the string but a
   *release*. The bend you hold is loaded into the waveguide as a triangle at
   rest and let go, so the comb, the 1/n² spectrum and the way loudness follows
@@ -54,7 +58,8 @@ npm run build    # production build (worklet bundles to a self-contained file)
   and with it the bow, which always plays the finger's string — over to it:
   all four strings are playable by touch alone, though the bow drives one at a
   time. Tapping a latched finger leaves it latched; to lift it, flick it
-  sideways off its string, tap the top-left corner of the play area (or above
+  sideways off its string (in the pluck tools that flick plucks instead, so
+  use one of the taps below), tap the top-left corner of the play area (or above
   the nut — where the tap also selects the lane it lands on: every string is
   open at the nut, so tapping a string there plays it open, as the picker's
   G/D/A/E buttons do), or press `Esc`. The board, right over
