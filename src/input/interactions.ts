@@ -13,6 +13,15 @@
  * while another bows, and a second touch on the board clearly to the bridge
  * side of a held stop is the right hand playing over the board (sul tasto /
  * pizz).
+ *
+ * In the pluck tools (pizz / pick) the right hand claims one more thing: any
+ * left/right swipe, wherever it starts. Plucking is a gesture ACROSS the
+ * string, so a sideways flick that begins on the board grabs and plucks
+ * instead of stopping — the stop it laid down on landing is taken back, and a
+ * stop already held is left untouched on its own string (see restoreLeftHand)
+ * — while taps and drags along the string stay the left hand's, exactly as
+ * under the bow. (Bowing needs no such rule: a stroke is a sideways swipe too,
+ * but it mostly happens off the board, beside the strings, anyway.)
  */
 import { SceneView, STRING_LEN, BRIDGE_RISE } from "../scene/scene";
 import { BOW_HAIR_SPAN } from "../scene/tools";
@@ -100,6 +109,11 @@ const LANE_STICKY = 0.02;
 // friendlier under touch, where taps land imprecisely). Instead it lifts when
 // flicked sideways off its string: at least this far laterally (world units),
 // and clearly more lateral than along the string.
+//
+// In the pluck tools the same sideways flick means something else — it is the
+// pluck itself (see leftUndo / onMove), since a pizzicato is a swipe across
+// the string, not along it — so the lift gesture there is the nut tap, the
+// corner tap or Esc.
 const LIFT_SWIPE_X = 0.12;
 // The same touch turns into a glissando drag instead once it travels this far
 // (world units) predominantly *along* the string — the world-unit twin of the
@@ -212,6 +226,15 @@ export class Interactions {
   // the left touch landed on the already-latched finger: it waits — a
   // sideways flick lifts, a drag along the string glissandos, a tap leaves it
   private leftOnFinger = false;
+  // In the pluck tools a left/right swipe is the RIGHT hand: plucking IS a
+  // sideways flick across the string, and one that begins over the board (sul
+  // tasto) must not leave a stop behind. The touch still stops the string the
+  // instant it lands — placing stays immediate, a tap must not wait to be
+  // sure — but provisionally: this remembers what the left hand was doing
+  // beforehand so a swipe can put it back and hand the pointer to the pluck.
+  // Null in the bow tool, and cleared once the touch commits (a glissando
+  // drag, or the pointer lifting on a tap).
+  private leftUndo: { on: boolean; pos: number; idx: number } | null = null;
   private pressureTarget = 0;
   private pointerRawX = 0; // raw pointer lateral position (pre-acceleration)
   private gestureDx = 0; // raw pointer movement accumulated since last frame
@@ -320,6 +343,12 @@ export class Interactions {
       this.leftMoved = false;
       this.leftDownPos = c.s;
       this.leftDownX = c.x;
+      // in the pluck tools the stop this touch is about to place is only
+      // provisional until the gesture proves not to be a sideways pluck
+      this.leftUndo =
+        state.tool === "bow"
+          ? null
+          : { on: state.fingerOn, pos: state.fingerPos, idx: state.stringIdx };
       const lane = this.catchLane(c);
       this.leftOnFinger =
         state.fingerOn && lane === state.stringIdx && Math.abs(c.s - state.fingerPos) < 0.035;
@@ -379,16 +408,33 @@ export class Interactions {
   private onMove(e: PointerEvent): void {
     const c = this.view.screenToString(e.clientX, e.clientY);
     if (e.pointerId === this.leftPointer) {
-      if (this.leftOnFinger && !this.leftMoved) {
-        // undecided touch on the latched finger: a sideways flick lifts it, a
-        // pull along the string becomes a glissando drag, anything less waits
+      // A touch waits to see what it means when it landed on the latched
+      // finger, and — in the pluck tools — whenever it landed at all, since
+      // there any sideways swipe is the right hand plucking.
+      if ((this.leftOnFinger || this.leftUndo) && !this.leftMoved) {
+        // undecided touch: a sideways flick lifts the finger (or, in the pluck
+        // tools, plucks), a pull along the string becomes a glissando drag,
+        // anything less waits
         const dx = c.x - this.leftDownX;
         const along = (c.s - this.leftDownPos) * STRING_LEN;
         if (Math.abs(dx) > LIFT_SWIPE_X && Math.abs(dx) > 1.5 * Math.abs(along)) {
-          this.leftPointer = -1;
-          this.leftOnFinger = false;
-          this.liftFinger();
-          return;
+          // in the pluck tools the swipe belongs to the right hand: take the
+          // provisional stop back off the string and grab it instead, from
+          // where the touch landed (unless the right hand is already busy
+          // with another pointer, in which case this stays a left-hand touch)
+          if (this.leftUndo && state.tool !== "bow" && this.rightPointer === -1) {
+            this.leftPointer = -1;
+            this.leftOnFinger = false;
+            this.restoreLeftHand();
+            this.startImplement(e, { s: this.leftDownPos, x: c.x });
+            return;
+          }
+          if (!this.leftUndo) {
+            this.leftPointer = -1;
+            this.leftOnFinger = false;
+            this.liftFinger();
+            return;
+          }
         }
         if (Math.abs(along) > DRAG_ALONG && Math.abs(along) >= Math.abs(dx)) {
           this.leftMoved = true;
@@ -396,7 +442,11 @@ export class Interactions {
       } else if (Math.abs(c.s - this.leftDownPos) > 0.012) {
         this.leftMoved = true;
       }
-      if (this.leftMoved) this.moveFinger(c.s);
+      if (this.leftMoved) {
+        // a glissando: the stop is the left hand's after all, and committed
+        this.leftUndo = null;
+        this.moveFinger(c.s);
+      }
       return;
     }
     if (e.pointerId === this.rightPointer) {
@@ -417,12 +467,40 @@ export class Interactions {
     this.hover = c;
   }
 
+  /** Put the left hand back as it was before the current touch placed its
+   * provisional stop (see leftUndo): the swipe turned out to be the right
+   * hand, so it leaves no stop behind — it only ever plucks.
+   *
+   * Which string it plucks follows from the same principle. With the hand
+   * lifted, the touch's own lane pick stands and the swipe plucks the lane it
+   * crossed — the whole point of reaching over the board, and it makes all
+   * four strings pluckable by touch alone. But while a stop is held the lane
+   * pick is taken back too: the finger and the sounding string move together
+   * here (one finger, one string), so keeping the new lane would carry the
+   * held stop onto a string the player never stopped. A swipe must not move
+   * the left hand at all, so it plucks the string the hand is stopping —
+   * which is the note being fingered, and the only one the model can pluck
+   * with that stop in place. */
+  private restoreLeftHand(): void {
+    const u = this.leftUndo;
+    this.leftUndo = null;
+    if (!u) return;
+    if (u.on && u.idx !== state.stringIdx) this.selectString(u.idx);
+    state.fingerOn = u.on;
+    state.fingerPos = u.pos;
+    this.fingerGlideTarget = null;
+    this.pressureTarget = !u.on ? 0 : state.leftMode === "press" ? 1 : 0.13;
+    notify();
+  }
+
   private onUp(e: PointerEvent): void {
     if (e.pointerId === this.leftPointer) {
       // the finger always stays latched — a tap on it no longer lifts it
       // (lifting is the sideways flick in onMove, or the lift tap targets)
       this.leftPointer = -1;
       this.leftOnFinger = false;
+      // a tap: the stop it placed is the left hand's, and stands
+      this.leftUndo = null;
       return;
     }
     if (e.pointerId === this.rightPointer) {
@@ -498,6 +576,10 @@ export class Interactions {
     state.fingerOn = false;
     this.pressureTarget = 0;
     this.fingerGlideTarget = null;
+    // a lift from anywhere else (Esc, the lift targets) becomes the baseline a
+    // pending pluck swipe would restore, so undoing its provisional stop can
+    // never bring the hand back down
+    if (this.leftUndo) this.leftUndo = { on: false, pos: state.fingerPos, idx: state.stringIdx };
     this.rearticulate();
     notify();
   }
