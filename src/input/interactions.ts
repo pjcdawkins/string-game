@@ -531,9 +531,10 @@ export class Interactions {
   /** Excite the active string and seed its ring-down, shared by the pointer and
    * keyboard plucks. `dx` is the bend for the visual snap. */
   private doPluck(p: number, force: number, dx: number): void {
-    // a plectrum is a sharp, fixed-width stroke (bright); a fingertip is a soft
-    // pulse keyed to the string period, so its mellow tone and level stay
-    // consistent from the low strings to the high (see StringSim.pluck)
+    // the string is released from the bend it is holding; each implement sets
+    // how much of the pull reaches it and how sharp a corner it leaves behind
+    // — a plectrum releases an almost ideal one (bright), a fingertip a
+    // rounded one (mellow). See StringSim.pluck.
     if (state.tool === "pick") engine.pluck(p, force * PICK_HOOK, PICK_CONTACT);
     else engine.pluck(p, force * PIZZ_HOOK, PIZZ_CONTACT);
     // vibration starts at the fingertip's bridge-side edge (the node)

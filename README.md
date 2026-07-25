@@ -172,9 +172,13 @@ nut |-- A --| finger |-- B --| bow/pluck |-- C --| bridge
 - **Tension modulation**: a slow amplitude tracker shortens all delay lines
   slightly when the string is driven beyond ordinary amplitudes, so hard,
   fast bowing goes sharp — scaled per string (strongest on G, barely on E).
-- **Plucks** are raised-cosine force pulses injected at the interaction
-  point; pulse duration encodes implement width/hardness (plectrum ≈ 0.7 ms,
-  fingertip ≈ 5 ms).
+- **Plucks** are not injected at all: the released triangle is loaded into
+  the delay lines as an initial condition (each straight leg becomes a
+  constant block of velocity wave, the two directions cancelling to a
+  stationary displaced string), so the contact-point comb and the 1/n²
+  spectrum come out on their own. The implement is a contact *width*
+  rounding the triangle's corner — plectrum ≈ 0.6%, fingertip ≈ 16% of the
+  vibrating length.
 - **Bridge**: inverting reflection through a one-pole loss/brightness filter
   plus two first-order allpasses for string stiffness (dispersion /
   inharmonicity); their group delay is compensated in the loop tuning. The
