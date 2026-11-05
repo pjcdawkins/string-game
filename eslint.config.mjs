@@ -2,7 +2,7 @@ import js from "@eslint/js";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
-// Flat config (ESLint 9). Type-aware linting is intentionally left off: the
+// Flat config (ESLint 10). Type-aware linting is intentionally left off: the
 // `typecheck` script (`tsc --noEmit`) already gives us the full type picture,
 // so ESLint stays fast and config-light with the non-type-checked ruleset.
 export default tseslint.config(
